@@ -16,15 +16,57 @@
  */
 
 import { parseChart } from '../engine/chart/parseChart'
+import { parseMidi } from '../engine/chart/parseMidi'
 import type { Song } from '../engine/types'
 import { buildDemoSong } from '../content/demoSong'
+import { parseSongIni } from './songIni'
+import type { StemRole } from '../audio/songPlayer'
+
+export interface AudioTrack {
+  url: string
+  role: StemRole
+}
 
 export interface SongEntry {
   song: Song
-  /** URLs tocáveis das faixas; vazio na faixa sintetizada. */
-  audioUrls: string[]
+  /** Faixas tocáveis, com o papel de cada uma; vazio na faixa sintetizada. */
+  tracks: AudioTrack[]
   /** A faixa demo é gerada, não carregada. */
   synthesized: boolean
+  /** De onde veio: `.chart` ou `notes.mid`. */
+  format: 'chart' | 'midi' | 'gerada'
+}
+
+/**
+ * Nome de arquivo para papel de faixa.
+ *
+ * A convenção do Clone Hero é posicional por nome: `guitar.ogg` é a
+ * guitarra do jogador, `song.ogg` é o resto da banda já misturado, e os
+ * demais são instrumentos separados quando o charter os tem. Reconhecer o
+ * papel é o que permite abafar só a guitarra num erro.
+ */
+const STEM_ROLES: Array<[RegExp, StemRole]> = [
+  [/^guitar/i, 'guitar'],
+  [/^rhythm/i, 'rhythm'],
+  [/^bass/i, 'bass'],
+  [/^drums?/i, 'drums'],
+  [/^vocals/i, 'vocals'],
+]
+
+function roleOf(fileName: string): StemRole {
+  const base = fileName.replace(/\.[^.]+$/, '')
+  for (const [pattern, role] of STEM_ROLES) {
+    if (pattern.test(base)) return role
+  }
+  return 'backing'
+}
+
+/** Arquivos que não fazem parte da mixagem da música. */
+function isPlayableAudio(name: string) {
+  const base = name.replace(/\.[^.]+$/, '').toLowerCase()
+  // `preview` é o trecho tocado no menu e `crowd` é a plateia gravada;
+  // nenhum dos dois entra na mixagem do jogo.
+  return isAudio(name) && base !== 'preview' && base !== 'crowd'
 }
 
 const AUDIO_EXTENSIONS = ['.ogg', '.mp3', '.opus', '.wav', '.m4a']
@@ -38,8 +80,21 @@ function isChart(name: string) {
   return name.toLowerCase().endsWith('.chart')
 }
 
+function isMidi(name: string) {
+  const lower = name.toLowerCase()
+  return lower.endsWith('.mid') || lower.endsWith('.midi')
+}
+
+function isIni(name: string) {
+  return name.toLowerCase().endsWith('.ini')
+}
+
+function isChartFile(name: string) {
+  return isChart(name) || isMidi(name)
+}
+
 export function demoEntry(): SongEntry {
-  return { song: buildDemoSong(), audioUrls: [], synthesized: true }
+  return { song: buildDemoSong(), tracks: [], synthesized: true, format: 'gerada' }
 }
 
 /** Agrupa uma lista plana de arquivos pela pasta que os contém. */
@@ -56,21 +111,51 @@ function groupByFolder(files: File[]): Map<string, File[]> {
 }
 
 async function entryFromFiles(folderName: string, files: File[]): Promise<SongEntry | null> {
+  const midiFile = files.find((f) => isMidi(f.name))
   const chartFile = files.find((f) => isChart(f.name))
-  if (!chartFile) return null
+  if (!midiFile && !chartFile) return null
 
-  const audioFiles = files.filter((f) => isAudio(f.name))
-  const text = await chartFile.text()
+  const audioFiles = files.filter((f) => isPlayableAudio(f.name))
+  const iniFile = files.find((f) => isIni(f.name))
+  const id = folderName.split('/').pop() || folderName
 
-  const song = parseChart(text, {
-    id: folderName.split('/').pop() || folderName,
-    audioFiles: audioFiles.map((f) => f.name),
-  })
+  // O `.ini` traz nome, artista e deslocamento de áudio, que o MIDI não tem.
+  const ini = iniFile ? parseSongIni(await iniFile.text()) : null
+
+  let song: Song
+  let format: SongEntry['format']
+
+  if (midiFile) {
+    song = parseMidi(await midiFile.arrayBuffer(), {
+      id,
+      audioFiles: audioFiles.map((f) => f.name),
+      meta: ini?.meta,
+    })
+    format = 'midi'
+  } else {
+    song = parseChart(await chartFile!.text(), {
+      id,
+      audioFiles: audioFiles.map((f) => f.name),
+    })
+    // O `.chart` traz os próprios metadados, mas o `.ini` tem precedência:
+    // é ele que o charter atualiza quando corrige um nome ou um atraso.
+    if (ini) song = { ...song, meta: { ...song.meta, ...ini.meta } }
+    format = 'chart'
+  }
+
+  // Sem nome em lugar nenhum, o nome da pasta é melhor que "Sem nome".
+  if (!song.meta.name || song.meta.name === 'Sem nome') {
+    song = { ...song, meta: { ...song.meta, name: id.replace(/[-_]+/g, ' ') } }
+  }
 
   return {
     song,
-    audioUrls: audioFiles.map((f) => URL.createObjectURL(f)),
+    tracks: audioFiles.map((file) => ({
+      url: URL.createObjectURL(file),
+      role: roleOf(file.name),
+    })),
     synthesized: false,
+    format,
   }
 }
 
@@ -128,13 +213,15 @@ export async function importFromDirectoryPicker(): Promise<SongEntry[]> {
 
     for await (const child of dir.values()) {
       if (child.kind === 'file') {
-        if (isChart(child.name) || isAudio(child.name)) files.push(await child.getFile())
+        if (isChartFile(child.name) || isAudio(child.name) || isIni(child.name)) {
+          files.push(await child.getFile())
+        }
       } else if (depth < 2) {
         subdirectories.push(child)
       }
     }
 
-    if (files.some((f) => isChart(f.name))) {
+    if (files.some((f) => isChartFile(f.name))) {
       const entry = await entryFromFiles(dir.name, files)
       if (entry) entries.push(entry)
     }
@@ -147,5 +234,5 @@ export async function importFromDirectoryPicker(): Promise<SongEntry[]> {
 }
 
 export function releaseEntry(entry: SongEntry) {
-  for (const url of entry.audioUrls) URL.revokeObjectURL(url)
+  for (const track of entry.tracks) URL.revokeObjectURL(track.url)
 }

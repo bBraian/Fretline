@@ -71,8 +71,16 @@ export function PlayScreen() {
     finishedRef.current = false
 
     const onEvent = (event: SessionEvent) => {
-      if (event.kind === 'hit') setVerdict({ verdict: event.verdict, delta: event.delta })
-      if (event.kind === 'miss' || event.kind === 'ghostTap') setVerdict(null)
+      if (event.kind === 'hit') {
+        setVerdict({ verdict: event.verdict, delta: event.delta })
+        playerRef.current?.setMissedFeedback(false)
+      }
+      if (event.kind === 'miss' || event.kind === 'ghostTap') {
+        setVerdict(null)
+        // Corta a faixa da guitarra: o buraco na música é o retorno mais
+        // direto que existe sobre um erro, e não precisa de texto na tela.
+        playerRef.current?.setMissedFeedback(true)
+      }
       if (event.kind === 'failed') {
         playerRef.current?.pause()
         setPhase('failed')
@@ -89,8 +97,8 @@ export function PlayScreen() {
       try {
         if (entry.synthesized) {
           player.useBuffers([await renderDemoTrack(player.context.sampleRate)])
-        } else if (entry.audioUrls.length > 0) {
-          await player.load(entry.audioUrls)
+        } else if (entry.tracks.length > 0) {
+          await player.load(entry.tracks)
         }
       } catch (loadError) {
         if (!cancelled) {

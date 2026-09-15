@@ -210,3 +210,72 @@ jogo — as três tocam igual. O parser continua derivando o tipo por fidelidade
 ao formato `.chart`, mas nada depois dele consulta. O anel que marcava HOPO e
 tap no braço foi realocado para marcar nota de star power, que é uma
 distinção que ainda existe.
+
+## Revisão: modelagem, direção de câmera e biblioteca real (2026-09-15)
+
+Três frentes, depois de jogar a versão anterior.
+
+### Modelagem
+
+Guitarras e personagens passaram de formas indicativas para modelos
+detalhados, ainda construídos em código.
+
+As silhuetas de corpo de guitarra passaram a ser **splines fechadas
+passando por pontos-guia**, não curvas de Bézier. Desenhar um corpo de
+guitarra escolhendo pontos de controle é adivinhação: a cintura some, os
+bojos incham, e cada ajuste estraga o anterior. Com a spline, o que se edita
+é a borda em si. Oito famílias: corte simples, corte duplo, chifres duplos,
+prancha, contorno deslocado, V, angular e corte duplo esticado — descritas
+pela forma, sem nome de fabricante.
+
+Os personagens ganharam proporções ancoradas em **marcos anatômicos**
+(virilha, umbigo, peito, ombro, queixo, joelho), e as mãos passaram a ser
+posicionadas por **cinemática inversa de dois ossos** em vez de ângulos
+escolhidos à mão — que era o que produzia braços cruzados sobre o peito. A
+banda ganhou papéis: o baterista senta e bate para baixo, o vocalista segura
+um microfone. Antes os quatro tocavam guitarra invisível.
+
+Dois erros de construção que só apareceram renderizando, e que valem
+registro porque nenhum dos dois dá erro em tempo de execução: o hardware da
+guitarra ficava *dentro* do tampo abaulado, e os traços do rosto ficavam
+*dentro* da esfera do crânio. Ambos passaram a ser posicionados em relação à
+geometria real, medida, em vez de estimados.
+
+### Duas cenas, duas câmeras
+
+O braço fica parado e o fundo se mexe. São duas cenas: o palco é desenhado
+com a câmera de um diretor que corta entre planos na batida, a profundidade
+é limpa, e a pista é desenhada por cima com câmera fixa. Uma câmera só para
+as duas coisas é impossível — mover o ângulo do show moveria as notas.
+
+Os planos são escritos em coordenadas do palco, com a câmera como filha do
+grupo do palco. `Object3D.lookAt` interpreta o alvo em espaço de mundo mesmo
+assim, então o alvo é convertido antes; esquecer isso fazia a câmera olhar
+para fora do palco, e o fundo saía preto.
+
+Planos miram *ao lado* do integrante, porque a pista ocupa o meio da tela.
+
+### Qualidade gráfica
+
+Dois níveis. O custo dominante do palco, medido apagando partes e comparando
+quadros por segundo, era a **iluminação por mapa de ambiente** dos
+materiais — não o número de luzes nem o de chamadas de desenho, que eram os
+palpites óbvios. Cronometrar `renderer.render()` não mostra isso: a chamada
+enfileira comandos e volta antes de o trabalho acontecer.
+
+### Biblioteca real
+
+O jogo passou a ler o que os packs de verdade trazem:
+
+- **`notes.mid`**, com as quatro dificuldades por oitava, HOPO forçado, tap,
+  star power e notas abertas por SysEx do Phase Shift;
+- **`song.ini`**, que é onde vivem nome, artista e o `delay` do áudio;
+- **faixas separadas**, com papel reconhecido pelo nome do arquivo. Errar
+  corta a faixa da guitarra e deixa o resto da banda tocando.
+
+A carreira ficou organizada nos tiers do Guitar Hero III. Como o jogo não
+distribui áudio, cada faixa é um *lugar* na carreira, casado com a
+biblioteca do jogador por título normalizado — acentuação, `&` contra `and`,
+artigo inicial e sufixos entre parênteses são tratados. Faixas ausentes
+aparecem como espaço vago com nome e artista, que é a informação necessária
+para ir atrás do chart.

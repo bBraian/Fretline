@@ -46,25 +46,89 @@ desloca só o desenho (latência do display). A tela de calibração mede os doi
 
 ## Músicas
 
-O jogo não distribui áudio. Já vem com uma faixa de demonstração
+O jogo não distribui áudio nenhum. Ele vem com uma faixa de demonstração
 sintetizada em código — o mesmo arquivo gera o chart e o som, então não há
 como saírem de sincronia — e importa a sua própria biblioteca no formato do
-Clone Hero: uma pasta por música, com o `.chart` e as faixas de áudio dentro.
-Os arquivos ficam no seu computador; nada é enviado a lugar nenhum.
+Clone Hero. Os arquivos ficam no seu computador; nada é enviado a lugar
+nenhum.
 
-Estão implementados: acordes, sustains, notas abertas, trechos de star
-power, e mudanças de andamento e de fórmula de compasso. O parser também
-deriva HOPO e tap porque fazem parte do formato, mas o jogo não os usa —
-ver abaixo.
+Uma pasta por música, contendo:
+
+- **`notes.mid`** (o formato da maioria dos packs) ou **`notes.chart`**;
+- **`song.ini`** com nome, artista, ano e o `delay` do áudio;
+- as faixas de áudio: `song.ogg` com a banda misturada, ou faixas separadas
+  (`guitar.ogg`, `rhythm.ogg`, `bass.ogg`, `drums.ogg`, `vocals.ogg`).
+
+Quando existe uma faixa de guitarra separada, **errar corta a guitarra** e o
+resto da banda continua tocando, como no original. Com uma faixa só, o
+volume geral abaixa, que é o possível.
+
+Estão implementados: acordes, sustains, notas abertas (por SysEx do Phase
+Shift no `.mid`), trechos de star power, mudanças de andamento e de fórmula
+de compasso, e as quatro dificuldades separadas por oitava.
+
+### Carreira
+
+A tela de carreira traz os tiers do Guitar Hero III na ordem original. Cada
+faixa é um *lugar*: assim que a música correspondente entra na sua
+biblioteca, o lugar fica jogável. O casamento é pelo título normalizado — o
+nome da pasta não importa, e variações de acentuação, `&` contra `and` e
+sufixos entre parênteses são tratadas.
+
+A lista de faixas vive em `src/content/setlists.ts`, uma linha por música.
+Ela não precisa estar completa para a carreira funcionar: um tier com menos
+faixas simplesmente é mais curto.
 
 ## Arte
 
 Personagens, guitarras, bateria e palco são construídos em código a partir
 de parâmetros — não há nenhum arquivo de modelo no projeto. Acrescentar um
 personagem ao elenco é acrescentar uma entrada em
-`src/content/characters.ts`. Trocar isso por modelos glTF depois não mexe no
-resto: `render/character.ts` e `render/guitarModel.ts` são os únicos que
-precisariam mudar.
+`src/content/characters.ts`; acrescentar uma guitarra, uma entrada em
+`src/content/guitars.ts` mais uma silhueta em `render/guitar/shapes.ts`.
+
+A razão de não usar modelos importados é concreta: os integrantes da banda
+são animados por um esqueleto escrito à mão, com cinemática inversa
+posicionando as mãos sobre o instrumento. Um modelo baixado ou gerado viria
+sem esqueleto — seria uma estátua. E como a guitarra fica presa na mão de
+alguém, as duas coisas precisam sair da mesma fábrica.
+
+As silhuetas de corpo de guitarra são splines fechadas passando por
+pontos-guia, e não curvas de Bézier com pontos de controle: o que se edita é
+a borda em si, então mover um ponto muda a linha ali e só ali.
+
+## Câmeras
+
+O braço da guitarra fica parado; o que se mexe é o fundo. São **duas cenas
+com duas câmeras**: o palco é desenhado primeiro, com a câmera de um diretor
+que corta entre planos — geral, contra-plongée no guitarrista, bateria,
+plateia vista de trás da banda, travelling lateral —, o buffer de
+profundidade é limpo, e a pista é desenhada por cima com uma câmera fixa.
+
+Uma câmera só para as duas coisas seria impossível: mover o ângulo do show
+moveria as notas junto, e um jogo de ritmo em que a pista se mexe é
+injogável.
+
+Os cortes caem **na batida**, nunca no meio dela — fora do tempo lê como
+falha técnica; no tempo, lê como direção. E os planos miram *ao lado* do
+integrante, porque o braço da guitarra ocupa o meio da tela: centralizar o
+sujeito o colocaria justamente atrás das notas.
+
+`?shot=<id>` na URL trava um plano, para conferir um ângulo sem esperar o
+sorteio; `npm run shots` fotografa todos.
+
+## Qualidade gráfica
+
+Nos ajustes, **alta** usa um compositor com brilho difuso, sombras
+projetadas, feixes de luz visíveis, fumaça e iluminação por mapa de
+ambiente. **Baixa** tira tudo isso e desenha as duas cenas direto na tela.
+A jogabilidade e o julgamento das notas não mudam em nada.
+
+A medição que levou a essa divisão: apagando partes da cena e comparando
+quadros por segundo, o custo dominante era a iluminação por imagem dos
+materiais, não o número de luzes nem o de chamadas de desenho — que era o
+palpite óbvio, e estava errado. Cronometrar `renderer.render()` não teria
+mostrado isso, porque a chamada só enfileira comandos e volta.
 
 ## Controles
 
@@ -97,9 +161,12 @@ o bumper direito.
 ## Testes
 
 ```bash
-npm test          # 45 testes do engine: parser, julgamento, score, medidor
+npm test          # 68 testes do engine: parsers, julgamento, score, medidor
 npm run smoke     # abre o jogo num navegador de verdade e toca a demo
-npm run capture   # capturas de tela para conferência visual
+npm run capture   # capturas do jogo em andamento
+npm run shots     # um retrato de cada plano de câmera
+npm run gallery   # cada guitarra e cada personagem na tela de seleção
+npm run menus     # as telas de menu
 ```
 
 O teste de fumaça sobe o próprio servidor, injeta um piloto automático na

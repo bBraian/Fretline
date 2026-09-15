@@ -8,6 +8,7 @@
 
 import { useGame } from './ui/store'
 import { MenuScreen } from './ui/screens/MenuScreen'
+import { CareerScreen } from './ui/screens/CareerScreen'
 import { SongsScreen } from './ui/screens/SongsScreen'
 import { CharactersScreen } from './ui/screens/CharactersScreen'
 import { GuitarsScreen } from './ui/screens/GuitarsScreen'
@@ -20,6 +21,8 @@ export function App() {
   const screen = useGame((s) => s.screen)
 
   switch (screen) {
+    case 'career':
+      return <CareerScreen />
     case 'songs':
       return <SongsScreen />
     case 'characters':

@@ -23,6 +23,14 @@ export function MenuScreen() {
         </header>
 
         <nav className="menu-actions">
+          <button className="menu-item" onClick={() => setScreen('career')}>
+            <span>
+              <strong>Carreira</strong>
+              <span>Os tiers na ordem original, preenchidos pela sua biblioteca</span>
+            </span>
+            <span aria-hidden>▸</span>
+          </button>
+
           <button className="menu-item" onClick={() => setScreen('songs')}>
             <span>
               <strong>Tocar</strong>

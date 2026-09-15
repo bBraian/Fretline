@@ -20,6 +20,7 @@ import type { Quality } from '../render/gameScene'
 
 export type Screen =
   | 'menu'
+  | 'career'
   | 'songs'
   | 'characters'
   | 'guitars'

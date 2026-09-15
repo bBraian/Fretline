@@ -18,10 +18,19 @@ export interface SongPlayerOptions {
   chartOffset?: number
 }
 
+/** Papel de cada faixa de áudio dentro da música. */
+export type StemRole = 'guitar' | 'rhythm' | 'bass' | 'drums' | 'vocals' | 'backing'
+
+interface Stem {
+  role: StemRole
+  buffer: AudioBuffer
+  gain: GainNode
+}
+
 export class SongPlayer implements Clock {
   private ctx: AudioContext
   private gain: GainNode
-  private buffers: AudioBuffer[] = []
+  private stems: Stem[] = []
   private sources: AudioBufferSourceNode[] = []
 
   /** Instante do `AudioContext` correspondente a songTime = 0. */
@@ -52,12 +61,23 @@ export class SongPlayer implements Clock {
     return this.ctx.outputLatency || this.ctx.baseLatency || 0
   }
 
-  async load(urls: string[]) {
-    this.buffers = await Promise.all(
-      urls.map(async (url) => {
+  /**
+   * Carrega as faixas. Cada uma ganha o próprio controle de volume, o que é
+   * o que permite abafar só a guitarra quando o jogador erra — o efeito do
+   * original, e o retorno mais direto que o jogo dá sobre um erro.
+   */
+  async load(tracks: Array<{ url: string; role: StemRole }>) {
+    this.disconnectStems()
+
+    this.stems = await Promise.all(
+      tracks.map(async ({ url, role }) => {
         const response = await fetch(url)
         if (!response.ok) throw new Error(`Falha ao carregar ${url}: ${response.status}`)
-        return this.ctx.decodeAudioData(await response.arrayBuffer())
+        const buffer = await this.ctx.decodeAudioData(await response.arrayBuffer())
+
+        const gain = this.ctx.createGain()
+        gain.connect(this.gain)
+        return { role, buffer, gain }
       }),
     )
   }
@@ -67,12 +87,27 @@ export class SongPlayer implements Clock {
    * da demonstração, que nunca passa por um arquivo.
    */
   useBuffers(buffers: AudioBuffer[]) {
-    this.buffers = buffers
+    this.disconnectStems()
+    this.stems = buffers.map((buffer) => {
+      const gain = this.ctx.createGain()
+      gain.connect(this.gain)
+      return { role: 'backing' as StemRole, buffer, gain }
+    })
+  }
+
+  private disconnectStems() {
+    for (const stem of this.stems) stem.gain.disconnect()
+    this.stems = []
+  }
+
+  /** Há uma faixa de guitarra separada para abafar? */
+  get hasGuitarStem() {
+    return this.stems.some((stem) => stem.role === 'guitar')
   }
 
   /** Duração da faixa mais longa, para saber quando a música acaba. */
   get duration() {
-    return this.buffers.reduce((max, b) => Math.max(max, b.duration), 0)
+    return this.stems.reduce((max, stem) => Math.max(max, stem.buffer.duration), 0)
   }
 
   async start(fromSongTime = -Infinity) {
@@ -83,10 +118,11 @@ export class SongPlayer implements Clock {
     this.origin = startAt - begin
     this.stopSources()
 
-    for (const buffer of this.buffers) {
+    for (const stem of this.stems) {
+      const buffer = stem.buffer
       const source = this.ctx.createBufferSource()
       source.buffer = buffer
-      source.connect(this.gain)
+      source.connect(stem.gain)
 
       // O áudio toca quando songTime alcança o offset declarado no chart.
       const audioStartsAtSongTime = this.chartOffset
@@ -128,12 +164,23 @@ export class SongPlayer implements Clock {
   }
 
   /**
-   * Abafa a guitarra quando o jogador erra, como no original. Com uma faixa
-   * só não há o que abafar, então o volume geral cai um pouco.
+   * Abafa a guitarra quando o jogador erra, como no original.
+   *
+   * Com faixas separadas, só a guitarra cai — o resto da banda continua
+   * tocando, e o buraco no meio da música é exatamente o retorno que o
+   * jogador precisa. Com uma faixa só não há o que separar, então o volume
+   * geral abaixa um pouco, que é o possível.
    */
   setMissedFeedback(missed: boolean) {
-    const target = missed ? 0.35 : 1
-    this.gain.gain.setTargetAtTime(target, this.ctx.currentTime, 0.02)
+    const now = this.ctx.currentTime
+    if (this.hasGuitarStem) {
+      for (const stem of this.stems) {
+        if (stem.role !== 'guitar' && stem.role !== 'rhythm') continue
+        stem.gain.gain.setTargetAtTime(missed ? 0 : 1, now, 0.015)
+      }
+      return
+    }
+    this.gain.gain.setTargetAtTime(missed ? 0.45 : 1, now, 0.02)
   }
 
   now(): number {
