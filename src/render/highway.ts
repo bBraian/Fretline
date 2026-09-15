@@ -28,6 +28,18 @@ void main() {
 }
 `
 
+/**
+ * As duas inclusões no fim não são decoração: um `ShaderMaterial` que escreve
+ * `gl_FragColor` direto passa por cima do mapeamento de tom e da conversão
+ * para o espaço de cor de saída, que o Three aplica sozinho nos materiais
+ * prontos. Sem elas, as cores dos uniformes — que o Three já converteu para
+ * espaço linear ao serem definidas — vão cruas para a tela e a pista sai
+ * quase preta.
+ *
+ * As declarações dessas funções já vêm no prefixo que o Three monta para
+ * todo `ShaderMaterial`; incluir os blocos `_pars_` aqui as declararia duas
+ * vezes e o shader não compila.
+ */
 const FRAGMENT = /* glsl */ `
 precision highp float;
 
@@ -55,19 +67,20 @@ void main() {
   for (int i = 1; i < 5; i++) {
     lanes += crispLine(vUv.x, float(i) / 5.0, 1.0);
   }
-  color += vec3(0.16, 0.18, 0.24) * lanes;
+  color += vec3(0.30, 0.34, 0.46) * lanes;
 
   // Bordas da pista, mais fortes que as divisórias internas.
   float border = crispLine(vUv.x, 0.0, 2.0) + crispLine(vUv.x, 1.0, 2.0);
-  color += vec3(0.35, 0.40, 0.55) * border;
+  color += vec3(0.55, 0.62, 0.85) * border;
 
-  // A pista escurece ao longe, o que dá profundidade sem névoa global.
-  float depth = smoothstep(0.0, 0.55, vUv.y);
-  color *= mix(0.12, 1.0, depth);
+  // A pista escurece ao longe, o que dá profundidade sem névoa global. O
+  // piso não pode cair a zero: é sobre ele que as notas distantes são lidas.
+  float depth = smoothstep(0.0, 0.6, vUv.y);
+  color *= mix(0.38, 1.0, depth);
 
   // Faixa de brilho logo antes da linha de batida.
-  float approach = smoothstep(0.86, 1.0, vUv.y) * 0.35;
-  color += vec3(0.20, 0.26, 0.42) * approach;
+  float approach = smoothstep(0.82, 1.0, vUv.y) * 0.5;
+  color += vec3(0.24, 0.32, 0.55) * approach;
 
   color = mix(color, uStarPower, uStarPowerMix * (0.25 + 0.5 * depth));
   color = mix(color, vec3(0.45, 0.06, 0.06), uFail * 0.55);
@@ -76,6 +89,9 @@ void main() {
   color += vec3(0.9, 0.95, 1.0) * line * 0.8;
 
   gl_FragColor = vec4(color, 1.0);
+
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
 }
 `
 
@@ -96,8 +112,8 @@ export class Highway {
       vertexShader: VERTEX,
       fragmentShader: FRAGMENT,
       uniforms: {
-        uBase: { value: new THREE.Color(0x0b0d14) },
-        uEdge: { value: new THREE.Color(0x151a28) },
+        uBase: { value: new THREE.Color(0x1a2138) },
+        uEdge: { value: new THREE.Color(0x2b3a63) },
         uStarPower: { value: new THREE.Color(0x3d7dff) },
         uStarPowerMix: { value: 0 },
         // A linha de batida em UV: onde z = 0 cai dentro do plano.

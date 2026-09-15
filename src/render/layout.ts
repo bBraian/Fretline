@@ -13,7 +13,7 @@ export const LANE_COUNT = 5
 export const HIGHWAY_WIDTH = LANE_WIDTH * LANE_COUNT
 
 /** Comprimento desenhado do braço, atrás da linha de batida. */
-export const HIGHWAY_LENGTH = 34
+export const HIGHWAY_LENGTH = 27
 
 /** Quanto do braço aparece na frente da linha de batida. */
 export const HIGHWAY_OVERSHOOT = 2.2

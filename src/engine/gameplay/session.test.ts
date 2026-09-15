@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Session } from './session'
-import { HIT_WINDOW, POINTS_PER_NOTE } from './rules'
+import { CHORD_GRACE, HIT_WINDOW, POINTS_PER_NOTE } from './rules'
 import type { Chart, Note, NoteType } from '../types'
 
 /** Monta um chart sintético: cada entrada vira uma nota num tempo exato. */
@@ -25,12 +25,16 @@ const GREEN = 0b00001
 const RED = 0b00010
 const YELLOW = 0b00100
 
-describe('acerto por palhetada', () => {
-  it('acerta a nota quando o traste certo está pressionado', () => {
+/** Aperta trastes num instante; a máscara é o estado completo da mão. */
+function press(session: Session, mask: number, time: number) {
+  session.handleInput({ kind: 'frets', mask, time })
+}
+
+describe('acerto pelo traste', () => {
+  it('apertar o traste certo dentro da janela acerta a nota', () => {
     const s = new Session(chartOf([{ time: 1, frets: GREEN }]), 'expert')
     s.update(0.9)
-    s.handleInput({ kind: 'frets', mask: GREEN, time: 0.95 })
-    s.handleInput({ kind: 'strum', time: 1.0 })
+    press(s, GREEN, 1.0)
 
     expect(s.statusOf(0)).toBe('hit')
     expect(s.getState().score).toBe(POINTS_PER_NOTE)
@@ -39,122 +43,177 @@ describe('acerto por palhetada', () => {
 
   it('aceita dentro da janela e recusa fora dela', () => {
     const dentro = new Session(chartOf([{ time: 1, frets: GREEN }]), 'expert')
-    dentro.handleInput({ kind: 'frets', mask: GREEN, time: 0 })
-    dentro.handleInput({ kind: 'strum', time: 1 - HIT_WINDOW * 0.9 })
+    press(dentro, GREEN, 1 - HIT_WINDOW * 0.9)
     expect(dentro.statusOf(0)).toBe('hit')
 
     const fora = new Session(chartOf([{ time: 1, frets: GREEN }]), 'expert')
-    fora.handleInput({ kind: 'frets', mask: GREEN, time: 0 })
-    fora.handleInput({ kind: 'strum', time: 1 - HIT_WINDOW * 1.5 })
+    press(fora, GREEN, 1 - HIT_WINDOW * 1.5)
     expect(fora.statusOf(0)).toBe('pending')
   })
 
   it('classifica como perfeito só bem no centro da janela', () => {
     const s = new Session(chartOf([{ time: 1, frets: GREEN }]), 'expert')
-    s.handleInput({ kind: 'frets', mask: GREEN, time: 0 })
-    s.handleInput({ kind: 'strum', time: 1.005 })
+    press(s, GREEN, 1.005)
     expect(s.getState().lastJudgement?.verdict).toBe('perfect')
   })
 
-  it('palhetada com o traste errado não acerta e quebra a corrente', () => {
+  it('soltar o traste não acerta nota comum', () => {
+    const s = new Session(
+      chartOf([
+        { time: 1, frets: GREEN },
+        { time: 1.2, frets: GREEN },
+      ]),
+      'expert',
+    )
+    press(s, GREEN, 1.0)
+    expect(s.statusOf(0)).toBe('hit')
+
+    // Soltar não pode valer como a segunda nota.
+    press(s, 0, 1.2)
+    expect(s.statusOf(1)).toBe('pending')
+  })
+
+  it('duas notas no mesmo traste exigem soltar e apertar de novo', () => {
+    const s = new Session(
+      chartOf([
+        { time: 1, frets: GREEN },
+        { time: 1.2, frets: GREEN },
+      ]),
+      'expert',
+    )
+    press(s, GREEN, 1.0)
+    press(s, 0, 1.1)
+    press(s, GREEN, 1.2)
+
+    expect(s.statusOf(0)).toBe('hit')
+    expect(s.statusOf(1)).toBe('hit')
+    expect(s.getState().streak).toBe(2)
+  })
+})
+
+describe('toque no vazio', () => {
+  it('apertar sem nota nenhuma por perto é castigado', () => {
+    const s = new Session(chartOf([{ time: 5, frets: GREEN }]), 'expert')
+    s.update(1)
+    press(s, GREEN, 1)
+    s.update(1 + CHORD_GRACE + 0.001)
+
+    expect(s.consumeEvents().some((e) => e.kind === 'ghostTap')).toBe(true)
+    expect(s.getState().rockMeter).toBeLessThan(0.5)
+    expect(s.getState().streak).toBe(0)
+  })
+
+  it('apertar o traste errado em cima da nota é castigado', () => {
     const s = new Session(chartOf([{ time: 1, frets: GREEN }]), 'expert')
-    s.handleInput({ kind: 'frets', mask: RED, time: 0.9 })
-    s.handleInput({ kind: 'strum', time: 1.0 })
+    press(s, RED, 1.0)
+    s.update(1 + CHORD_GRACE + 0.001)
 
     expect(s.statusOf(0)).toBe('pending')
-    expect(s.getState().streak).toBe(0)
     expect(s.getState().rockMeter).toBeLessThan(0.5)
   })
 
-  it('palhetar sem nota nenhuma na janela é punido', () => {
+  it('não castiga antes da folga do acorde passar', () => {
     const s = new Session(chartOf([{ time: 5, frets: GREEN }]), 'expert')
-    s.update(1)
-    s.handleInput({ kind: 'strum', time: 1 })
+    press(s, GREEN, 1)
+    s.update(1 + CHORD_GRACE * 0.5)
+    expect(s.getState().rockMeter).toBe(0.5)
+  })
 
-    const events = s.consumeEvents()
-    expect(events.some((e) => e.kind === 'overstrum')).toBe(true)
-    expect(s.getState().rockMeter).toBeLessThan(0.5)
+  it('soltar trastes nunca é castigado', () => {
+    const s = new Session(chartOf([{ time: 5, frets: GREEN }]), 'expert')
+    press(s, GREEN, 0.5)
+    s.consumeEvents()
+    s.update(0.5 + CHORD_GRACE + 0.01)
+    const meterAfterTap = s.getState().rockMeter
+
+    press(s, 0, 1)
+    s.update(1 + CHORD_GRACE + 0.01)
+    expect(s.getState().rockMeter).toBe(meterAfterTap)
+  })
+})
+
+describe('acordes', () => {
+  it('dedos chegando em tempos diferentes formam o acorde sem castigo', () => {
+    const s = new Session(chartOf([{ time: 1, frets: GREEN | YELLOW }]), 'expert')
+    // Primeiro dedo: ainda não satisfaz o acorde.
+    press(s, GREEN, 0.99)
+    expect(s.statusOf(0)).toBe('pending')
+
+    // Segundo dedo, dentro da folga: fecha o acorde.
+    press(s, GREEN | YELLOW, 0.99 + CHORD_GRACE * 0.6)
+    s.update(1.2)
+
+    expect(s.statusOf(0)).toBe('hit')
+    expect(s.getState().rockMeter).toBeGreaterThan(0.5)
+    expect(s.consumeEvents().some((e) => e.kind === 'ghostTap')).toBe(false)
+  })
+
+  it('um dedo que nunca fecha o acorde vira castigo', () => {
+    const s = new Session(chartOf([{ time: 1, frets: GREEN | YELLOW }]), 'expert')
+    press(s, GREEN, 0.99)
+    s.update(0.99 + CHORD_GRACE + 0.001)
+    expect(s.consumeEvents().some((e) => e.kind === 'ghostTap')).toBe(true)
+  })
+
+  it('acorde exige correspondência exata', () => {
+    const sobrando = new Session(chartOf([{ time: 1, frets: GREEN | YELLOW }]), 'expert')
+    press(sobrando, GREEN | RED | YELLOW, 1)
+    expect(sobrando.statusOf(0)).toBe('pending')
+  })
+
+  it('acorde paga por traste', () => {
+    const s = new Session(chartOf([{ time: 1, frets: GREEN | YELLOW }]), 'expert')
+    press(s, GREEN | YELLOW, 1)
+    expect(s.getState().score).toBe(POINTS_PER_NOTE * 2)
   })
 })
 
 describe('regra dos trastes', () => {
   it('segurar trastes abaixo do alvo é permitido numa nota simples', () => {
     const s = new Session(chartOf([{ time: 1, frets: YELLOW }]), 'expert')
-    s.handleInput({ kind: 'frets', mask: GREEN | RED | YELLOW, time: 0.9 })
-    s.handleInput({ kind: 'strum', time: 1 })
+    press(s, GREEN | RED, 0.5)
+    s.update(0.5 + CHORD_GRACE + 0.01)
+    s.consumeEvents()
+
+    // A mão sobe até o amarelo sem soltar os de baixo.
+    press(s, GREEN | RED | YELLOW, 1)
     expect(s.statusOf(0)).toBe('hit')
   })
 
   it('segurar um traste acima do alvo invalida', () => {
     const s = new Session(chartOf([{ time: 1, frets: RED }]), 'expert')
-    s.handleInput({ kind: 'frets', mask: RED | YELLOW, time: 0.9 })
-    s.handleInput({ kind: 'strum', time: 1 })
+    press(s, RED | YELLOW, 1)
     expect(s.statusOf(0)).toBe('pending')
-  })
-
-  it('acorde exige correspondência exata', () => {
-    const exato = new Session(chartOf([{ time: 1, frets: GREEN | YELLOW }]), 'expert')
-    exato.handleInput({ kind: 'frets', mask: GREEN | YELLOW, time: 0.9 })
-    exato.handleInput({ kind: 'strum', time: 1 })
-    expect(exato.statusOf(0)).toBe('hit')
-
-    const sobrando = new Session(chartOf([{ time: 1, frets: GREEN | YELLOW }]), 'expert')
-    sobrando.handleInput({ kind: 'frets', mask: GREEN | RED | YELLOW, time: 0.9 })
-    sobrando.handleInput({ kind: 'strum', time: 1 })
-    expect(sobrando.statusOf(0)).toBe('pending')
-  })
-
-  it('nota aberta exige nenhum traste pressionado', () => {
-    const s = new Session(chartOf([{ time: 1, frets: 0, open: true }]), 'expert')
-    s.handleInput({ kind: 'frets', mask: GREEN, time: 0.9 })
-    s.handleInput({ kind: 'strum', time: 1 })
-    expect(s.statusOf(0)).toBe('pending')
-
-    s.handleInput({ kind: 'frets', mask: 0, time: 1.0 })
-    s.handleInput({ kind: 'strum', time: 1.01 })
-    expect(s.statusOf(0)).toBe('hit')
-  })
-
-  it('acorde paga por traste', () => {
-    const s = new Session(chartOf([{ time: 1, frets: GREEN | YELLOW }]), 'expert')
-    s.handleInput({ kind: 'frets', mask: GREEN | YELLOW, time: 0.9 })
-    s.handleInput({ kind: 'strum', time: 1 })
-    expect(s.getState().score).toBe(POINTS_PER_NOTE * 2)
   })
 })
 
-describe('HOPO e tap', () => {
-  it('HOPO é acertado só com o traste, se a corrente está viva', () => {
-    const s = new Session(
-      chartOf([
-        { time: 1, frets: GREEN },
-        { time: 1.1, frets: RED, type: 'hopo' },
-      ]),
-      'expert',
-    )
-    s.handleInput({ kind: 'frets', mask: GREEN, time: 0.95 })
-    s.handleInput({ kind: 'strum', time: 1 })
-    s.handleInput({ kind: 'frets', mask: RED, time: 1.1 })
+describe('nota aberta', () => {
+  it('é tocada soltando todos os trastes', () => {
+    const s = new Session(chartOf([{ time: 1, frets: 0, open: true }]), 'expert')
+    press(s, GREEN, 0.5)
+    s.update(0.5 + CHORD_GRACE + 0.01)
+    s.consumeEvents()
 
-    expect(s.statusOf(1)).toBe('hit')
-  })
-
-  it('HOPO não vale com a corrente quebrada', () => {
-    const s = new Session(chartOf([{ time: 1, frets: RED, type: 'hopo' }]), 'expert')
-    s.handleInput({ kind: 'frets', mask: RED, time: 1 })
-    expect(s.statusOf(0)).toBe('pending')
-  })
-
-  it('tap vale sempre, mesmo sem corrente', () => {
-    const s = new Session(chartOf([{ time: 1, frets: RED, type: 'tap' }]), 'expert')
-    s.handleInput({ kind: 'frets', mask: RED, time: 1 })
+    press(s, 0, 1.0)
     expect(s.statusOf(0)).toBe('hit')
   })
 
-  it('nota de palhetada não é acertada só com o traste', () => {
-    const s = new Session(chartOf([{ time: 1, frets: RED, type: 'strum' }]), 'expert')
-    s.handleInput({ kind: 'frets', mask: RED, time: 1 })
+  it('soltar parcialmente não basta', () => {
+    const s = new Session(chartOf([{ time: 1, frets: 0, open: true }]), 'expert')
+    press(s, GREEN | RED, 0.5)
+    s.update(0.5 + CHORD_GRACE + 0.01)
+
+    press(s, GREEN, 1.0)
     expect(s.statusOf(0)).toBe('pending')
+  })
+
+  it('apertar um traste com nota aberta à frente não é castigado', () => {
+    const s = new Session(chartOf([{ time: 1, frets: 0, open: true }]), 'expert')
+    const meterBefore = s.getState().rockMeter
+
+    press(s, GREEN, 0.98)
+    s.update(0.98 + CHORD_GRACE + 0.01)
+    expect(s.getState().rockMeter).toBe(meterBefore)
   })
 })
 
@@ -189,41 +248,39 @@ describe('notas perdidas', () => {
 })
 
 describe('multiplicador', () => {
-  it('sobe a cada dez acertos e trava em quatro', () => {
-    const notes = Array.from({ length: 45 }, (_, i) => ({ time: 1 + i * 0.5, frets: GREEN }))
-    const s = new Session(chartOf(notes), 'expert')
-    s.handleInput({ kind: 'frets', mask: GREEN, time: 0 })
-
-    let played = 0
-    const playMore = (n: number) => {
-      for (let i = 0; i < n; i++) {
-        const t = 1 + played * 0.5
-        played++
-        s.update(t)
-        s.handleInput({ kind: 'strum', time: t })
-      }
-      return s.getState().multiplier
+  /** Toca uma sequência de notas verdes, soltando entre uma e outra. */
+  function play(session: Session, times: number[]) {
+    for (const t of times) {
+      session.update(t - 0.01)
+      press(session, GREEN, t)
+      press(session, 0, t + 0.01)
     }
+  }
 
-    expect(playMore(1)).toBe(1)
-    expect(playMore(9)).toBe(2)
-    expect(playMore(10)).toBe(3)
-    expect(playMore(10)).toBe(4)
-    expect(playMore(10)).toBe(4)
+  it('sobe a cada dez acertos e trava em quatro', () => {
+    const times = Array.from({ length: 45 }, (_, i) => 1 + i * 0.5)
+    const s = new Session(chartOf(times.map((time) => ({ time, frets: GREEN }))), 'expert')
+
+    play(s, times.slice(0, 1))
+    expect(s.getState().multiplier).toBe(1)
+    play(s, times.slice(1, 10))
+    expect(s.getState().multiplier).toBe(2)
+    play(s, times.slice(10, 20))
+    expect(s.getState().multiplier).toBe(3)
+    play(s, times.slice(20, 30))
+    expect(s.getState().multiplier).toBe(4)
+    play(s, times.slice(30, 40))
+    expect(s.getState().multiplier).toBe(4)
   })
 
   it('erro devolve o multiplicador para um', () => {
-    const notes = Array.from({ length: 15 }, (_, i) => ({ time: 1 + i * 0.5, frets: GREEN }))
-    const s = new Session(chartOf(notes), 'expert')
-    s.handleInput({ kind: 'frets', mask: GREEN, time: 0 })
-    for (let i = 0; i < 12; i++) {
-      const t = 1 + i * 0.5
-      s.update(t)
-      s.handleInput({ kind: 'strum', time: t })
-    }
+    const times = Array.from({ length: 15 }, (_, i) => 1 + i * 0.5)
+    const s = new Session(chartOf(times.map((time) => ({ time, frets: GREEN }))), 'expert')
+
+    play(s, times.slice(0, 12))
     expect(s.getState().multiplier).toBe(2)
 
-    s.update(1 + 12 * 0.5 + HIT_WINDOW + 0.01)
+    s.update(times[12] + HIT_WINDOW + 0.01)
     expect(s.getState().multiplier).toBe(1)
   })
 })
@@ -231,8 +288,7 @@ describe('multiplicador', () => {
 describe('sustains', () => {
   it('paga enquanto o traste é mantido', () => {
     const s = new Session(chartOf([{ time: 1, frets: GREEN, duration: 1 }]), 'expert')
-    s.handleInput({ kind: 'frets', mask: GREEN, time: 0.9 })
-    s.handleInput({ kind: 'strum', time: 1 })
+    press(s, GREEN, 1)
     const afterHit = s.getState().score
 
     s.update(1.5)
@@ -242,10 +298,9 @@ describe('sustains', () => {
 
   it('soltar o traste encerra o sustain', () => {
     const s = new Session(chartOf([{ time: 1, frets: GREEN, duration: 1 }]), 'expert')
-    s.handleInput({ kind: 'frets', mask: GREEN, time: 0.9 })
-    s.handleInput({ kind: 'strum', time: 1 })
+    press(s, GREEN, 1)
     s.update(1.2)
-    s.handleInput({ kind: 'frets', mask: 0, time: 1.3 })
+    press(s, 0, 1.3)
     s.update(1.4)
 
     expect(s.getState().activeSustains).toEqual([])
@@ -253,8 +308,7 @@ describe('sustains', () => {
 
   it('para de pagar quando o sustain termina', () => {
     const s = new Session(chartOf([{ time: 1, frets: GREEN, duration: 1 }]), 'expert')
-    s.handleInput({ kind: 'frets', mask: GREEN, time: 0.9 })
-    s.handleInput({ kind: 'strum', time: 1 })
+    press(s, GREEN, 1)
     s.update(2)
     const atEnd = s.getState().score
     s.update(5)
@@ -272,28 +326,32 @@ describe('star power', () => {
       [{ start: 0.9, end: 2 }],
     )
 
+  /** Acerta uma nota verde, soltando o traste em seguida. */
+  function tap(session: Session, time: number) {
+    session.update(time - 0.01)
+    press(session, GREEN, time)
+    press(session, 0, time + 0.01)
+  }
+
   it('completar um trecho carrega o medidor', () => {
     const s = new Session(phraseChart(), 'expert')
-    s.handleInput({ kind: 'frets', mask: GREEN, time: 0 })
-    s.handleInput({ kind: 'strum', time: 1 })
+    tap(s, 1)
     expect(s.getState().starPowerAmount).toBe(0)
-    s.handleInput({ kind: 'strum', time: 1.5 })
+    tap(s, 1.5)
     expect(s.getState().starPowerAmount).toBeCloseTo(0.25, 6)
   })
 
   it('perder uma nota invalida o trecho inteiro', () => {
     const s = new Session(phraseChart(), 'expert')
-    s.handleInput({ kind: 'frets', mask: GREEN, time: 0 })
     s.update(1.2)
-    s.handleInput({ kind: 'strum', time: 1.5 })
+    tap(s, 1.5)
     expect(s.getState().starPowerAmount).toBe(0)
   })
 
   it('não ativa abaixo de meio medidor', () => {
     const s = new Session(phraseChart(), 'expert')
-    s.handleInput({ kind: 'frets', mask: GREEN, time: 0 })
-    s.handleInput({ kind: 'strum', time: 1 })
-    s.handleInput({ kind: 'strum', time: 1.5 })
+    tap(s, 1)
+    tap(s, 1.5)
     s.handleInput({ kind: 'starPower', time: 1.6 })
     expect(s.getState().starPowerActive).toBe(false)
   })
@@ -312,11 +370,7 @@ describe('star power', () => {
       ],
     )
     const s = new Session(chart, 'expert')
-    s.handleInput({ kind: 'frets', mask: GREEN, time: 0 })
-    for (const t of [1, 1.5, 2, 2.5]) {
-      s.update(t)
-      s.handleInput({ kind: 'strum', time: t })
-    }
+    for (const t of [1, 1.5, 2, 2.5]) tap(s, t)
     expect(s.getState().starPowerAmount).toBeCloseTo(0.5, 6)
 
     s.handleInput({ kind: 'starPower', time: 2.6 })
@@ -342,16 +396,13 @@ describe('star power', () => {
       ],
     )
     const s = new Session(chart, 'expert')
-    s.handleInput({ kind: 'frets', mask: GREEN, time: 0 })
-    for (const t of [1, 1.5, 2, 2.5]) {
-      s.update(t)
-      s.handleInput({ kind: 'strum', time: t })
-    }
+    for (const t of [1, 1.5, 2, 2.5]) tap(s, t)
     s.handleInput({ kind: 'starPower', time: 2.6 })
     const meterBefore = s.getState().rockMeter
 
-    s.update(3)
-    s.handleInput({ kind: 'strum', time: 3 })
+    // Toque no vazio durante o star power: não pode tirar medidor.
+    press(s, RED, 3)
+    s.update(3 + CHORD_GRACE + 0.01)
     expect(s.getState().rockMeter).toBe(meterBefore)
   })
 })
@@ -359,8 +410,7 @@ describe('star power', () => {
 describe('fim da música', () => {
   it('avisa quando a última nota passa', () => {
     const s = new Session(chartOf([{ time: 1, frets: GREEN }]), 'expert')
-    s.handleInput({ kind: 'frets', mask: GREEN, time: 0.9 })
-    s.handleInput({ kind: 'strum', time: 1 })
+    press(s, GREEN, 1)
     s.consumeEvents()
 
     s.update(2)

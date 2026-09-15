@@ -8,11 +8,23 @@
  *
  * Os eventos de input trazem o próprio instante em vez de serem amostrados
  * por frame: um frame de 16ms é largo demais perto de uma janela de 70ms.
+ *
+ * Não existe palhetada. Toda nota é resolvida no toque do traste, o que
+ * torna teclado e controle igualmente jogáveis — nenhum dos dois tem um
+ * gesto decente para palhetar. Duas consequências que a máquina de estados
+ * precisa tratar:
+ *
+ * - duas notas seguidas no mesmo traste exigem soltar e apertar de novo,
+ *   porque só a transição de solto para pressionado resolve nota;
+ * - o castigo por palhetar no vazio vira castigo por tocar no vazio, com
+ *   uma folga para montar acordes (ver `CHORD_GRACE`). Sem ele, martelar os
+ *   cinco trastes acertaria a música inteira.
  */
 
 import type { Chart, Difficulty, Judgement, Note, Verdict } from '../types'
 import { countFrets } from '../types'
 import {
+  CHORD_GRACE,
   HIT_WINDOW,
   METER_BY_DIFFICULTY,
   METER_START,
@@ -29,7 +41,6 @@ import {
 
 export type InputEvent =
   | { kind: 'frets'; mask: number; time: number }
-  | { kind: 'strum'; time: number }
   | { kind: 'whammy'; value: number; time: number }
   | { kind: 'starPower'; time: number }
 
@@ -39,7 +50,7 @@ export type NoteStatus = 'pending' | 'hit' | 'missed'
 export type SessionEvent =
   | { kind: 'hit'; note: Note; verdict: Verdict; delta: number }
   | { kind: 'miss'; note: Note }
-  | { kind: 'overstrum'; time: number }
+  | { kind: 'ghostTap'; time: number }
   | { kind: 'sustainEnd'; note: Note; completed: boolean }
   | { kind: 'starPowerStart' }
   | { kind: 'starPowerEnd' }
@@ -100,6 +111,8 @@ export class Session {
   private cursor = 0
   private sustains: ActiveSustain[] = []
   private events: SessionEvent[] = []
+  /** Toque que ainda não resolveu nota; aguarda a folga do acorde. */
+  private pendingTap: { time: number } | null = null
   private lastUpdate: number
   private starPowerAnnounced = false
 
@@ -195,6 +208,7 @@ export class Session {
     this.lastUpdate = songTime
 
     this.expireNotes(songTime)
+    this.resolvePendingTap(songTime)
     this.updateSustains(songTime)
     this.drainStarPower(songTime, dt)
 
@@ -217,9 +231,6 @@ export class Session {
       case 'frets':
         this.onFretChange(event.mask, time)
         break
-      case 'strum':
-        this.onStrum(time)
-        break
       case 'whammy':
         this.state.whammy = event.value
         break
@@ -234,36 +245,49 @@ export class Session {
   private onFretChange(mask: number, time: number) {
     const previous = this.state.fretMask
     this.state.fretMask = mask
-
-    // Soltar um traste no meio de um sustain derruba o sustain; isso é
-    // tratado no update, junto com o resto do tempo contínuo.
-
     if (mask === previous) return
 
-    // HOPO e tap são acertados só com o traste, sem palhetar. HOPO exige
-    // que a corrente de acertos esteja viva; tap não exige nada.
-    const candidate = this.findCandidate(time)
-    if (!candidate) return
-    if (candidate.type === 'strum') return
-    if (candidate.type === 'hopo' && this.state.streak === 0) return
-    if (!fretsSatisfyNote(mask, candidate)) return
-
-    this.hit(candidate, time)
-  }
-
-  private onStrum(time: number) {
+    const pressed = mask & ~previous
     const candidate = this.findCandidate(time)
 
-    if (candidate && fretsSatisfyNote(this.state.fretMask, candidate)) {
+    if (pressed === 0) {
+      // Soltar não resolve nota comum — se resolvesse, largar um acorde para
+      // pegar a nota simples seguinte acertaria as duas de uma vez.
+      //
+      // A exceção é a nota aberta. Sem palhetada ela não tem gesto próprio:
+      // "nenhum traste pressionado" só pode ser expressado soltando tudo, e
+      // é assim que ela é tocada. Soltar um traste no meio de um sustain
+      // derruba o sustain, o que é tratado no update.
+      if (mask === 0 && candidate?.isOpen) this.hit(candidate, time)
+      return
+    }
+
+    if (candidate && fretsSatisfyNote(mask, candidate)) {
+      this.pendingTap = null
       this.hit(candidate, time)
       return
     }
 
-    // Palhetada no vazio: quebra a corrente e machuca o medidor. Sem isso o
-    // jogador pode palhetar sem parar e nunca errar nada.
+    // Apertar um traste com uma nota aberta à frente não é castigado: o
+    // jogador está quase sempre a caminho de soltar tudo para tocá-la.
+    if (candidate?.isOpen) return
+
+    // Ainda não resolveu. Pode ser um acorde em construção, então o castigo
+    // espera a folga; o instante guardado é o do primeiro dedo, para que
+    // montar o acorde não conte como atraso.
+    if (!this.pendingTap) this.pendingTap = { time }
+  }
+
+  /** Toque que atravessou a folga sem virar acerto: é castigo. */
+  private resolvePendingTap(songTime: number) {
+    const pending = this.pendingTap
+    if (!pending) return
+    if (songTime < pending.time + CHORD_GRACE) return
+
+    this.pendingTap = null
     this.breakStreak()
     this.damage()
-    this.events.push({ kind: 'overstrum', time })
+    this.events.push({ kind: 'ghostTap', time: pending.time })
   }
 
   /** A nota pendente mais antiga que ainda está dentro da janela. */

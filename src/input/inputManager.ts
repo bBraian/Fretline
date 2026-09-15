@@ -93,11 +93,6 @@ export class InputManager {
       this.setFret(fret, true, time)
       return
     }
-    if (event.code === this.keyboard.strumUp || event.code === this.keyboard.strumDown) {
-      event.preventDefault()
-      this.sink({ kind: 'strum', time })
-      return
-    }
     if (event.code === this.keyboard.starPower) {
       event.preventDefault()
       this.sink({ kind: 'starPower', time })
@@ -166,12 +161,6 @@ export class InputManager {
     if (mask !== this.mask) {
       this.mask = mask
       this.sink({ kind: 'frets', mask, time })
-    }
-
-    for (const button of [this.gamepad.strumUp, this.gamepad.strumDown]) {
-      if ((pressed[button] ?? false) && !(this.previousButtons[button] ?? false)) {
-        this.sink({ kind: 'strum', time })
-      }
     }
 
     const sp = this.gamepad.starPower

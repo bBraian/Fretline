@@ -3,8 +3,6 @@
 export interface KeyboardBindings {
   /** Códigos de tecla dos cinco trastes, do verde ao laranja. */
   frets: string[]
-  strumUp: string
-  strumDown: string
   starPower: string
   whammy: string
 }
@@ -12,8 +10,6 @@ export interface KeyboardBindings {
 export interface GamepadBindings {
   /** Índices de botão dos cinco trastes. */
   frets: number[]
-  strumUp: number
-  strumDown: number
   starPower: number
   /** Eixo usado como alavanca; -1 desliga. */
   whammyAxis: number
@@ -21,21 +17,17 @@ export interface GamepadBindings {
 
 export const DEFAULT_KEYBOARD: KeyboardBindings = {
   frets: ['KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyG'],
-  strumUp: 'ArrowUp',
-  strumDown: 'ArrowDown',
   starPower: 'Space',
   whammy: 'ShiftLeft',
 }
 
 /**
- * Padrão para controle comum: trastes nos gatilhos e bumpers, palhetada no
- * direcional. Não é o layout de uma guitarra de verdade, mas é o arranjo que
- * deixa cinco dedos acessíveis ao mesmo tempo num controle de dois analógicos.
+ * Padrão para controle comum: os quatro botões de ação mais o bumper
+ * direito. É o arranjo que deixa cinco trastes alcançáveis sem tirar o
+ * polegar do lugar — e, como não há palhetada, o direcional fica livre.
  */
 export const DEFAULT_GAMEPAD: GamepadBindings = {
-  frets: [0, 1, 2, 3, 5],
-  strumUp: 12,
-  strumDown: 13,
+  frets: [2, 3, 1, 0, 5],
   starPower: 9,
   whammyAxis: 2,
 }

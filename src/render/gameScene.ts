@@ -48,8 +48,8 @@ export class GameScene {
   private running = false
   private lastFrame = 0
   private shake = 0
-  private cameraBase = new THREE.Vector3(0, 2.55, 5.4)
-  private lookTarget = new THREE.Vector3(0, 1.1, -9)
+  private cameraBase = new THREE.Vector3(0, 2.45, 5.0)
+  private lookTarget = new THREE.Vector3(0, 1.75, -11)
   private missFeedback = 0
   private beats: number[]
   private beatCursor = 0
@@ -71,9 +71,9 @@ export class GameScene {
     this.renderer.toneMappingExposure = 1.05
 
     this.scene.background = new THREE.Color(0x04050a)
-    this.scene.fog = new THREE.Fog(0x04050a, 24, 46)
+    this.scene.fog = new THREE.Fog(0x070a14, 30, 62)
 
-    this.camera = new THREE.PerspectiveCamera(56, 16 / 9, 0.1, 120)
+    this.camera = new THREE.PerspectiveCamera(52, 16 / 9, 0.1, 140)
     this.camera.position.copy(this.cameraBase)
     this.camera.lookAt(this.lookTarget)
 
@@ -83,9 +83,29 @@ export class GameScene {
     this.stage = new Stage(options.characterId, options.guitarId)
 
     this.scene.add(this.highway.group, this.notes.group, this.effects.group, this.stage.group)
+    this.addHighwayLighting()
 
     this.resize()
     window.addEventListener('resize', this.resize)
+  }
+
+  /**
+   * Iluminação própria da pista.
+   *
+   * As luzes do palco estão longe demais para alcançar as notas, e as notas
+   * precisam ser legíveis do começo ao fim do braço — é a única coisa na
+   * tela que o jogador não pode deixar de ver. São luzes pontuais de alcance
+   * curto distribuídas ao longo da pista, em vez de uma só, para que o
+   * brilho não caia no fundo.
+   */
+  private addHighwayLighting() {
+    this.scene.add(new THREE.AmbientLight(0xa8b8e0, 0.55))
+
+    for (const z of [0, -8, -18]) {
+      const light = new THREE.PointLight(0xdce6ff, 18, 16, 2)
+      light.position.set(0, 3.2, z)
+      this.scene.add(light)
+    }
   }
 
   setNoteSpeed(speed: number) {
@@ -169,7 +189,7 @@ export class GameScene {
           break
         }
         case 'miss':
-        case 'overstrum':
+        case 'ghostTap':
           this.missFeedback = 1
           this.shake = Math.min(1, this.shake + 0.35)
           break

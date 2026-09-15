@@ -46,8 +46,9 @@ export class Stage {
     this.currentCharacterId = characterId
     this.currentGuitarId = guitarId
 
-    // O palco fica atrás e acima do fim do braço.
-    this.group.position.set(0, 0.3, -20)
+    // O palco fica atrás do fim do braço e elevado: a banda precisa aparecer
+    // acima do ponto de fuga da pista, senão fica escondida atrás dela.
+    this.group.position.set(0, 1.45, -19.5)
 
     this.buildFloor()
     this.buildBackdrop()
@@ -232,9 +233,15 @@ export class Stage {
     const fill = new THREE.HemisphereLight(0x5568a0, 0x090a0e, 0.55)
     this.group.add(fill)
 
-    const key = new THREE.DirectionalLight(0xdfe7ff, 0.7)
-    key.position.set(2, 8, 6)
+    const key = new THREE.DirectionalLight(0xdfe7ff, 1.1)
+    key.position.set(2, 8, 10)
     this.group.add(key)
+
+    // Luz frontal dedicada à banda: os holofotes vêm de cima e deixariam os
+    // rostos e os instrumentos em silhueta.
+    const front = new THREE.PointLight(0xfff0dc, 26, 16, 2)
+    front.position.set(0, 2.6, 5)
+    this.group.add(front)
   }
 
   private buildCrowd() {
@@ -251,14 +258,21 @@ export class Stage {
     for (let row = 0; row < CROWD_ROWS; row++) {
       for (let slot = 0; slot < CROWD_PER_ROW; slot++) {
         const x = (slot - (CROWD_PER_ROW - 1) / 2) * 0.82 + (Math.random() - 0.5) * 0.3
-        const z = 7.5 + row * 1.15 + (Math.random() - 0.5) * 0.4
+        const z = 6.5 + row * 1.15 + (Math.random() - 0.5) * 0.4
+        // Vão no meio: é por ali que a pista atravessa até o palco. Sem isso
+        // a plateia vira uma parede na frente das notas distantes.
+        if (Math.abs(x) < 2.6) {
+          seeds[i * 3] = Number.NaN
+          i++
+          continue
+        }
         seeds[i * 3] = x
         seeds[i * 3 + 1] = z
         seeds[i * 3 + 2] = Math.random() * Math.PI * 2
 
         // A plateia é quase silhueta: escura, com variação pequena, para não
         // competir com o palco em atenção.
-        color.setHSL(Math.random(), 0.25, 0.08 + Math.random() * 0.07)
+        color.setHSL(Math.random(), 0.12, 0.025 + Math.random() * 0.025)
         crowd.setColorAt(i, color)
         i++
       }
@@ -403,7 +417,18 @@ export class Stage {
       const seed = this.crowdSeeds[i * 3 + 2]
       const jump = bounce * (0.12 + 0.1 * Math.sin(seed))
 
-      this.crowdDummy.position.set(x, 0.45 + jump, z)
+      if (Number.isNaN(x)) {
+        // Instância reservada no vão central: fica com escala zero.
+        this.crowdDummy.scale.setScalar(0)
+        this.crowdDummy.position.set(0, -100, 0)
+        this.crowdDummy.rotation.set(0, 0, 0)
+        this.crowdDummy.updateMatrix()
+        this.crowd.setMatrixAt(i, this.crowdDummy.matrix)
+        continue
+      }
+
+      // A plateia fica no fosso, abaixo do nível do palco.
+      this.crowdDummy.position.set(x, -0.95 + jump, z)
       this.crowdDummy.rotation.set(0, Math.sin(seed + this.clock * 0.4) * 0.3, 0)
       this.crowdDummy.scale.setScalar(0.9 + 0.2 * Math.sin(seed * 3))
       this.crowdDummy.updateMatrix()

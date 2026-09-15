@@ -4,11 +4,17 @@ export type Difficulty = 'easy' | 'medium' | 'hard' | 'expert'
 
 export const DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard', 'expert']
 
-/** Tipo de nota, no sentido do Guitar Hero. */
+/**
+ * Tipo de nota, no sentido do formato de chart.
+ *
+ * O parser continua derivando isso porque faz parte do arquivo e outras
+ * ferramentas contam com ele, mas o jogo não usa: aqui não há palhetada, e
+ * toda nota é tocada apertando o traste. Os três tipos jogam igual.
+ */
 export type NoteType =
-  | 'strum' // exige palhetada
-  | 'hopo' // hammer-on / pull-off: só troca de traste, se o combo estiver vivo
-  | 'tap' // traste sozinho, sempre
+  | 'strum' // no formato original, exigiria palhetada
+  | 'hopo' // hammer-on / pull-off
+  | 'tap'
 
 /**
  * Uma nota do chart. `frets` é um bitmask: bit 0 = verde ... bit 4 = laranja.

@@ -62,6 +62,14 @@ export class SongPlayer implements Clock {
     )
   }
 
+  /**
+   * Usa faixas já decodificadas. É por aqui que entra a música sintetizada
+   * da demonstração, que nunca passa por um arquivo.
+   */
+  useBuffers(buffers: AudioBuffer[]) {
+    this.buffers = buffers
+  }
+
   /** Duração da faixa mais longa, para saber quando a música acaba. */
   get duration() {
     return this.buffers.reduce((max, b) => Math.max(max, b.duration), 0)

@@ -141,7 +141,7 @@ export class NoteField {
         if (gemCount >= MAX_GEMS) break
         this.tintFor(note, missed, starPower, false)
 
-        const scale = note.type === 'strum' ? 1 : 0.82
+        const scale = 1
         this.dummy.position.set(laneX(lane), NOTE_Y, z)
         this.dummy.rotation.set(0, 0, 0)
         this.dummy.scale.set(scale, missed ? 0.35 : 1, scale)
@@ -150,10 +150,11 @@ export class NoteField {
         this.gems.setColorAt(gemCount, this.color)
         gemCount++
 
-        // HOPO e tap ganham um anel: é o que diz ao jogador, sem texto,
-        // que aquela nota não precisa de palhetada.
-        if (note.type !== 'strum' && rimCount < MAX_RIMS) {
-          this.color.lerp(new THREE.Color(0xffffff), note.type === 'tap' ? 0.7 : 0.35)
+        // O anel marca nota de star power. Antes distinguia HOPO e tap, mas
+        // sem palhetada toda nota é tocada do mesmo jeito, e um sinal visual
+        // para uma diferença que não existe mais só engana.
+        if (starPower && !this.starPowerActive && rimCount < MAX_RIMS) {
+          this.color.set(0xffffff)
           this.dummy.position.set(laneX(lane), NOTE_Y + 0.05, z)
           this.dummy.scale.setScalar(1)
           this.dummy.rotation.set(-Math.PI / 2, 0, 0)
@@ -176,8 +177,12 @@ export class NoteField {
     const base = lane >= 0 ? this.laneColors[lane] : new THREE.Color(0xc084fc)
 
     this.color.copy(base)
-    if (starPower && !this.starPowerActive) this.color.lerp(STAR_POWER_COLOR, 0.65)
-    if (this.starPowerActive) this.color.lerp(STAR_POWER_COLOR, 0.45)
+    // A lavagem do star power é leve de propósito. A cor do traste é a
+    // informação que o jogador lê primeiro, e tingir as cinco pistas de um
+    // mesmo azul pálido tornava o trecho ilegível justamente onde as notas
+    // são mais rápidas. Quem sinaliza star power é o anel.
+    if (starPower && !this.starPowerActive) this.color.lerp(STAR_POWER_COLOR, 0.22)
+    if (this.starPowerActive) this.color.lerp(STAR_POWER_COLOR, 0.18)
     if (held) this.color.multiplyScalar(1.6)
     if (missed) this.color.multiplyScalar(0.18)
   }

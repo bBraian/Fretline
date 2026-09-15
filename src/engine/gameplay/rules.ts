@@ -16,6 +16,17 @@ export const HIT_WINDOW = 0.07
 /** Dentro desta distância o acerto conta como perfeito, o que o HUD mostra. */
 export const PERFECT_WINDOW = 0.025
 
+/**
+ * Tolerância para montar um acorde.
+ *
+ * Sem palhetada, a nota é resolvida no toque do traste — mas ninguém aperta
+ * três trastes no mesmo instante. Um toque que não resolve nada espera este
+ * tanto antes de virar castigo, para dar tempo dos outros dedos chegarem.
+ * Acima de uns 40ms o castigo por martelar deixa de doer; abaixo de uns
+ * 20ms acordes honestos começam a ser punidos.
+ */
+export const CHORD_GRACE = 0.03
+
 /** Pontos por nota. Um acorde paga por traste, como no original. */
 export const POINTS_PER_NOTE = 50
 
@@ -40,7 +51,7 @@ export const STAR_POWER_BEATS_PER_FULL_BAR = 32
 export interface MeterTuning {
   /** Quanto o medidor sobe por nota acertada. */
   gain: number
-  /** Quanto desce por nota perdida ou palhetada no vazio. */
+  /** Quanto desce por nota perdida ou toque no vazio. */
   loss: number
 }
 
@@ -65,6 +76,9 @@ export const METER_START = 0.5
  * trastes **abaixo** do alvo — a mão fica apoiada no braço — desde que o
  * traste mais alto pressionado seja exatamente o da nota. Segurar um traste
  * acima invalida. Acordes exigem correspondência exata, sem sobras.
+ *
+ * Ela vale igual sem palhetada: é o que permite subir a escala arrastando a
+ * mão, em vez de levantar todos os dedos entre uma nota e a seguinte.
  */
 export function fretsSatisfyNote(mask: number, note: Note): boolean {
   if (note.isOpen) return mask === 0

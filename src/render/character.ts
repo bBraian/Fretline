@@ -76,7 +76,8 @@ export class CharacterModel {
     this.head.add(skull)
     this.buildHair()
 
-    // Braços: o direito palheta, o esquerdo vai para a escala.
+    // Braços: o direito toca sobre o corpo da guitarra, o esquerdo vai
+    // para a escala.
     this.leftArm = this.buildLimb(shirt, skin, 0.34, 0.3, width)
     this.leftArm.root.position.set(-0.22 * width, 0.42, 0)
     this.torso.add(this.leftArm.root)
@@ -246,9 +247,9 @@ export class CharacterModel {
     this.head.rotation.x = (playing ? -beat * 0.16 * energy : idle * 0.04) - (this.state === 'solo' ? 0.3 : 0)
     this.head.rotation.y = Math.sin(this.clock * 0.7) * 0.18
 
-    // Braço da palhetada: desce na batida e volta entre elas.
-    const strumSwing = playing ? -0.55 - halfBeat * 0.5 * energy * soloBoost : -0.2
-    this.approach(this.rightArm.root.rotation, 'x', strumSwing, dt, 18)
+    // Mão direita: acompanha a batida sobre o corpo da guitarra.
+    const pickSwing = playing ? -0.55 - halfBeat * 0.5 * energy * soloBoost : -0.2
+    this.approach(this.rightArm.root.rotation, 'x', pickSwing, dt, 18)
     this.rightArm.root.rotation.z = -0.5
     this.approach(this.rightArm.lower.rotation, 'x', playing ? -0.7 : -0.3, dt, 10)
 
