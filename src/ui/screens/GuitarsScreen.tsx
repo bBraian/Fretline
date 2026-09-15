@@ -1,17 +1,16 @@
 /**
- * Loja de guitarras.
+ * Loja de guitarras, com o modelo 3D em exibição.
+ *
+ * Uma prévia só, grande, em vez de uma miniatura por cartão: é o que o
+ * limite de contextos WebGL do navegador permite (ver `render/preview.ts`),
+ * e também o que faz sentido para um objeto cuja graça está na silhueta.
  */
 
-import { useGame } from '../store'
-import { GUITARS } from '../../content/guitars'
-
-const SHAPE_NAMES: Record<string, string> = {
-  'single-cut': 'Recorte simples',
-  'double-cut': 'Recorte duplo',
-  offset: 'Corpo deslocado',
-  v: 'Formato V',
-  explorer: 'Angular',
-}
+import { useEffect, useRef } from 'react'
+import { owns, useGame } from '../store'
+import { GUITARS, SHAPE_NAMES, guitarById } from '../../content/guitars'
+import { buildGuitar } from '../../render/guitar/guitarModel'
+import { ModelPreview } from '../../render/preview'
 
 function hex(color: number) {
   return `#${color.toString(16).padStart(6, '0')}`
@@ -20,6 +19,36 @@ function hex(color: number) {
 export function GuitarsScreen() {
   const { profile, setScreen, chooseGuitar, buyGuitar } = useGame()
   const totalStars = useGame((s) => s.totalStars())
+
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const previewRef = useRef<ModelPreview | null>(null)
+
+  // O visor fica em exibição pelo que estiver em uso; comprar ou escolher
+  // outra troca o modelo no lugar, sem recriar o contexto WebGL.
+  const shownId = profile.guitarId
+
+  useEffect(() => {
+    if (!canvasRef.current) return
+    const preview = new ModelPreview({ canvas: canvasRef.current, spin: 0.18 })
+    previewRef.current = preview
+    return () => {
+      preview.dispose()
+      previewRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    const preview = previewRef.current
+    if (!preview) return
+
+    const model = buildGuitar(guitarById(shownId))
+    // De frente e levemente inclinada. O tampo é a face interessante: é
+    // onde ficam captadores, escudo e controles.
+    model.group.rotation.set(0.1, 0.34, 0.1)
+    preview.setModel(model.group, model.dispose)
+  }, [shownId])
+
+  const shown = guitarById(shownId)
 
   return (
     <div className="screen">
@@ -35,55 +64,61 @@ export function GuitarsScreen() {
             <b>${profile.money.toLocaleString('pt-BR')}</b>
             no bolso
           </div>
+          <div>
+            <b>{totalStars}</b>
+            estrelas
+          </div>
         </div>
       </header>
 
       <div className="screen-body">
-        <div className="card-grid">
-          {GUITARS.map((guitar) => {
-            const owned = profile.ownedGuitars.includes(guitar.id)
-            const unlocked = totalStars >= guitar.unlockAtStars
-            const affordable = profile.money >= guitar.price
-            const selected = profile.guitarId === guitar.id
+        <div className="picker">
+          <div className="picker-stage">
+            <canvas ref={canvasRef} />
+            <span className="picker-hint">arraste para girar</span>
+            <div className="picker-caption">
+              <h2>{shown.name}</h2>
+              <p>
+                {SHAPE_NAMES[shown.shape]} · {shown.brandless}
+              </p>
+            </div>
+          </div>
 
-            return (
-              <button
-                key={guitar.id}
-                className="card"
-                data-selected={selected}
-                data-locked={!owned && !unlocked}
-                onClick={() => (owned ? chooseGuitar(guitar.id) : buyGuitar(guitar.id))}
-                disabled={!owned && (!unlocked || !affordable)}
-              >
-                <span className="card-name">{guitar.name}</span>
-                <span className="card-sub">{guitar.brandless}</span>
-                <span className="card-sub">{SHAPE_NAMES[guitar.shape]}</span>
+          <div className="picker-list">
+            {GUITARS.map((guitar) => {
+              const owned = owns(profile.ownedGuitars, guitar.id)
+              const unlocked = totalStars >= guitar.unlockAtStars
+              const affordable = profile.money >= guitar.price
+              const selected = profile.guitarId === guitar.id
 
-                <div className="swatches">
-                  {[guitar.colors.body, guitar.colors.neck, guitar.colors.hardware, guitar.colors.pickguard].map(
-                    (color, i) => (
-                      <span key={i} className="swatch" style={{ background: hex(color) }} />
-                    ),
-                  )}
-                </div>
-
-                <span style={{ marginTop: 'auto', paddingTop: 10 }}>
-                  {owned ? (
-                    <span className={`tag ${selected ? 'tag-own' : ''}`}>
-                      {selected ? 'Em uso' : 'Liberada'}
-                    </span>
-                  ) : !unlocked ? (
-                    <span className="tag tag-locked">{guitar.unlockAtStars} estrelas</span>
-                  ) : (
-                    <span className="tag">
-                      ${guitar.price.toLocaleString('pt-BR')}
-                      {affordable ? '' : ' · falta dinheiro'}
-                    </span>
-                  )}
-                </span>
-              </button>
-            )
-          })}
+              return (
+                <button
+                  key={guitar.id}
+                  className="picker-row"
+                  data-selected={selected}
+                  disabled={!owned && (!unlocked || !affordable)}
+                  onClick={() => (owned ? chooseGuitar(guitar.id) : buyGuitar(guitar.id))}
+                >
+                  <span className="picker-chip" style={{ background: hex(guitar.colors.body) }} />
+                  <span>
+                    <strong>{guitar.name}</strong>
+                    <span>{SHAPE_NAMES[guitar.shape]}</span>
+                  </span>
+                  <span>
+                    {owned ? (
+                      <span className={`tag ${selected ? 'tag-own' : ''}`}>
+                        {selected ? 'Em uso' : 'Sua'}
+                      </span>
+                    ) : !unlocked ? (
+                      <span className="tag tag-locked">{guitar.unlockAtStars} ★</span>
+                    ) : (
+                      <span className="tag">${guitar.price.toLocaleString('pt-BR')}</span>
+                    )}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
         </div>
       </div>
 
@@ -91,6 +126,9 @@ export function GuitarsScreen() {
         <button className="btn btn-ghost" onClick={() => setScreen('menu')}>
           ← Voltar
         </button>
+        <span className="screen-subtitle">
+          Clique numa guitarra liberada para usá-la, ou numa bloqueada para comprar.
+        </span>
       </footer>
     </div>
   )

@@ -104,6 +104,15 @@ interface Persisted {
   profile: Profile
 }
 
+/** Curinga de desenvolvimento: `['*']` significa tudo liberado. */
+function ownsAll(list: string[]) {
+  return list.includes('*')
+}
+
+export function owns(list: string[], id: string) {
+  return ownsAll(list) || list.includes(id)
+}
+
 function load(): Persisted {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -190,7 +199,7 @@ export const useGame = create<State>((set, get) => ({
     set((state) => {
       const character = CHARACTERS.find((c) => c.id === id)
       if (!character) return {}
-      if (state.profile.ownedCharacters.includes(id)) return {}
+      if (owns(state.profile.ownedCharacters, id)) return {}
       if (state.profile.money < character.price) return {}
 
       const profile: Profile = {
@@ -207,7 +216,7 @@ export const useGame = create<State>((set, get) => ({
     set((state) => {
       const guitar = GUITARS.find((g) => g.id === id)
       if (!guitar) return {}
-      if (state.profile.ownedGuitars.includes(id)) return {}
+      if (owns(state.profile.ownedGuitars, id)) return {}
       if (state.profile.money < guitar.price) return {}
 
       const profile: Profile = {
@@ -222,7 +231,7 @@ export const useGame = create<State>((set, get) => ({
 
   chooseCharacter: (id) =>
     set((state) => {
-      if (!state.profile.ownedCharacters.includes(id)) return {}
+      if (!owns(state.profile.ownedCharacters, id)) return {}
       const profile = { ...state.profile, characterId: id }
       save({ settings: state.settings, profile })
       return { profile }
@@ -230,7 +239,7 @@ export const useGame = create<State>((set, get) => ({
 
   chooseGuitar: (id) =>
     set((state) => {
-      if (!state.profile.ownedGuitars.includes(id)) return {}
+      if (!owns(state.profile.ownedGuitars, id)) return {}
       const profile = { ...state.profile, guitarId: id }
       save({ settings: state.settings, profile })
       return { profile }

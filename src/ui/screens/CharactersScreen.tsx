@@ -2,7 +2,7 @@
  * Elenco: escolher quem toca, e comprar quem ainda não é seu.
  */
 
-import { useGame } from '../store'
+import { owns, useGame } from '../store'
 import { CHARACTERS } from '../../content/characters'
 
 function hex(color: number) {
@@ -37,7 +37,7 @@ export function CharactersScreen() {
       <div className="screen-body">
         <div className="card-grid">
           {CHARACTERS.map((character) => {
-            const owned = profile.ownedCharacters.includes(character.id)
+            const owned = owns(profile.ownedCharacters, character.id)
             const unlocked = totalStars >= character.unlockAtStars
             const affordable = profile.money >= character.price
             const selected = profile.characterId === character.id

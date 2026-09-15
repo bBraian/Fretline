@@ -679,3 +679,134 @@ button {
   color: var(--text-dim);
   font-size: 12px;
 }
+
+/* --- telas de seleção com prévia 3D ------------------------------------ */
+
+.screen-body:has(> .picker) {
+  overflow: hidden;
+  display: flex;
+}
+
+.picker {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.9fr);
+  gap: 24px;
+  height: 100%;
+  min-height: 0;
+}
+
+@media (max-width: 900px) {
+  .picker {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(240px, 40vh) 1fr;
+  }
+}
+
+.picker-stage {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background:
+    radial-gradient(70% 60% at 50% 30%, rgba(80, 110, 190, 0.16), transparent 70%),
+    linear-gradient(180deg, #0d1018, #070910);
+  overflow: hidden;
+  min-height: 0;
+}
+
+.picker-stage canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: grab;
+}
+
+.picker-stage canvas:active {
+  cursor: grabbing;
+}
+
+.picker-caption {
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  bottom: 18px;
+  pointer-events: none;
+}
+
+.picker-caption h2 {
+  margin: 0;
+  font-size: clamp(20px, 2.6vw, 30px);
+  letter-spacing: -0.02em;
+}
+
+.picker-caption p {
+  margin: 4px 0 0;
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
+.picker-hint {
+  position: absolute;
+  top: 16px;
+  right: 18px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  pointer-events: none;
+}
+
+.picker-list {
+  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 4px;
+}
+
+.picker-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: rgba(18, 21, 31, 0.6);
+  text-align: left;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.picker-row:hover:not(:disabled) {
+  background: #1a1f2e;
+}
+
+.picker-row[data-selected='true'] {
+  border-color: var(--accent);
+  background: #16203a;
+}
+
+.picker-row:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.picker-chip {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  flex: none;
+}
+
+.picker-row strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.picker-row span {
+  color: var(--text-dim);
+  font-size: 12.5px;
+}

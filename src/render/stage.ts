@@ -10,7 +10,7 @@
 
 import * as THREE from 'three'
 import { CharacterModel, type PerformanceState } from './character'
-import { buildGuitar, type GuitarModel } from './guitarModel'
+import { buildGuitar, type GuitarModel } from './guitar/guitarModel'
 import { CHARACTERS, characterById, type Character } from '../content/characters'
 import { guitarById, type Guitar } from '../content/guitars'
 
