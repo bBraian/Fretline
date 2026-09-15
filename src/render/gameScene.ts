@@ -16,7 +16,7 @@ import { NoteField } from './notes'
 import { HitEffects } from './effects'
 import { Stage } from './stage'
 import { DEFAULT_NOTE_SPEED } from './layout'
-import type { PerformanceState } from './character'
+import type { PerformanceState } from './character/characterModel'
 
 export interface GameSceneOptions {
   canvas: HTMLCanvasElement

@@ -9,7 +9,7 @@
  */
 
 import * as THREE from 'three'
-import { CharacterModel, type PerformanceState } from './character'
+import { CharacterModel, GUITAR_BODY_OFFSET, GUITAR_TILT, type PerformanceState } from './character/characterModel'
 import { buildGuitar, type GuitarModel } from './guitar/guitarModel'
 import { CHARACTERS, characterById, type Character } from '../content/characters'
 import { guitarById, type Guitar } from '../content/guitars'
@@ -292,9 +292,9 @@ export class Stage {
 
   private attachGuitar(guitar: Guitar): GuitarModel {
     const model = buildGuitar(guitar)
-    model.group.scale.setScalar(0.62)
-    model.group.rotation.set(-0.15, 0.1, -1.05)
-    model.group.position.set(0, -0.05, 0.12)
+    model.group.scale.setScalar(0.36)
+    model.group.rotation.set(-0.1, 0.22, -GUITAR_TILT)
+    model.group.position.set(GUITAR_BODY_OFFSET.x, GUITAR_BODY_OFFSET.y, GUITAR_BODY_OFFSET.z)
     this.guitarist.instrumentAnchor.add(model.group)
     return model
   }
@@ -307,8 +307,9 @@ export class Stage {
     bassist.group.position.set(2.6, 0, -0.8)
     bassist.group.rotation.y = -0.3
     const bass = buildGuitar({ ...guitarById('nocturne'), id: 'bass-prop' })
-    bass.group.scale.setScalar(0.7)
-    bass.group.rotation.set(-0.15, 0.1, -1.0)
+    // O baixo é maior que a guitarra, e o braço é mais comprido.
+    bass.group.scale.setScalar(0.42)
+    bass.group.rotation.set(-0.1, 0.22, -GUITAR_TILT)
     bassist.instrumentAnchor.add(bass.group)
     this.group.add(bassist.group)
     this.bandmates.push(bassist)

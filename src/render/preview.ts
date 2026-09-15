@@ -21,6 +21,8 @@ export interface PreviewOptions {
   canvas: HTMLCanvasElement
   /** Distância da câmera ao centro do prato. */
   distance?: number
+  /** Folga em volta do objeto ao enquadrar; 1 encosta nas bordas. */
+  fit?: number
   /** Altura da câmera. */
   height?: number
   /** Voltas por segundo do prato. */
@@ -123,7 +125,7 @@ export class ModelPreview {
 
     const radius = Math.max(size.x, size.y, size.z) / 2
     const fov = (this.camera.fov * Math.PI) / 180
-    const distance = this.options.distance ?? (radius / Math.sin(fov / 2)) * 0.88
+    const distance = this.options.distance ?? (radius / Math.sin(fov / 2)) * (this.options.fit ?? 0.88)
 
     this.camera.position.set(0, this.options.height ?? size.y * 0.1, distance)
     this.camera.lookAt(0, 0, 0)
