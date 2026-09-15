@@ -126,6 +126,8 @@ export function PlayScreen() {
         guitarId: profile.guitarId,
         noteSpeed: settings.noteSpeed,
         videoOffset: settings.videoOffset,
+        // `?lowfx` força a qualidade baixa, para conferência e para os testes.
+        quality: new URLSearchParams(location.search).has('lowfx') ? 'baixa' : settings.quality,
         onEvent,
       })
 
@@ -138,7 +140,12 @@ export function PlayScreen() {
       // acessíveis do console e do teste de fumaça, que precisa tocar a
       // música corretamente para provar que a corrente inteira funciona.
       if (new URLSearchParams(location.search).has('debug')) {
-        ;(window as unknown as { __fretline?: unknown }).__fretline = { session, player, chart }
+        ;(window as unknown as { __fretline?: unknown }).__fretline = {
+          session,
+          player,
+          chart,
+          scene,
+        }
       }
 
       scene.start()

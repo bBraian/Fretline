@@ -34,14 +34,14 @@ const browser = await chromium.launch({
 // Viewport pequeno de propósito: o navegador headless rasteriza por
 // software, e a 1440×900 o render bloqueia a thread principal a ponto de o
 // próprio piloto automático atrasar. Isso mediria o rasterizador, não o jogo.
-const page = await browser.newPage({ viewport: { width: 640, height: 360 } })
+const page = await browser.newPage({ viewport: { width: 480, height: 270 } })
 
 page.on('console', (message) => {
   if (message.type() === 'error') problems.push(`console: ${message.text()}`)
 })
 page.on('pageerror', (error) => problems.push(`exceção: ${error.message}`))
 
-await page.goto(`${BASE}/?debug`, { waitUntil: 'networkidle' })
+await page.goto(`${BASE}/?debug&lowfx`, { waitUntil: 'networkidle' })
 
 await page.getByRole('heading', { name: 'FRETLINE' }).waitFor({ timeout: 15000 })
 console.log('✓ menu carregou')
@@ -98,6 +98,12 @@ const result = await page.evaluate(async () => {
 
   let index = 0
   let activated = false
+  let frames = 0
+  let maxGap = 0
+  let lastTick = performance.now()
+  const rafCount = () => { frames++; requestAnimationFrame(rafCount) }
+  requestAnimationFrame(rafCount)
+  const startedAt = performance.now()
   const deadline = performance.now() + 40000
 
   // Um temporizador curto, e não requestAnimationFrame: o piloto precisa ser
@@ -106,6 +112,9 @@ const result = await page.evaluate(async () => {
   // rasterizador, não o jogo.
   await new Promise((resolve) => {
     const tick = () => {
+      const wall = performance.now()
+      maxGap = Math.max(maxGap, wall - lastTick)
+      lastTick = wall
       const now = player.now()
 
       // Ativa o star power assim que houver medidor suficiente, para o
@@ -137,6 +146,8 @@ const result = await page.evaluate(async () => {
 
   const state = session.getState()
   return {
+    fps: Math.round((frames * 1000) / (performance.now() - startedAt)),
+    maxGapMs: Math.round(maxGap),
     score: state.score,
     notesHit: state.notesHit,
     notesTotal: state.notesTotal,
@@ -153,6 +164,9 @@ const result = await page.evaluate(async () => {
 if (result.error) {
   problems.push(result.error)
 } else {
+  // O número de quadros aqui mede o rasterizador por software do navegador
+  // headless, não a máquina de quem joga; serve só para explicar a precisão.
+  console.log(`  ${result.fps} fps no rasterizador por software, maior atraso do piloto ${result.maxGapMs} ms`)
   const accuracy = result.notesSeen > 0 ? result.notesHit / result.notesSeen : 0
   console.log(
     `✓ tocou: ${result.notesHit}/${result.notesSeen} notas vistas ` +

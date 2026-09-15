@@ -20,8 +20,19 @@
 import * as THREE from 'three'
 import type { Character } from '../../content/characters'
 import { solveTwoBone, type TwoBoneChain } from './ik'
+import { mergeChildren } from '../mergeStatic'
 
 export type PerformanceState = 'idle' | 'playing' | 'solo' | 'starPower' | 'failing'
+
+/**
+ * O que a pessoa está fazendo no palco.
+ *
+ * Não é enfeite: um baterista sentado com as mãos batendo para baixo e um
+ * vocalista com o microfone na boca têm poses completamente diferentes de
+ * quem segura uma guitarra. Animar os quatro com a mesma pose foi o que fez
+ * a banda parecer quatro guitarristas, um deles atrás de uma bateria.
+ */
+export type StageRole = 'guitar' | 'bass' | 'drums' | 'vocals'
 
 /** Altura de referência do corpo em unidades de mundo. */
 const HEIGHT = 1.78
@@ -87,6 +98,14 @@ interface Limb {
 export class CharacterModel {
   readonly group = new THREE.Group()
   readonly instrumentAnchor = new THREE.Group()
+  /** Mão que fica sobre o corpo da guitarra, ou segura o microfone. */
+  get pickHand() {
+    return this.pickArm.end
+  }
+  /** Mão que corre a escala. */
+  get fretHand() {
+    return this.fretArm.end
+  }
 
   private hips = new THREE.Group()
   private torso = new THREE.Group()
@@ -97,8 +116,8 @@ export class CharacterModel {
   private fretArm!: Limb
   /** Braço que fica sobre o corpo da guitarra. */
   private pickArm!: Limb
-  private leftLeg!: Limb
-  private rightLeg!: Limb
+  private fretLeg!: Limb
+  private pickLeg!: Limb
 
   private fretChain!: TwoBoneChain
   private pickChain!: TwoBoneChain
@@ -111,6 +130,7 @@ export class CharacterModel {
   private materials = new Map<string, THREE.MeshStandardMaterial>()
   private clock = 0
   private state: PerformanceState = 'idle'
+  private role: StageRole = 'guitar'
   private intensity = 0
 
   constructor(private character: Character) {
@@ -128,6 +148,11 @@ export class CharacterModel {
     // grande demais, mesmo estando na escala certa.
     this.instrumentAnchor.position.set(0, HEAD * 0.05, 0.14 * build.depth)
     this.torso.add(this.instrumentAnchor)
+
+    // As peças de dentro de cada osso viram um desenho por material. Quatro
+    // integrantes em cena passavam de duzentas chamadas de desenho, e era o
+    // custo dominante do palco inteiro.
+    mergeChildren(this.group)
   }
 
   // --- materiais ---------------------------------------------------------
@@ -644,8 +669,8 @@ private scalp(radius: number, material: THREE.Material, coverage = 0.78) {
       }
 
       this.hips.add(limb.root)
-      if (side < 0) this.leftLeg = limb
-      else this.rightLeg = limb
+      if (side > 0) this.fretLeg = limb
+      else this.pickLeg = limb
     }
   }
 
@@ -653,6 +678,12 @@ private scalp(radius: number, material: THREE.Material, coverage = 0.78) {
 
   setState(state: PerformanceState) {
     this.state = state
+  }
+
+  setRole(role: StageRole) {
+    this.role = role
+    // O baterista senta: o quadril desce e as pernas vão para a frente.
+    if (role === 'drums') this.group.position.y = 0
   }
 
   /** Quanto o integrante está empolgado, de 0 a 1. */
@@ -700,14 +731,45 @@ private scalp(radius: number, material: THREE.Material, coverage = 0.78) {
     const openMouth = this.state === 'solo' || this.state === 'starPower' ? HEAD * 0.06 : 0
     this.approach(this.jaw.position, 'y', -HEAD * 0.12 - openMouth, dt, 9)
 
+    if (this.role === 'drums') this.poseDrums(dt, beatPhase, energy, boost)
+    else if (this.role === 'vocals') this.poseVocals(dt, beatPhase, energy, playing)
+    else this.poseStrings(playing, halfBeat, energy, boost)
+
+    if (this.role === 'drums') {
+      // Sentado: coxas para a frente, joelhos dobrados, pés no pedal.
+      for (const leg of [this.fretLeg, this.pickLeg]) {
+        this.approach(leg.root.rotation, 'x', -1.32, dt, 8)
+        this.approach(leg.lower.rotation, 'x', 1.15, dt, 8)
+        leg.end.rotation.x = 0.2
+      }
+      // O pé do bumbo bate na batida.
+      this.pickLeg.end.rotation.x = 0.2 - Math.max(0, Math.cos(beatPhase * Math.PI * 2)) * 0.35
+      this.approach(this.hips.position, 'y', LEVEL.crotch * 0.62, dt, 8)
+      return
+    }
+
+    // Pernas: peso alternando, joelho dobrado no solo.
+    const stance = playing ? 0.1 * energy : 0.02
+    const sway = Math.sin(this.clock * 1.3)
+    this.fretLeg.root.rotation.x = sway * stance - (this.state === 'solo' ? 0.28 : 0)
+    this.pickLeg.root.rotation.x = -sway * stance
+    this.fretLeg.root.rotation.z = 0.06
+    this.pickLeg.root.rotation.z = -0.06
+    this.fretLeg.lower.rotation.x = Math.abs(this.fretLeg.root.rotation.x) * 0.7
+    this.pickLeg.lower.rotation.x = Math.abs(this.pickLeg.root.rotation.x) * 0.7
+    this.fretLeg.end.rotation.x = -this.fretLeg.lower.rotation.x * 0.8
+    this.pickLeg.end.rotation.x = -this.pickLeg.lower.rotation.x * 0.8
+  }
+
+  /** Pose de quem segura um instrumento de cordas. */
+  private poseStrings(playing: boolean, halfBeat: number, energy: number, boost: number) {
     // As mãos são posicionadas, não anguladas: os alvos abaixo dizem onde
     // elas precisam estar sobre a guitarra, e a cinemática inversa resolve
     // ombro e cotovelo. Escolher os ângulos à mão dava braços cruzados.
     const anchor = this.instrumentAnchor.position
 
     // Mão da escala: corre ao longo do braço da guitarra, cuja direção sai
-    // da pose do instrumento e não de números soltos — mudar o ângulo da
-    // guitarra move a mão junto.
+    // da pose do instrumento e não de números soltos.
     const slide = playing ? Math.sin(this.clock * 2.2) * 0.5 + 0.5 : 0.4
     const along = GUITAR_NECK_REACH * (0.62 + slide * 0.32)
     this.fretTarget.set(
@@ -715,13 +777,11 @@ private scalp(radius: number, material: THREE.Material, coverage = 0.78) {
       anchor.y + GUITAR_BODY_OFFSET.y + Math.cos(GUITAR_TILT) * along,
       anchor.z + GUITAR_BODY_OFFSET.z + 0.07,
     )
-    // O cotovelo do lado da escala cai para baixo e um pouco para trás.
     this.elbowPole.set(0.25, -1, -0.55)
     solveTwoBone(this.fretChain, this.fretTarget, this.elbowPole)
     this.fretArm.end.rotation.set(0.25, 0, -1.0)
 
-    // Mão da palheta: fica sobre o corpo da guitarra e sobe e desce na
-    // batida, como quem mantém o pulso em movimento contínuo.
+    // Mão da palheta: sobe e desce sobre o corpo da guitarra.
     const stroke = playing ? halfBeat * 0.075 * energy * boost : 0
     this.pickTarget.set(
       anchor.x + GUITAR_BODY_OFFSET.x + 0.04,
@@ -731,18 +791,50 @@ private scalp(radius: number, material: THREE.Material, coverage = 0.78) {
     this.elbowPole.set(-0.9, -0.45, -0.6)
     solveTwoBone(this.pickChain, this.pickTarget, this.elbowPole)
     this.pickArm.end.rotation.set(-0.55, 0, 0.45)
+  }
 
-    // Pernas: peso alternando, joelho dobrado no solo.
-    const stance = playing ? 0.1 * energy : 0.02
-    const sway = Math.sin(this.clock * 1.3)
-    this.leftLeg.root.rotation.x = sway * stance - (this.state === 'solo' ? 0.28 : 0)
-    this.rightLeg.root.rotation.x = -sway * stance
-    this.leftLeg.root.rotation.z = 0.06
-    this.rightLeg.root.rotation.z = -0.06
-    this.leftLeg.lower.rotation.x = Math.abs(this.leftLeg.root.rotation.x) * 0.7
-    this.rightLeg.lower.rotation.x = Math.abs(this.rightLeg.root.rotation.x) * 0.7
-    this.leftLeg.end.rotation.x = -this.leftLeg.lower.rotation.x * 0.8
-    this.rightLeg.end.rotation.x = -this.rightLeg.lower.rotation.x * 0.8
+  /**
+   * Baterista: as duas mãos batem para baixo, alternadas, meio compasso
+   * fora de fase uma da outra — que é como qualquer levada básica funciona.
+   */
+  private poseDrums(dt: number, beatPhase: number, energy: number, boost: number) {
+    const swing = 0.16 + energy * 0.12 * boost
+
+    // A mão direita marca o chimbal (toda batida), a esquerda a caixa
+    // (contratempo): alturas e fases diferentes.
+    const hat = Math.max(0, Math.cos(beatPhase * Math.PI * 2))
+    const snare = Math.max(0, Math.cos((beatPhase + 0.5) * Math.PI * 2))
+
+    this.pickTarget.set(-0.34, 0.2 + hat * swing, 0.34)
+    this.elbowPole.set(-1, -0.3, -0.5)
+    solveTwoBone(this.pickChain, this.pickTarget, this.elbowPole)
+    this.pickArm.end.rotation.set(-1.1, 0, 0.2)
+
+    this.fretTarget.set(0.3, 0.14 + snare * swing, 0.3)
+    this.elbowPole.set(1, -0.3, -0.5)
+    solveTwoBone(this.fretChain, this.fretTarget, this.elbowPole)
+    this.fretArm.end.rotation.set(-1.1, 0, -0.2)
+
+    void dt
+  }
+
+  /** Vocalista: uma mão no microfone junto à boca, a outra solta. */
+  private poseVocals(dt: number, beatPhase: number, energy: number, playing: boolean) {
+    const lift = playing ? Math.sin(beatPhase * Math.PI * 2) * 0.03 * energy : 0
+
+    this.pickTarget.set(-0.1, 0.42 + lift, 0.28)
+    this.elbowPole.set(-1, -0.7, -0.3)
+    solveTwoBone(this.pickChain, this.pickTarget, this.elbowPole)
+    this.pickArm.end.rotation.set(-1.3, 0, 0.3)
+
+    // A mão livre gesticula: sobe no refrão, desce entre as frases.
+    const gesture = playing ? Math.sin(this.clock * 0.9) : -0.6
+    this.fretTarget.set(0.34, 0.1 + gesture * 0.3 * energy, 0.16)
+    this.elbowPole.set(1, -0.6, -0.4)
+    solveTwoBone(this.fretChain, this.fretTarget, this.elbowPole)
+    this.fretArm.end.rotation.set(-0.3, 0, -0.4)
+
+    void dt
   }
 
   /** Interpolação exponencial: mesmo tempo de convergência a qualquer FPS. */

@@ -124,6 +124,22 @@ export function SettingsScreen() {
         </div>
 
         <div className="field">
+          <span className="field-label">Qualidade gráfica</span>
+          <p className="field-hint">
+            Na alta, o show ganha brilho difuso e sombras projetadas. Na baixa esses dois saem, o
+            que devolve bastante quadro por segundo em máquinas modestas — a jogabilidade e o
+            julgamento das notas não mudam em nada.
+          </p>
+          <div className="segmented">
+            {(['alta', 'baixa'] as const).map((q) => (
+              <button key={q} data-active={settings.quality === q} onClick={() => updateSettings({ quality: q })}>
+                {q === 'alta' ? 'Alta' : 'Baixa'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="field">
           <span className="field-label">Sem falha</span>
           <p className="field-hint">
             O medidor continua se mexendo, mas a música nunca é interrompida. Útil para aprender

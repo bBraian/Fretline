@@ -5,9 +5,23 @@
  * a posição da música ao relógio, avança a sessão, e desenha o resultado.
  * O sentido das dependências é sempre este — nada dentro de `render/`
  * escreve no engine.
+ *
+ * **São duas cenas, não uma.** O palco tem uma câmera que corta entre planos
+ * durante a música; o braço da guitarra tem uma câmera fixa e nunca se mexe.
+ * Se as duas coisas dividissem uma câmera, seria impossível: mover o ângulo
+ * do show moveria as notas junto, e um jogo de ritmo em que a pista se mexe
+ * é injogável. Então o palco é desenhado primeiro, com a câmera do diretor;
+ * o buffer de profundidade é limpo; e o braço é desenhado por cima, com a
+ * câmera fixa. É como o original faz, e é o que permite ter direção de
+ * câmera sem tocar na jogabilidade.
  */
 
 import * as THREE from 'three'
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
 import type { Clock } from '../engine/clock'
 import type { Session, SessionEvent } from '../engine/gameplay/session'
 import { fretsToArray } from '../engine/types'
@@ -16,7 +30,20 @@ import { NoteField } from './notes'
 import { HitEffects } from './effects'
 import { Stage } from './stage'
 import { DEFAULT_NOTE_SPEED } from './layout'
+import { CameraDirector, type ShotMood } from './cameraDirector'
 import type { PerformanceState } from './character/characterModel'
+
+/**
+ * Qualidade gráfica.
+ *
+ * Na alta, o quadro passa por um compositor com bloom e há sombras
+ * projetadas. Na baixa, as duas cenas são desenhadas direto na tela e o
+ * pós-processamento sai inteiro — o que vale tanto para uma máquina fraca
+ * quanto para o navegador headless dos testes, que rasteriza por software e
+ * com o caminho completo trava a thread principal a ponto de atrasar o
+ * próprio input.
+ */
+export type Quality = 'alta' | 'baixa'
 
 export interface GameSceneOptions {
   canvas: HTMLCanvasElement
@@ -25,6 +52,8 @@ export interface GameSceneOptions {
   characterId: string
   guitarId: string
   noteSpeed?: number
+  /** Qualidade gráfica; 'baixa' desliga pós-processamento e sombras. */
+  quality?: Quality
   /** Deslocamento visual da calibração, separado do de áudio. */
   videoOffset?: number
   /** Chamado a cada evento do engine, para som e para a interface. */
@@ -33,7 +62,15 @@ export interface GameSceneOptions {
 
 export class GameScene {
   private renderer: THREE.WebGLRenderer
-  private scene = new THREE.Scene()
+  /** Cena do show: palco, banda, luzes, plateia. */
+  private stageScene = new THREE.Scene()
+  /** Cena da jogabilidade: braço, notas, efeitos. */
+  private playScene = new THREE.Scene()
+  private composer: EffectComposer | null = null
+  private bloom: UnrealBloomPass | null = null
+  private quality: Quality
+  private director: CameraDirector
+  private environment: THREE.Texture | null = null
   private camera: THREE.PerspectiveCamera
   private highway: Highway
   private notes: NoteField
@@ -70,8 +107,17 @@ export class GameScene {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
     this.renderer.toneMappingExposure = 1.05
 
-    this.scene.background = new THREE.Color(0x04050a)
-    this.scene.fog = new THREE.Fog(0x070a14, 30, 62)
+    this.quality = options.quality ?? 'alta'
+    this.renderer.shadowMap.enabled = this.quality === 'alta'
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
+    // Na qualidade baixa as duas cenas são desenhadas uma sobre a outra na
+    // mão, então a limpeza automática entre elas precisa sair do caminho.
+    this.renderer.autoClear = false
+
+    this.stageScene.background = new THREE.Color(0x04050a)
+    // A névoa vive só na cena do show. Na pista ela apagaria as notas
+    // distantes, que são justamente o que o jogador precisa ler antes.
+    this.stageScene.fog = new THREE.Fog(0x070a14, 26, 72)
 
     this.camera = new THREE.PerspectiveCamera(52, 16 / 9, 0.1, 140)
     this.camera.position.copy(this.cameraBase)
@@ -80,10 +126,53 @@ export class GameScene {
     this.highway = new Highway()
     this.notes = new NoteField(options.session.getChart(), options.noteSpeed ?? DEFAULT_NOTE_SPEED)
     this.effects = new HitEffects()
-    this.stage = new Stage(options.characterId, options.guitarId)
+    this.stage = new Stage(options.characterId, options.guitarId, {
+      effects: this.quality === 'alta',
+    })
 
-    this.scene.add(this.highway.group, this.notes.group, this.effects.group, this.stage.group)
+    this.playScene.add(this.highway.group, this.notes.group, this.effects.group)
+    this.stageScene.add(this.stage.group)
+
+    // Reflexos do palco: o metal dos pratos, das tarraxas e da ponte precisa
+    // ter alguma coisa para refletir, senão sai cinza e o instrumento não
+    // lê como metal.
+    // Só na qualidade alta: iluminação por imagem faz cada material avaliar
+    // um mapa de ambiente por pixel, e foi a parte mais cara do palco em
+    // medição — mais que o número de luzes e mais que o de chamadas de
+    // desenho. Sem ela o metal fica mais opaco, e nada mais muda.
+    if (this.quality === 'alta') {
+      const pmrem = new THREE.PMREMGenerator(this.renderer)
+      this.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
+      this.stageScene.environment = this.environment
+      this.stageScene.environmentIntensity = 0.35
+      pmrem.dispose()
+    }
     this.addHighwayLighting()
+
+    this.director = new CameraDirector(16 / 9)
+    // A câmera do diretor é filha do palco: assim todo plano é escrito em
+    // coordenadas do palco, e mover o palco não exige refazer os planos.
+    this.stage.group.add(this.director.camera)
+
+    if (this.quality === 'alta') {
+      this.composer = new EffectComposer(this.renderer)
+      const stagePass = new RenderPass(this.stageScene, this.director.camera)
+      const playPass = new RenderPass(this.playScene, this.camera)
+      // O segundo passe preserva a cor do palco e zera só a profundidade, de
+      // modo que o braço fique sempre na frente do show.
+      playPass.clear = false
+      playPass.clearDepth = true
+
+      // Limiar alto: só o que é de fato brilhante — chamas de acerto, painel
+      // de LED, star power — deve espalhar. Um limiar baixo faz as notas
+      // comuns estourarem em branco e a pista perde a leitura de cor.
+      this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.42, 0.5, 0.92)
+
+      this.composer.addPass(stagePass)
+      this.composer.addPass(playPass)
+      this.composer.addPass(this.bloom)
+      this.composer.addPass(new OutputPass())
+    }
 
     this.resize()
     window.addEventListener('resize', this.resize)
@@ -99,12 +188,12 @@ export class GameScene {
    * brilho não caia no fundo.
    */
   private addHighwayLighting() {
-    this.scene.add(new THREE.AmbientLight(0xa8b8e0, 0.55))
+    this.playScene.add(new THREE.AmbientLight(0xa8b8e0, 0.6))
 
     for (const z of [0, -8, -18]) {
-      const light = new THREE.PointLight(0xdce6ff, 18, 16, 2)
+      const light = new THREE.PointLight(0xdce6ff, 10, 16, 2)
       light.position.set(0, 3.2, z)
-      this.scene.add(light)
+      this.playScene.add(light)
     }
   }
 
@@ -118,6 +207,20 @@ export class GameScene {
 
   setGuitar(id: string) {
     this.stage.setGuitar(id)
+  }
+
+  /**
+   * Liga e desliga partes da cena, para isolar custo em diagnóstico.
+   *
+   * É medindo assim — apagando uma parte e comparando os quadros por
+   * segundo — que se descobre o que custa. Cronometrar `renderer.render()`
+   * não serve: a chamada só enfileira comandos e volta, e o tempo real
+   * aparece depois, fora do alcance do relógio do JavaScript.
+   */
+  setVisible(part: 'stage' | 'play' | 'band' | 'rig' | 'crowd', visible: boolean) {
+    if (part === 'stage') this.stage.group.visible = visible
+    else if (part === 'play') this.highway.group.visible = visible
+    else this.stage.setPartVisible(part, visible)
   }
 
   /** Estado dos trastes pressionados, vindo do gerenciador de input. */
@@ -142,8 +245,11 @@ export class GameScene {
     const width = canvas.clientWidth || window.innerWidth
     const height = canvas.clientHeight || window.innerHeight
     this.renderer.setSize(width, height, false)
+    this.composer?.setSize(width, height)
+    this.bloom?.setSize(width, height)
     this.camera.aspect = width / height
     this.camera.updateProjectionMatrix()
+    this.director?.setAspect(width / height)
   }
 
   private frame = () => {
@@ -173,7 +279,32 @@ export class GameScene {
     this.stage.update(dt, beatPhase)
 
     this.updateCamera(dt, beatPhase)
-    this.renderer.render(this.scene, this.camera)
+
+    this.director.setMood(this.mood())
+    this.director.update(dt, songTime, this.beats, beatPhase)
+
+    if (this.composer && this.bloom) {
+      // O brilho aumenta no star power: é o efeito que diz, sem texto, que o
+      // jogo mudou de estado.
+      this.bloom.strength = 0.42 + (state.starPowerActive ? 0.55 : 0) + this.excitement() * 0.12
+      this.composer.render()
+    } else {
+      // Caminho direto: o palco primeiro, depois a pista por cima com a
+      // profundidade zerada — o mesmo empilhamento, sem compositor.
+      this.renderer.clear()
+      this.renderer.render(this.stageScene, this.director.camera)
+      this.renderer.clearDepth()
+      this.renderer.render(this.playScene, this.camera)
+    }
+  }
+
+  /** Traduz o estado da sessão no clima que o diretor de câmera usa. */
+  private mood(): ShotMood {
+    const state = this.session.getState()
+    if (state.rockMeter < 0.25) return 'failing'
+    if (state.starPowerActive || state.streak >= 40) return 'peak'
+    if (this.clock.now() < 0) return 'calm'
+    return state.streak >= 8 ? 'driving' : 'calm'
   }
 
   private drainEvents() {
@@ -260,6 +391,8 @@ export class GameScene {
     this.notes.dispose()
     this.effects.dispose()
     this.stage.dispose()
+    this.environment?.dispose()
+    this.composer?.dispose()
     this.renderer.dispose()
   }
 }

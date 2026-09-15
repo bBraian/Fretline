@@ -16,6 +16,7 @@ import { GUITARS } from '../content/guitars'
 import type { Performance } from '../content/progression'
 import { DEFAULT_GAMEPAD, DEFAULT_KEYBOARD, type GamepadBindings, type KeyboardBindings } from '../input/bindings'
 import { DEFAULT_NOTE_SPEED } from '../render/layout'
+import type { Quality } from '../render/gameScene'
 
 export type Screen =
   | 'menu'
@@ -42,6 +43,7 @@ export interface Settings {
   videoOffset: number
   volume: number
   noFail: boolean
+  quality: Quality
   keyboard: KeyboardBindings
   gamepad: GamepadBindings
 }
@@ -86,6 +88,7 @@ const DEFAULT_SETTINGS: Settings = {
   videoOffset: 0,
   volume: 0.8,
   noFail: false,
+  quality: 'alta',
   keyboard: DEFAULT_KEYBOARD,
   gamepad: DEFAULT_GAMEPAD,
 }

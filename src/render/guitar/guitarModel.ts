@@ -14,6 +14,7 @@
 
 import * as THREE from 'three'
 import type { Guitar } from '../../content/guitars'
+import { keepAnimated, mergeStatic } from '../mergeStatic'
 import { BODY_SPECS, headstockShape, tunerPositions, type PickupKind } from './shapes'
 
 /** Quantas casas a escala tem. */
@@ -395,7 +396,7 @@ export function buildGuitar(guitar: Guitar): GuitarModel {
   }
 
   // Alavanca: gira na ponte, e é o único pedaço móvel do modelo.
-  const whammyPivot = new THREE.Group()
+  const whammyPivot = keepAnimated(new THREE.Group())
   whammyPivot.position.set(0.06, bridgeY - 0.01, topZ + 0.012)
   b.add(whammyPivot)
 
@@ -457,6 +458,9 @@ export function buildGuitar(guitar: Guitar): GuitarModel {
     strapButton.rotation.x = Math.PI / 2
     strapButton.position.set(x, y, topZ)
   }
+
+  // Tudo o que não se mexe vira um desenho por material.
+  mergeStatic(b.group)
 
   return {
     group: b.group,

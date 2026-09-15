@@ -13,17 +13,11 @@ import { CharacterModel, GUITAR_BODY_OFFSET, GUITAR_TILT, type PerformanceState 
 import { buildGuitar, type GuitarModel } from './guitar/guitarModel'
 import { CHARACTERS, characterById, type Character } from '../content/characters'
 import { guitarById, type Guitar } from '../content/guitars'
+import { LightRig } from './stage/lightRig'
 
 const CROWD_ROWS = 7
 const CROWD_PER_ROW = 26
 const CROWD_COUNT = CROWD_ROWS * CROWD_PER_ROW
-
-interface Spotlight {
-  cone: THREE.Mesh
-  light: THREE.PointLight
-  phase: number
-  color: THREE.Color
-}
 
 export class Stage {
   readonly group = new THREE.Group()
@@ -31,7 +25,9 @@ export class Stage {
   private guitarist: CharacterModel
   private guitarModel: GuitarModel
   private bandmates: CharacterModel[] = []
-  private spotlights: Spotlight[] = []
+  private rig: LightRig
+  private haze: THREE.Mesh[] = []
+  private crowdWash: THREE.PointLight[] = []
   private crowd: THREE.InstancedMesh
   private crowdSeeds: Float32Array
   private crowdDummy = new THREE.Object3D()
@@ -39,10 +35,15 @@ export class Stage {
 
   private clock = 0
   private starPower = 0
+  private energy = 0.5
   private currentCharacterId: string
   private currentGuitarId: string
 
-  constructor(characterId: string, guitarId: string) {
+  constructor(
+    characterId: string,
+    guitarId: string,
+    private options: { effects?: boolean } = {},
+  ) {
     this.currentCharacterId = characterId
     this.currentGuitarId = guitarId
 
@@ -54,7 +55,16 @@ export class Stage {
     this.buildBackdrop()
     this.buildAmps()
     this.buildDrumKit()
-    this.buildSpotlights()
+
+    const effects = this.options.effects !== false
+    this.rig = new LightRig(
+      [0x4b7bff, 0xff3d7f, 0x3ddc84, 0xffb703, 0xb56bff, 0x00d4ff, 0xff6b35],
+      { beams: effects, lights: effects ? 4 : 2, simpleWall: !effects },
+    )
+    this.group.add(this.rig.group)
+
+    this.buildAmbientLight()
+    if (effects) this.buildHaze()
 
     const { crowd, seeds } = this.buildCrowd()
     this.crowd = crowd
@@ -74,11 +84,14 @@ export class Stage {
 
   private buildFloor() {
     const geometry = this.track(new THREE.BoxGeometry(22, 0.6, 12))
+    // Piso liso e escuro: quase um espelho embaçado. É o que devolve a cor
+    // dos refletores para dentro do quadro em vez de engolir tudo.
     const material = this.track(
-      new THREE.MeshStandardMaterial({ color: 0x14161d, roughness: 0.85, metalness: 0.1 }),
+      new THREE.MeshStandardMaterial({ color: 0x0e1016, roughness: 0.18, metalness: 0.55 }),
     )
     const floor = new THREE.Mesh(geometry, material)
     floor.position.set(0, -0.3, 0)
+    floor.receiveShadow = true
     this.group.add(floor)
 
     // Borda luminosa: separa o palco da escuridão da plateia.
@@ -91,12 +104,18 @@ export class Stage {
   }
 
   private buildBackdrop() {
-    const wall = new THREE.Mesh(
-      this.track(new THREE.PlaneGeometry(30, 14)),
-      this.track(new THREE.MeshStandardMaterial({ color: 0x0a0b10, roughness: 1 })),
-    )
-    wall.position.set(0, 6, -6)
-    this.group.add(wall)
+    // Paredes laterais e teto escuros, para o palco ser um lugar fechado e
+    // não um objeto flutuando no vazio.
+    const shell = this.track(new THREE.MeshStandardMaterial({ color: 0x07080d, roughness: 1 }))
+    for (const [x, rotation] of [
+      [-11, Math.PI / 2],
+      [11, -Math.PI / 2],
+    ] as const) {
+      const side = new THREE.Mesh(this.track(new THREE.PlaneGeometry(14, 14)), shell)
+      side.position.set(x, 5, 0)
+      side.rotation.y = rotation
+      this.group.add(side)
+    }
 
     // Treliça de iluminação.
     const trussMaterial = this.track(
@@ -146,12 +165,14 @@ export class Stage {
 
   private buildDrumKit() {
     const kit = new THREE.Group()
-    kit.position.set(0, 0.6, -4.2)
+    kit.position.set(0, 0.5, -4.9)
 
     const shell = this.track(
       new THREE.MeshStandardMaterial({ color: 0x8b1a1a, roughness: 0.4, metalness: 0.2 }),
     )
-    const skin = this.track(new THREE.MeshStandardMaterial({ color: 0xf0ece0, roughness: 0.6 }))
+    // A pele do bumbo é bege, não branca: em branco puro ela vira um disco
+    // estourado que rouba a atenção de tudo no plano.
+    const skin = this.track(new THREE.MeshStandardMaterial({ color: 0xbfb6a4, roughness: 0.75 }))
     const metal = this.track(
       new THREE.MeshStandardMaterial({ color: 0xc9b037, roughness: 0.3, metalness: 0.9 }),
     )
@@ -202,46 +223,72 @@ export class Stage {
     this.group.add(kit)
   }
 
-  private buildSpotlights() {
-    const colors = [0x4b7bff, 0xff3d7f, 0x3ddc84, 0xffb703, 0xb56bff]
-    const coneGeometry = this.track(new THREE.ConeGeometry(1.5, 9, 16, 1, true))
-    coneGeometry.translate(0, -4.5, 0)
+  private buildAmbientLight() {
+    // Luz de preenchimento fria e fraca: o palco precisa de um piso de
+    // exposição para os refletores terem contra o que se destacar, mas alta
+    // demais e o show vira um escritório iluminado.
+    this.group.add(new THREE.HemisphereLight(0x4a5f96, 0x07080c, 0.45))
 
-    for (let i = 0; i < colors.length; i++) {
-      const color = new THREE.Color(colors[i])
+    const key = new THREE.DirectionalLight(0xdfe7ff, 0.9)
+    key.position.set(3, 9, 10)
+    key.castShadow = true
+    key.shadow.mapSize.set(1024, 1024)
+    key.shadow.camera.near = 1
+    key.shadow.camera.far = 30
+    key.shadow.camera.left = -10
+    key.shadow.camera.right = 10
+    key.shadow.camera.top = 10
+    key.shadow.camera.bottom = -6
+    this.group.add(key)
+
+    // Luz frontal dedicada à banda: os refletores vêm de cima e deixariam
+    // rostos e instrumentos em silhueta.
+    const front = new THREE.PointLight(0xfff0dc, 30, 18, 2)
+    front.position.set(0, 2.8, 5)
+    this.group.add(front)
+
+    // Lavagem sobre a plateia. Sem ela o plano que olha para o público cai
+    // no breu — a plateia fica fora do alcance de tudo que ilumina o palco,
+    // e um plano inteiro do repertório do diretor vira tela preta.
+    const washes = this.options.effects === false
+      ? ([[0, 10, 0x8b5cf6]] as const)
+      : ([
+          [-6, 9, 0x3b6fd4],
+          [0, 11, 0x8b5cf6],
+          [6, 9, 0xd946a0],
+        ] as const)
+
+    for (const [x, z, color] of washes) {
+      const wash = new THREE.PointLight(color, 26, 26, 2)
+      wash.position.set(x, 5.5, z)
+      this.group.add(wash)
+      this.crowdWash.push(wash)
+    }
+  }
+
+  /**
+   * Fumaça: planos aditivos grandes e translúcidos, espalhados em
+   * profundidade. É o que dá corpo aos feixes — um refletor sem fumaça
+   * ilumina o chão e mais nada, e o palco fica com aquele ar de maquete.
+   */
+  private buildHaze() {
+    const geometry = this.track(new THREE.PlaneGeometry(26, 11))
+    for (let i = 0; i < 5; i++) {
       const material = this.track(
         new THREE.MeshBasicMaterial({
-          color,
+          color: 0x8fa8d8,
           transparent: true,
-          opacity: 0.07,
-          blending: THREE.AdditiveBlending,
+          opacity: 0.018,
           depthWrite: false,
+          blending: THREE.AdditiveBlending,
           side: THREE.DoubleSide,
         }),
       )
-      const cone = new THREE.Mesh(coneGeometry, material)
-      cone.position.set(-6 + i * 3, 7.4, -3)
-      this.group.add(cone)
-
-      const light = new THREE.PointLight(color, 6, 18, 2)
-      light.position.set(-6 + i * 3, 4.5, -1)
-      this.group.add(light)
-
-      this.spotlights.push({ cone, light, phase: i * 1.27, color })
+      const plane = new THREE.Mesh(geometry, material)
+      plane.position.set(0, 3.4, -5 + i * 2.6)
+      this.group.add(plane)
+      this.haze.push(plane)
     }
-
-    const fill = new THREE.HemisphereLight(0x5568a0, 0x090a0e, 0.55)
-    this.group.add(fill)
-
-    const key = new THREE.DirectionalLight(0xdfe7ff, 1.1)
-    key.position.set(2, 8, 10)
-    this.group.add(key)
-
-    // Luz frontal dedicada à banda: os holofotes vêm de cima e deixariam os
-    // rostos e os instrumentos em silhueta.
-    const front = new THREE.PointLight(0xfff0dc, 26, 16, 2)
-    front.position.set(0, 2.6, 5)
-    this.group.add(front)
   }
 
   private buildCrowd() {
@@ -255,7 +302,8 @@ export class Stage {
     const color = new THREE.Color()
     let i = 0
 
-    for (let row = 0; row < CROWD_ROWS; row++) {
+    const rows = this.options.effects === false ? 3 : CROWD_ROWS
+    for (let row = 0; row < rows; row++) {
       for (let slot = 0; slot < CROWD_PER_ROW; slot++) {
         const x = (slot - (CROWD_PER_ROW - 1) / 2) * 0.82 + (Math.random() - 0.5) * 0.3
         const z = 6.5 + row * 1.15 + (Math.random() - 0.5) * 0.4
@@ -272,20 +320,42 @@ export class Stage {
 
         // A plateia é quase silhueta: escura, com variação pequena, para não
         // competir com o palco em atenção.
-        color.setHSL(Math.random(), 0.12, 0.025 + Math.random() * 0.025)
+        color.setHSL(Math.random(), 0.18, 0.06 + Math.random() * 0.06)
         crowd.setColorAt(i, color)
         i++
       }
     }
 
+    crowd.count = i
     this.group.add(crowd)
+
+    // Telas de celular na plateia: pontinhos emissivos espalhados, que é o
+    // que se vê de verdade de cima de um palco hoje em dia.
+    const phoneGeometry = this.track(new THREE.PlaneGeometry(0.1, 0.16))
+    const phoneMaterial = this.track(
+      new THREE.MeshBasicMaterial({ color: 0xbfd4ff, transparent: true, opacity: 0.75 }),
+    )
+    const phones = new THREE.InstancedMesh(phoneGeometry, phoneMaterial, 40)
+    phones.frustumCulled = false
+    const dummy = new THREE.Object3D()
+    for (let p = 0; p < 40; p++) {
+      const source = Math.floor(Math.random() * CROWD_COUNT)
+      const x = seeds[source * 3]
+      dummy.position.set(Number.isNaN(x) ? 4 : x, 0.15 + Math.random() * 0.4, seeds[source * 3 + 1])
+      dummy.rotation.set(-0.3, (Math.random() - 0.5) * 0.6, 0)
+      dummy.updateMatrix()
+      phones.setMatrixAt(p, dummy.matrix)
+    }
+    this.group.add(phones)
+
     return { crowd, seeds }
   }
 
   private placeGuitarist(character: Character) {
     const model = new CharacterModel(character)
-    model.group.position.set(-2.4, 0, -0.5)
-    model.group.rotation.y = 0.28
+    model.setRole('guitar')
+    model.group.position.set(-2.6, 0, -0.6)
+    model.group.rotation.y = 0.3
     this.group.add(model.group)
     return model
   }
@@ -300,38 +370,79 @@ export class Stage {
   }
 
   private buildBandmates() {
-    // Baixista e vocalista saem do elenco, evitando duplicar o guitarrista.
+    // Baixista, vocalista e baterista saem do elenco, evitando duplicar o
+    // guitarrista. Cada um recebe o próprio papel: é o que separa uma banda
+    // de quatro guitarristas em posições diferentes.
     const others = CHARACTERS.filter((c) => c.id !== this.currentCharacterId)
 
     const bassist = new CharacterModel(others[0] ?? CHARACTERS[1])
-    bassist.group.position.set(2.6, 0, -0.8)
-    bassist.group.rotation.y = -0.3
+    bassist.setRole('bass')
+    bassist.group.position.set(2.7, 0, -0.9)
+    bassist.group.rotation.y = -0.34
     const bass = buildGuitar({ ...guitarById('nocturne'), id: 'bass-prop' })
-    // O baixo é maior que a guitarra, e o braço é mais comprido.
+    // O baixo é maior que a guitarra e tem o braço mais comprido.
     bass.group.scale.setScalar(0.42)
     bass.group.rotation.set(-0.1, 0.22, -GUITAR_TILT)
+    bass.group.position.set(GUITAR_BODY_OFFSET.x, GUITAR_BODY_OFFSET.y, GUITAR_BODY_OFFSET.z)
     bassist.instrumentAnchor.add(bass.group)
     this.group.add(bassist.group)
     this.bandmates.push(bassist)
     this.disposables.push(bass)
 
     const singer = new CharacterModel(others[1] ?? CHARACTERS[2])
-    singer.group.position.set(0.1, 0, 2.6)
+    singer.setRole('vocals')
+    singer.group.position.set(-0.1, 0, 3.4)
+    singer.group.rotation.y = 0.1
     this.group.add(singer.group)
     this.bandmates.push(singer)
 
-    const micStand = new THREE.Mesh(
-      this.track(new THREE.CylinderGeometry(0.025, 0.025, 1.5, 8)),
-      this.track(new THREE.MeshStandardMaterial({ color: 0x2a2d35, metalness: 0.7, roughness: 0.4 })),
+    // Microfone na mão, não num pedestal à parte: assim ele acompanha o
+    // gesto do braço em vez de ficar parado enquanto a mão se mexe.
+    const micBody = new THREE.Mesh(
+      this.track(new THREE.CylinderGeometry(0.018, 0.022, 0.15, 10)),
+      this.track(new THREE.MeshStandardMaterial({ color: 0x1b1d23, roughness: 0.5, metalness: 0.6 })),
     )
-    micStand.position.set(0.1, 0.75, 3.0)
-    this.group.add(micStand)
+    micBody.position.set(0, -0.09, 0.02)
+    micBody.rotation.x = -0.5
+    singer.pickHand.add(micBody)
+
+    const micHead = new THREE.Mesh(
+      this.track(new THREE.SphereGeometry(0.033, 12, 10)),
+      this.track(new THREE.MeshStandardMaterial({ color: 0x3a3f4a, roughness: 0.35, metalness: 0.85 })),
+    )
+    micHead.position.set(0, -0.16, 0.055)
+    singer.pickHand.add(micHead)
 
     const drummer = new CharacterModel(others[2] ?? CHARACTERS[3])
-    drummer.group.position.set(0, 0.35, -5.2)
-    drummer.group.scale.multiplyScalar(0.95)
+    drummer.setRole('drums')
+    drummer.group.position.set(0, 0.42, -4.1)
     this.group.add(drummer.group)
     this.bandmates.push(drummer)
+
+    // Banquinho, para o baterista não ficar sentado no ar.
+    const stool = new THREE.Mesh(
+      this.track(new THREE.CylinderGeometry(0.2, 0.18, 0.08, 14)),
+      this.track(new THREE.MeshStandardMaterial({ color: 0x1a1a20, roughness: 0.8 })),
+    )
+    stool.position.set(0, 0.98, -4.1)
+    this.group.add(stool)
+
+    const stoolPost = new THREE.Mesh(
+      this.track(new THREE.CylinderGeometry(0.03, 0.05, 0.55, 8)),
+      this.track(new THREE.MeshStandardMaterial({ color: 0x2a2d35, roughness: 0.4, metalness: 0.7 })),
+    )
+    stoolPost.position.set(0, 0.68, -4.1)
+    this.group.add(stoolPost)
+
+    // Baquetas nas mãos.
+    const stickGeometry = this.track(new THREE.CylinderGeometry(0.008, 0.012, 0.38, 6))
+    const stickMaterial = this.track(new THREE.MeshStandardMaterial({ color: 0xc9a86a, roughness: 0.7 }))
+    for (const hand of [drummer.pickHand, drummer.fretHand]) {
+      const stick = new THREE.Mesh(stickGeometry, stickMaterial)
+      stick.position.set(0, -0.2, 0.05)
+      stick.rotation.x = -0.3
+      hand.add(stick)
+    }
   }
 
   // --- troca de elenco ---------------------------------------------------
@@ -346,6 +457,7 @@ export class Stage {
     this.guitarist.dispose()
 
     this.guitarist = new CharacterModel(characterById(characterId))
+    this.guitarist.setRole('guitar')
     this.guitarist.group.position.copy(position)
     this.guitarist.group.rotation.copy(rotation)
     this.group.add(this.guitarist.group)
@@ -365,8 +477,21 @@ export class Stage {
 
   // --- animação ----------------------------------------------------------
 
+  /** Liga e desliga partes do palco, para isolar custo em diagnóstico. */
+  setPartVisible(part: 'band' | 'rig' | 'crowd', visible: boolean) {
+    if (part === 'band') {
+      this.guitarist.group.visible = visible
+      for (const mate of this.bandmates) mate.group.visible = visible
+    } else if (part === 'rig') {
+      this.rig.group.visible = visible
+    } else {
+      this.crowd.visible = visible
+    }
+  }
+
   setPerformance(state: PerformanceState, intensity: number, starPower: number) {
     this.starPower = starPower
+    this.energy = intensity
     this.guitarist.setState(state)
     this.guitarist.setIntensity(intensity)
     for (const mate of this.bandmates) {
@@ -384,29 +509,27 @@ export class Stage {
     this.bandmates.forEach((mate, i) => mate.update(dt, (beatPhase + i * 0.17) % 1))
 
     this.guitarModel.setGlow(this.starPower)
-    this.updateSpotlights(dt, beatPhase)
+    this.rig.update(dt, beatPhase, this.energy, this.starPower)
+
+    // A lavagem da plateia pulsa na batida, como os blinders de um show.
+    const pulse = 0.5 + 0.5 * Math.cos(beatPhase * Math.PI * 2)
+    for (let i = 0; i < this.crowdWash.length; i++) {
+      this.crowdWash[i].intensity = 14 + pulse * 22 * (0.6 + this.energy * 0.6)
+    }
+    this.updateHaze(dt)
     this.updateCrowd(beatPhase)
   }
 
-  private updateSpotlights(dt: number, beatPhase: number) {
-    const pulse = 0.5 + 0.5 * Math.cos(beatPhase * Math.PI * 2)
-
-    for (const spot of this.spotlights) {
-      spot.phase += dt * 0.5
-      spot.cone.rotation.z = Math.sin(spot.phase) * 0.35
-      spot.cone.rotation.x = Math.cos(spot.phase * 0.7) * 0.2
-
-      const material = spot.cone.material as THREE.MeshBasicMaterial
-      material.opacity = 0.05 + pulse * 0.09 + this.starPower * 0.06
-      spot.light.intensity = 3 + pulse * 5 + this.starPower * 4
-
-      if (this.starPower > 0.01) {
-        // No star power as luzes convergem para o azul do medidor.
-        material.color.copy(spot.color).lerp(new THREE.Color(0x9ec5ff), this.starPower)
-      } else {
-        material.color.copy(spot.color)
-      }
+  /** A fumaça deriva devagar: parada, denuncia que é um plano. */
+  private updateHaze(dt: number) {
+    for (let i = 0; i < this.haze.length; i++) {
+      const plane = this.haze[i]
+      plane.position.x = Math.sin(this.clock * 0.08 + i) * 1.4
+      plane.position.y = 3.4 + Math.sin(this.clock * 0.13 + i * 2) * 0.3
+      const material = plane.material as THREE.MeshBasicMaterial
+      material.opacity = 0.014 + this.starPower * 0.012 + this.energy * 0.008
     }
+    void dt
   }
 
   private updateCrowd(beatPhase: number) {
@@ -443,6 +566,7 @@ export class Stage {
     this.guitarist.dispose()
     this.guitarModel.dispose()
     for (const mate of this.bandmates) mate.dispose()
+    this.rig.dispose()
     for (const item of this.disposables) item.dispose()
     this.crowd.geometry.dispose()
   }
