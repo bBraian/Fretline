@@ -78,7 +78,18 @@ const result = await page.evaluate(async () => {
   const debug = window.__fretline
   if (!debug) return { error: 'gancho de depuração ausente' }
 
-  const { session, player, chart } = debug
+  const { session, player, chart, scene } = debug
+
+  // O palco sai do desenho durante o teste.
+  //
+  // Não é para o teste passar mais fácil: é que o navegador headless
+  // rasteriza por software, e o show — painel de LED, banda, plateia —
+  // consome quase todo o quadro. Com a thread principal travada em rajadas,
+  // o próprio piloto automático atrasa e a medição vira um teste do
+  // rasterizador, não da corrente que importa aqui: relógio de áudio,
+  // input, julgamento e notas. O palco é conferido pelas capturas visuais,
+  // que é onde ele de fato precisa ser olhado.
+  scene.setVisible('stage', false)
   const FRET_KEYS = ['KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyG']
 
   const send = (type, code) =>
@@ -176,13 +187,11 @@ if (result.error) {
   console.log(`✓ medidor ao fim: ${Math.round(result.rockMeter * 100)}%`)
   console.log(`✓ star power ativado: ${result.starPowerUsed ? 'sim' : 'não'}`)
 
-  // O limiar é 85%, e não 98%, porque o navegador headless rasteriza por
-  // software: o laço de desenho trava a thread principal em rajadas e atrasa
-  // o próprio piloto automático, o que faz a precisão oscilar entre 90% e
-  // 98% entre execuções sem nada ter mudado no jogo. Um defeito de verdade
-  // no julgamento derruba isso para perto de zero, não para 90.
+  // Com o palco fora do desenho, o piloto automático toca quase perfeito, e
+  // um limiar alto volta a ser honesto: qualquer defeito no julgamento
+  // derruba isso de imediato.
   if (result.score <= 0) problems.push('o placar não saiu do zero')
-  if (accuracy < 0.85) problems.push(`precisão baixa demais para um piloto automático: ${Math.round(accuracy * 100)}%`)
+  if (accuracy < 0.95) problems.push(`precisão baixa demais para um piloto automático: ${Math.round(accuracy * 100)}%`)
   if (result.failed) problems.push('o piloto automático falhou a música')
   if (result.longestStreak < 20) problems.push('a corrente de acertos não se sustentou')
   if (!result.starPowerUsed) problems.push('o medidor de star power nunca encheu')
