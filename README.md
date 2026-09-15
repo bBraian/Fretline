@@ -52,12 +52,37 @@ como saírem de sincronia — e importa a sua própria biblioteca no formato do
 Clone Hero. Os arquivos ficam no seu computador; nada é enviado a lugar
 nenhum.
 
-Uma pasta por música, contendo:
+### Onde colocar
+
+Largue as pastas em **`songs/`**, na raiz do projeto. O jogo lê essa pasta
+sozinho ao abrir, e como os arquivos são servidos por endereços normais, a
+biblioteca continua lá depois de recarregar a página. Pastas dentro de
+pastas funcionam até quatro níveis, então um pack inteiro pode ser jogado
+ali de uma vez.
+
+    songs/
+      Barracuda/
+        notes.mid          (ou notes.chart)
+        song.ini
+        guitar.ogg
+        song.ogg
+      Bulls on Parade/
+        ...
+
+Cada pasta precisa de:
 
 - **`notes.mid`** (o formato da maioria dos packs) ou **`notes.chart`**;
 - **`song.ini`** com nome, artista, ano e o `delay` do áudio;
 - as faixas de áudio: `song.ogg` com a banda misturada, ou faixas separadas
   (`guitar.ogg`, `rhythm.ogg`, `bass.ogg`, `drums.ogg`, `vocals.ogg`).
+
+Para conferir que o caminho está de pé antes de largar um pack de verdade,
+`npm run test-song` escreve uma música de teste em `songs/`.
+
+O botão **Importar pasta de músicas**, na tela de seleção, continua existindo
+para pastas fora do projeto. A diferença é que o que entra por ali vale só
+para aquela aba: o navegador não deixa um endereço de arquivo escolhido pelo
+usuário sobreviver a um recarregamento.
 
 Quando existe uma faixa de guitarra separada, **errar corta a guitarra** e o
 resto da banda continua tocando, como no original. Com uma faixa só, o
@@ -167,6 +192,8 @@ npm run capture   # capturas do jogo em andamento
 npm run shots     # um retrato de cada plano de câmera
 npm run gallery   # cada guitarra e cada personagem na tela de seleção
 npm run menus     # as telas de menu
+npm run library   # confere que a pasta songs/ é lida e tocada
+npm run test-song # escreve uma música de teste em songs/
 ```
 
 O teste de fumaça sobe o próprio servidor, injeta um piloto automático na

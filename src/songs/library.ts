@@ -110,7 +110,33 @@ function groupByFolder(files: File[]): Map<string, File[]> {
   return folders
 }
 
-async function entryFromFiles(folderName: string, files: File[]): Promise<SongEntry | null> {
+/**
+ * Um arquivo de música, venha ele do seletor de pastas ou da pasta local
+ * servida pelo servidor de desenvolvimento.
+ *
+ * A abstração existe para que exista um caminho só montando a música: as
+ * duas origens diferem apenas em como se lê o conteúdo e em que endereço o
+ * áudio fica.
+ */
+export interface SongFile {
+  name: string
+  /** Endereço tocável desta faixa. */
+  url: string
+  text(): Promise<string>
+  arrayBuffer(): Promise<ArrayBuffer>
+}
+
+function fromBrowserFile(file: File): SongFile {
+  return {
+    name: file.name,
+    // O blob só vale enquanto a aba viver; é o preço do seletor de pastas.
+    url: URL.createObjectURL(file),
+    text: () => file.text(),
+    arrayBuffer: () => file.arrayBuffer(),
+  }
+}
+
+async function entryFromFiles(folderName: string, files: SongFile[]): Promise<SongEntry | null> {
   const midiFile = files.find((f) => isMidi(f.name))
   const chartFile = files.find((f) => isChart(f.name))
   if (!midiFile && !chartFile) return null
@@ -150,10 +176,7 @@ async function entryFromFiles(folderName: string, files: File[]): Promise<SongEn
 
   return {
     song,
-    tracks: audioFiles.map((file) => ({
-      url: URL.createObjectURL(file),
-      role: roleOf(file.name),
-    })),
+    tracks: audioFiles.map((file) => ({ url: file.url, role: roleOf(file.name) })),
     synthesized: false,
     format,
   }
@@ -166,7 +189,7 @@ export async function importFromFileList(fileList: FileList): Promise<SongEntry[
 
   for (const [folder, folderFiles] of groupByFolder(files)) {
     try {
-      const entry = await entryFromFiles(folder, folderFiles)
+      const entry = await entryFromFiles(folder, folderFiles.map(fromBrowserFile))
       if (entry) entries.push(entry)
     } catch (error) {
       console.warn(`Não consegui ler a música em ${folder}:`, error)
@@ -222,7 +245,7 @@ export async function importFromDirectoryPicker(): Promise<SongEntry[]> {
     }
 
     if (files.some((f) => isChartFile(f.name))) {
-      const entry = await entryFromFiles(dir.name, files)
+      const entry = await entryFromFiles(dir.name, files.map(fromBrowserFile))
       if (entry) entries.push(entry)
     }
 
@@ -235,4 +258,51 @@ export async function importFromDirectoryPicker(): Promise<SongEntry[]> {
 
 export function releaseEntry(entry: SongEntry) {
   for (const track of entry.tracks) URL.revokeObjectURL(track.url)
+}
+
+
+/**
+ * Carrega a pasta `songs/` do projeto, servida pelo servidor local.
+ *
+ * É o caminho recomendado para jogar na própria máquina: os endereços são
+ * URLs normais, então a biblioteca continua lá depois de recarregar a
+ * página — ao contrário do seletor de pastas, cujos blobs morrem com a aba.
+ */
+export async function loadLocalLibrary(): Promise<SongEntry[]> {
+  let index: { songs: Array<{ id: string; path: string; files: string[] }> }
+
+  try {
+    const response = await fetch('/library/index.json')
+    if (!response.ok) return []
+    index = await response.json()
+  } catch {
+    // Sem o servidor local — build estático, por exemplo — resta o seletor.
+    return []
+  }
+
+  const entries: SongEntry[] = []
+
+  for (const folder of index.songs) {
+    const files: SongFile[] = folder.files.map((name) => {
+      // Cada segmento é codificado em separado: codificar o caminho inteiro
+      // escaparia as barras e o servidor não acharia a subpasta.
+      const segments = [...folder.path.split('/').filter(Boolean), name]
+      const url = `/library/file/${segments.map(encodeURIComponent).join('/')}`
+      return {
+        name,
+        url,
+        text: async () => (await fetch(url)).text(),
+        arrayBuffer: async () => (await fetch(url)).arrayBuffer(),
+      }
+    })
+
+    try {
+      const entry = await entryFromFiles(folder.id, files)
+      if (entry) entries.push(entry)
+    } catch (error) {
+      console.warn(`Não consegui ler a música em songs/${folder.path}:`, error)
+    }
+  }
+
+  return entries
 }

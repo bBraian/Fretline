@@ -6,6 +6,7 @@
  * segundo plano é o caminho mais curto para vazar memória de GPU.
  */
 
+import { useEffect } from 'react'
 import { useGame } from './ui/store'
 import { MenuScreen } from './ui/screens/MenuScreen'
 import { CareerScreen } from './ui/screens/CareerScreen'
@@ -19,6 +20,13 @@ import { PlayScreen } from './ui/PlayScreen'
 
 export function App() {
   const screen = useGame((s) => s.screen)
+  const refreshLocalLibrary = useGame((s) => s.refreshLocalLibrary)
+
+  // A pasta `songs/` é lida uma vez ao abrir. Falhar aqui não é erro: num
+  // build estático, sem o servidor local, simplesmente não há pasta.
+  useEffect(() => {
+    void refreshLocalLibrary()
+  }, [refreshLocalLibrary])
 
   switch (screen) {
     case 'career':

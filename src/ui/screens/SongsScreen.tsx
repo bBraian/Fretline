@@ -23,6 +23,9 @@ export function SongsScreen() {
   const difficulty = useGame((s) => s.settings.difficulty)
   const updateSettings = useGame((s) => s.updateSettings)
 
+  const refreshLocalLibrary = useGame((s) => s.refreshLocalLibrary)
+  const loadingLibrary = useGame((s) => s.loadingLibrary)
+
   const inputRef = useRef<HTMLInputElement>(null)
   const [status, setStatus] = useState<string | null>(null)
 
@@ -64,7 +67,8 @@ export function SongsScreen() {
         <div>
           <h1 className="screen-title">Escolha a música</h1>
           <p className="screen-subtitle">
-            Uma pasta por música, com o .chart e o áudio dentro — o mesmo arranjo do Clone Hero.
+            Uma pasta por música, com o chart e o áudio dentro — o mesmo arranjo do Clone Hero.
+            Largue as pastas em <code>songs/</code> dentro do projeto e elas entram sozinhas.
             Os arquivos ficam no seu computador.
           </p>
         </div>
@@ -107,6 +111,14 @@ export function SongsScreen() {
                   {has ? `${entry.song.charts[difficulty]!.notes.length} notas` : 'sem este nível'}
                   <br />
                   {formatDuration(meta.length)}
+                  {/* O que foi detectado na importação: explica por que uma
+                      música não abafa a guitarra no erro, ou veio sem nome. */}
+                  {entry.format !== 'gerada' && (
+                    <>
+                      {` · ${entry.format === 'midi' ? '.mid' : '.chart'}`}
+                      {entry.tracks.some((t) => t.role === 'guitar') ? ' · faixas separadas' : ''}
+                    </>
+                  )}
                 </span>
                 <span className="song-meta">
                   {record ? `${record.score.toLocaleString('pt-BR')}` : '—'}
@@ -135,6 +147,21 @@ export function SongsScreen() {
       <footer className="screen-foot">
         <button className="btn btn-ghost" onClick={() => setScreen('menu')}>
           ← Voltar
+        </button>
+
+        <button
+          className="btn"
+          disabled={loadingLibrary}
+          onClick={async () => {
+            const added = await refreshLocalLibrary()
+            setStatus(
+              added > 0
+                ? `${added} música${added === 1 ? '' : 's'} nova${added === 1 ? '' : 's'} na pasta songs/.`
+                : 'Nada novo na pasta songs/.',
+            )
+          }}
+        >
+          {loadingLibrary ? 'Lendo songs/…' : 'Reler a pasta songs/'}
         </button>
 
         {supportsDirectoryPicker() ? (

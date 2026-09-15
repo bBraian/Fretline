@@ -1,0 +1,16 @@
+Coloque aqui uma pasta por música.
+
+    songs/
+      Barracuda/
+        notes.mid          (ou notes.chart)
+        song.ini
+        guitar.ogg
+        song.ogg
+      Bulls on Parade/
+        ...
+
+O jogo lê esta pasta sozinho ao abrir — não precisa importar nada pela tela.
+Basta recarregar a página depois de acrescentar uma música.
+
+Pastas dentro de pastas também funcionam, até quatro níveis, então um pack
+inteiro pode ser jogado aqui de uma vez.

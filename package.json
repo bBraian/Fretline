@@ -13,7 +13,9 @@
     "capture": "node scripts/capture.mjs",
     "shots": "node scripts/shots.mjs",
     "gallery": "node scripts/gallery.mjs",
-    "menus": "node scripts/menus.mjs"
+    "menus": "node scripts/menus.mjs",
+    "library": "node scripts/library.mjs",
+    "test-song": "node tools/make-test-song.mjs"
   },
   "dependencies": {
     "react": "^19.2.0",

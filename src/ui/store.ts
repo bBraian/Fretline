@@ -10,7 +10,7 @@
 import { create } from 'zustand'
 import type { Difficulty } from '../engine/types'
 import type { SongEntry } from '../songs/library'
-import { demoEntry } from '../songs/library'
+import { demoEntry, loadLocalLibrary } from '../songs/library'
 import { CHARACTERS } from '../content/characters'
 import { GUITARS } from '../content/guitars'
 import type { Performance } from '../content/progression'
@@ -62,6 +62,8 @@ export interface Profile {
 interface State {
   screen: Screen
   library: SongEntry[]
+  /** A varredura da pasta `songs/` ainda está em andamento? */
+  loadingLibrary: boolean
   selectedSongId: string | null
   lastPerformance: Performance | null
   settings: Settings
@@ -70,6 +72,7 @@ interface State {
   setScreen: (screen: Screen) => void
   selectSong: (id: string) => void
   addSongs: (entries: SongEntry[]) => void
+  refreshLocalLibrary: () => Promise<number>
   updateSettings: (patch: Partial<Settings>) => void
   finishSong: (performance: Performance) => void
   setLastPerformance: (performance: Performance | null) => void
@@ -146,6 +149,7 @@ const initial = load()
 export const useGame = create<State>((set, get) => ({
   screen: 'menu',
   library: [demoEntry()],
+  loadingLibrary: false,
   selectedSongId: 'fretline-demo',
   lastPerformance: null,
   settings: initial.settings,
@@ -161,6 +165,19 @@ export const useGame = create<State>((set, get) => ({
       const fresh = entries.filter((e) => !known.has(e.song.meta.id))
       return { library: [...state.library, ...fresh] }
     }),
+
+  /** Relê a pasta `songs/` e devolve quantas músicas novas entraram. */
+  refreshLocalLibrary: async () => {
+    set({ loadingLibrary: true })
+    try {
+      const entries = await loadLocalLibrary()
+      const before = get().library.length
+      get().addSongs(entries)
+      return get().library.length - before
+    } finally {
+      set({ loadingLibrary: false })
+    }
+  },
 
   updateSettings: (patch) =>
     set((state) => {
