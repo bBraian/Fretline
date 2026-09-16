@@ -8,6 +8,7 @@
 
 import { useEffect, useRef } from 'react'
 import { owns, useGame } from '../store'
+import { ShopActions, ShopTag } from './ShopActions'
 import { GUITARS, SHAPE_NAMES, guitarById } from '../../content/guitars'
 import { buildGuitar } from '../../render/guitar/guitarModel'
 import { ModelPreview } from '../../render/preview'
@@ -17,15 +18,16 @@ function hex(color: number) {
 }
 
 export function GuitarsScreen() {
-  const { profile, setScreen, chooseGuitar, buyGuitar } = useGame()
+  const { profile, setScreen, chooseGuitar, buyGuitar, previewGuitar } = useGame()
   const totalStars = useGame((s) => s.totalStars())
+  const previewId = useGame((s) => s.previewGuitarId)
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const previewRef = useRef<ModelPreview | null>(null)
 
-  // O visor fica em exibição pelo que estiver em uso; comprar ou escolher
-  // outra troca o modelo no lugar, sem recriar o contexto WebGL.
-  const shownId = profile.guitarId
+  // O visor mostra o que está selecionado na lista, que começa no que está
+  // equipado. Olhar não troca nada: equipar é um botão à parte.
+  const shownId = previewId ?? profile.guitarId
 
   useEffect(() => {
     if (!canvasRef.current) return
@@ -78,26 +80,32 @@ export function GuitarsScreen() {
             <span className="picker-hint">arraste para girar</span>
             <div className="picker-caption">
               <h2>{shown.name}</h2>
-              <p>
-                {SHAPE_NAMES[shown.shape]} · {shown.brandless}
-              </p>
+              <p>{shown.brandless}</p>
             </div>
+
+            <ShopActions
+              owned={owns(profile.ownedGuitars, shown.id)}
+              equipped={profile.guitarId === shown.id}
+              unlocked={totalStars >= shown.unlockAtStars}
+              price={shown.price}
+              unlockAtStars={shown.unlockAtStars}
+              money={profile.money}
+              onBuy={() => buyGuitar(shown.id)}
+              onEquip={() => chooseGuitar(shown.id)}
+            />
           </div>
 
           <div className="picker-list">
             {GUITARS.map((guitar) => {
               const owned = owns(profile.ownedGuitars, guitar.id)
-              const unlocked = totalStars >= guitar.unlockAtStars
-              const affordable = profile.money >= guitar.price
-              const selected = profile.guitarId === guitar.id
 
               return (
                 <button
                   key={guitar.id}
                   className="picker-row"
-                  data-selected={selected}
-                  disabled={!owned && (!unlocked || !affordable)}
-                  onClick={() => (owned ? chooseGuitar(guitar.id) : buyGuitar(guitar.id))}
+                  data-selected={guitar.id === shownId}
+                  data-owned={owned}
+                  onClick={() => previewGuitar(guitar.id)}
                 >
                   <span className="picker-chip" style={{ background: hex(guitar.colors.body) }} />
                   <span>
@@ -105,15 +113,14 @@ export function GuitarsScreen() {
                     <span>{SHAPE_NAMES[guitar.shape]}</span>
                   </span>
                   <span>
-                    {owned ? (
-                      <span className={`tag ${selected ? 'tag-own' : ''}`}>
-                        {selected ? 'Em uso' : 'Sua'}
-                      </span>
-                    ) : !unlocked ? (
-                      <span className="tag tag-locked">{guitar.unlockAtStars} ★</span>
-                    ) : (
-                      <span className="tag">${guitar.price.toLocaleString('pt-BR')}</span>
-                    )}
+                    <ShopTag
+                      owned={owned}
+                      equipped={profile.guitarId === guitar.id}
+                      unlocked={totalStars >= guitar.unlockAtStars}
+                      price={guitar.price}
+                      unlockAtStars={guitar.unlockAtStars}
+                      money={profile.money}
+                    />
                   </span>
                 </button>
               )
@@ -127,7 +134,8 @@ export function GuitarsScreen() {
           ← Voltar
         </button>
         <span className="screen-subtitle">
-          Clique numa guitarra liberada para usá-la, ou numa bloqueada para comprar.
+          Clique em qualquer guitarra para vê-la de perto. Comprar e equipar são os botões no
+          visor.
         </span>
       </footer>
     </div>

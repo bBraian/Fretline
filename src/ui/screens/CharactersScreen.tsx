@@ -8,6 +8,7 @@
 
 import { useEffect, useRef } from 'react'
 import { owns, useGame } from '../store'
+import { ShopActions, ShopTag } from './ShopActions'
 import { BUILD_NAMES, CHARACTERS, characterById } from '../../content/characters'
 import { CharacterModel, GUITAR_BODY_OFFSET, GUITAR_TILT } from '../../render/character/characterModel'
 import { buildGuitar } from '../../render/guitar/guitarModel'
@@ -19,14 +20,16 @@ function hex(color: number) {
 }
 
 export function CharactersScreen() {
-  const { profile, setScreen, chooseCharacter, buyCharacter } = useGame()
+  const { profile, setScreen, chooseCharacter, buyCharacter, previewCharacter } = useGame()
   const totalStars = useGame((s) => s.totalStars())
+  const previewId = useGame((s) => s.previewCharacterId)
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const previewRef = useRef<ModelPreview | null>(null)
   const modelRef = useRef<CharacterModel | null>(null)
 
-  const shownId = profile.characterId
+  // O visor mostra o selecionado na lista; equipar é um botão à parte.
+  const shownId = previewId ?? profile.characterId
   const guitarId = profile.guitarId
 
   useEffect(() => {
@@ -113,24 +116,30 @@ export function CharactersScreen() {
                 {shown.subtitle} · {BUILD_NAMES[shown.build]}
               </p>
             </div>
+
+            <ShopActions
+              owned={owns(profile.ownedCharacters, shown.id)}
+              equipped={profile.characterId === shown.id}
+              unlocked={totalStars >= shown.unlockAtStars}
+              price={shown.price}
+              unlockAtStars={shown.unlockAtStars}
+              money={profile.money}
+              onBuy={() => buyCharacter(shown.id)}
+              onEquip={() => chooseCharacter(shown.id)}
+            />
           </div>
 
           <div className="picker-list">
             {CHARACTERS.map((character) => {
               const owned = owns(profile.ownedCharacters, character.id)
-              const unlocked = totalStars >= character.unlockAtStars
-              const affordable = profile.money >= character.price
-              const selected = profile.characterId === character.id
 
               return (
                 <button
                   key={character.id}
                   className="picker-row"
-                  data-selected={selected}
-                  disabled={!owned && (!unlocked || !affordable)}
-                  onClick={() =>
-                    owned ? chooseCharacter(character.id) : buyCharacter(character.id)
-                  }
+                  data-selected={character.id === shownId}
+                  data-owned={owned}
+                  onClick={() => previewCharacter(character.id)}
                 >
                   <span
                     className="picker-chip"
@@ -145,15 +154,14 @@ export function CharactersScreen() {
                     <span>{character.subtitle}</span>
                   </span>
                   <span>
-                    {owned ? (
-                      <span className={`tag ${selected ? 'tag-own' : ''}`}>
-                        {selected ? 'No palco' : 'Livre'}
-                      </span>
-                    ) : !unlocked ? (
-                      <span className="tag tag-locked">{character.unlockAtStars} ★</span>
-                    ) : (
-                      <span className="tag">${character.price.toLocaleString('pt-BR')}</span>
-                    )}
+                    <ShopTag
+                      owned={owned}
+                      equipped={profile.characterId === character.id}
+                      unlocked={totalStars >= character.unlockAtStars}
+                      price={character.price}
+                      unlockAtStars={character.unlockAtStars}
+                      money={profile.money}
+                    />
                   </span>
                 </button>
               )
@@ -167,7 +175,8 @@ export function CharactersScreen() {
           ← Voltar
         </button>
         <span className="screen-subtitle">
-          Clique num personagem liberado para usá-lo, ou num bloqueado para comprar.
+          Clique em qualquer personagem para vê-lo tocando. Comprar e equipar são os botões no
+          visor.
         </span>
       </footer>
     </div>

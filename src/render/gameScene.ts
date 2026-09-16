@@ -90,6 +90,8 @@ export class GameScene {
   private missFeedback = 0
   private beats: number[]
   private beatCursor = 0
+  /** Velocidade de rolagem; a pista e as notas precisam usar a mesma. */
+  private noteSpeed: number
 
   constructor(options: GameSceneOptions) {
     this.session = options.session
@@ -123,8 +125,9 @@ export class GameScene {
     this.camera.position.copy(this.cameraBase)
     this.camera.lookAt(this.lookTarget)
 
-    this.highway = new Highway()
-    this.notes = new NoteField(options.session.getChart(), options.noteSpeed ?? DEFAULT_NOTE_SPEED)
+    this.highway = new Highway(this.beats)
+    this.noteSpeed = options.noteSpeed ?? DEFAULT_NOTE_SPEED
+    this.notes = new NoteField(options.session.getChart(), this.noteSpeed)
     this.effects = new HitEffects()
     this.stage = new Stage(options.characterId, options.guitarId, {
       effects: this.quality === 'alta',
@@ -198,6 +201,7 @@ export class GameScene {
   }
 
   setNoteSpeed(speed: number) {
+    this.noteSpeed = speed
     this.notes.setSpeed(speed)
   }
 
@@ -272,7 +276,7 @@ export class GameScene {
 
     this.highway.setStarPower(state.starPowerActive ? 1 : state.starPowerAmount * 0.25)
     this.highway.setDanger(state.rockMeter < 0.25 ? 1 - state.rockMeter / 0.25 : 0)
-    this.highway.update(dt)
+    this.highway.update(dt, songTime + this.videoOffset, this.noteSpeed)
 
     this.effects.update(dt, this.camera.quaternion)
     this.stage.setPerformance(this.performanceState(), this.excitement(), state.starPowerActive ? 1 : 0)

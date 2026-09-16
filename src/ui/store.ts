@@ -61,6 +61,15 @@ export interface Profile {
 
 interface State {
   screen: Screen
+  /**
+   * Item em exibição nas telas de seleção.
+   *
+   * Separado do que está equipado de propósito: olhar a loja não pode
+   * trocar o que a pessoa está usando. Não é gravado — vale só enquanto a
+   * tela está aberta.
+   */
+  previewCharacterId: string | null
+  previewGuitarId: string | null
   library: SongEntry[]
   /** A varredura da pasta `songs/` ainda está em andamento? */
   loadingLibrary: boolean
@@ -70,6 +79,8 @@ interface State {
   profile: Profile
 
   setScreen: (screen: Screen) => void
+  previewCharacter: (id: string) => void
+  previewGuitar: (id: string) => void
   selectSong: (id: string) => void
   addSongs: (entries: SongEntry[]) => void
   refreshLocalLibrary: () => Promise<number>
@@ -148,6 +159,8 @@ const initial = load()
 
 export const useGame = create<State>((set, get) => ({
   screen: 'menu',
+  previewCharacterId: null,
+  previewGuitarId: null,
   library: [demoEntry()],
   loadingLibrary: false,
   selectedSongId: 'fretline-demo',
@@ -156,6 +169,9 @@ export const useGame = create<State>((set, get) => ({
   profile: initial.profile,
 
   setScreen: (screen) => set({ screen }),
+
+  previewCharacter: (id) => set({ previewCharacterId: id }),
+  previewGuitar: (id) => set({ previewGuitarId: id }),
 
   selectSong: (id) => set({ selectedSongId: id }),
 
@@ -223,11 +239,12 @@ export const useGame = create<State>((set, get) => ({
       if (owns(state.profile.ownedCharacters, id)) return {}
       if (state.profile.money < character.price) return {}
 
+      // Comprar não equipa. São duas decisões, e juntá-las tira do jogador a
+      // possibilidade de comprar algo para depois.
       const profile: Profile = {
         ...state.profile,
         money: state.profile.money - character.price,
         ownedCharacters: [...state.profile.ownedCharacters, id],
-        characterId: id,
       }
       save({ settings: state.settings, profile })
       return { profile }
@@ -244,7 +261,6 @@ export const useGame = create<State>((set, get) => ({
         ...state.profile,
         money: state.profile.money - guitar.price,
         ownedGuitars: [...state.profile.ownedGuitars, id],
-        guitarId: id,
       }
       save({ settings: state.settings, profile })
       return { profile }

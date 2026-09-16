@@ -1,17 +1,23 @@
 /**
  * O painel sobre o braço.
  *
- * Fica em DOM, sobreposto ao canvas, e não dentro da cena 3D: texto em
- * WebGL exige atlas de fonte e fica pior em telas de alta densidade, e o
- * navegador já compõe camadas sem custo perceptível.
+ * Fica em DOM, sobreposto ao canvas, e não dentro da cena 3D: texto em WebGL
+ * exige atlas de fonte e fica pior em telas de alta densidade, e o navegador
+ * já compõe camadas sem custo perceptível.
  *
  * O painel atualiza a quinze quadros por segundo, não a sessenta. Um número
  * de pontuação mudando mais rápido que isso não é legível de qualquer forma,
  * e reconciliar o React a cada quadro roubaria tempo do laço que importa.
+ *
+ * A disposição segue o original: pontuação à esquerda do braço, medidor de
+ * rock à direita, e o veredito logo acima dos botões. O meio da tela fica
+ * livre porque é por onde as notas descem.
  */
 
 import type { SessionState } from '../../engine/gameplay/session'
 import type { Verdict } from '../../engine/types'
+import { RockMeter } from './RockMeter'
+import { ScorePanel } from './ScorePanel'
 
 export interface HudProps {
   state: SessionState
@@ -20,55 +26,44 @@ export interface HudProps {
   artist: string
 }
 
-function meterColor(value: number) {
-  if (value > 0.6) return 'linear-gradient(180deg, #6ee7a8, #22c55e)'
-  if (value > 0.3) return 'linear-gradient(180deg, #ffd166, #f59e0b)'
-  return 'linear-gradient(180deg, #ff8fa3, #ef4444)'
-}
-
 export function Hud({ state, verdict, songName, artist }: HudProps) {
   const accuracy = state.notesSeen > 0 ? state.notesHit / state.notesSeen : 1
 
   return (
     <div className="hud">
-      <div className="hud-top">
-        <div className="score-block">
-          <div className="score-value">{state.score.toLocaleString('pt-BR')}</div>
-          <div className="score-label">
-            {songName} — {artist}
-          </div>
-        </div>
-
-        <div className="streak-block">
-          <div className="multiplier" data-star={state.starPowerActive}>
-            {state.multiplier}×
-          </div>
-          <div className="score-label">
-            {state.streak} seguidas · {Math.round(accuracy * 100)}%
-          </div>
-        </div>
+      <div className="hud-song">
+        <strong>{songName}</strong>
+        <span>{artist}</span>
       </div>
 
-      <div />
-
-      <div className="hud-bottom">
-        <div className="verdict" data-show={verdict !== null} style={{ color: verdictColor(verdict) }}>
-          {verdict ? verdictLabel(verdict) : ''}
-        </div>
-      </div>
-
-      <div className="rock-meter">
-        <div
-          className="rock-meter-fill"
-          style={{
-            height: `${Math.round(state.rockMeter * 100)}%`,
-            background: meterColor(state.rockMeter),
-          }}
+      <div className="hud-left">
+        <ScorePanel
+          score={state.score}
+          multiplier={state.multiplier}
+          streak={state.streak}
+          starPowerActive={state.starPowerActive}
         />
       </div>
 
-      <div className="star-meter" data-active={state.starPowerActive}>
-        <div className="star-meter-fill" style={{ height: `${Math.round(state.starPowerAmount * 100)}%` }} />
+      <div className="hud-right">
+        <RockMeter
+          value={state.rockMeter}
+          starPower={state.starPowerAmount}
+          starPowerActive={state.starPowerActive}
+        />
+        <div className="accuracy-readout">
+          {state.notesHit}/{state.notesTotal} · {Math.round(accuracy * 100)}%
+        </div>
+      </div>
+
+      <div className="hud-bottom">
+        <div
+          className="verdict"
+          data-show={verdict !== null}
+          style={{ color: verdictColor(verdict) }}
+        >
+          {verdict ? verdictLabel(verdict) : ''}
+        </div>
       </div>
     </div>
   )

@@ -25,6 +25,7 @@ const MAX_OPENS = 64
 const MAX_SUSTAINS = 320
 
 const STAR_POWER_COLOR = new THREE.Color(0xdfe9ff)
+const WHITE = new THREE.Color(0xffffff)
 
 export class NoteField {
   readonly group = new THREE.Group()
@@ -139,6 +140,7 @@ export class NoteField {
 
       for (const lane of fretsToArray(note.frets)) {
         if (gemCount >= MAX_GEMS) break
+        const base = this.laneColors[lane]
         this.tintFor(note, missed, starPower, false)
 
         const scale = 1
@@ -150,12 +152,16 @@ export class NoteField {
         this.gems.setColorAt(gemCount, this.color)
         gemCount++
 
-        // O anel marca nota de star power. Antes distinguia HOPO e tap, mas
-        // sem palhetada toda nota é tocada do mesmo jeito, e um sinal visual
-        // para uma diferença que não existe mais só engana.
-        if (starPower && !this.starPowerActive && rimCount < MAX_RIMS) {
-          this.color.set(0xffffff)
-          this.dummy.position.set(laneX(lane), NOTE_Y + 0.05, z)
+        // Toda nota leva um aro, como os botões do original: é o aro que dá
+        // à gema o aspecto de botão e a separa do fundo da pista. Nas notas
+        // de star power ele é branco e mais forte, que é a diferença que o
+        // original usa — sem lavar a cor do traste, que é o que o jogador lê
+        // primeiro.
+        if (rimCount < MAX_RIMS && !missed) {
+          if (starPower) this.color.set(0xf2f6ff)
+          else this.color.copy(base).lerp(WHITE, 0.55)
+
+          this.dummy.position.set(laneX(lane), NOTE_Y + 0.045, z)
           this.dummy.scale.setScalar(1)
           this.dummy.rotation.set(-Math.PI / 2, 0, 0)
           this.dummy.updateMatrix()
@@ -240,13 +246,15 @@ function commit(mesh: THREE.InstancedMesh, count: number) {
 }
 
 function gemGeometry() {
-  const geometry = new THREE.CylinderGeometry(0.19, 0.21, 0.1, 20)
-  geometry.translate(0, 0.05, 0)
+  // Tronco de cone baixo: a parede inclinada pega a luz de lado e dá
+  // volume, coisa que um disco reto não faz em nenhum ângulo de câmera.
+  const geometry = new THREE.CylinderGeometry(0.155, 0.205, 0.115, 24)
+  geometry.translate(0, 0.058, 0)
   return geometry
 }
 
 function rimGeometry() {
-  return new THREE.TorusGeometry(0.2, 0.028, 8, 24)
+  return new THREE.TorusGeometry(0.205, 0.036, 10, 28)
 }
 
 function openGeometry() {
@@ -271,7 +279,9 @@ function gemMaterial() {
 }
 
 function rimMaterial() {
-  return new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.9 })
+  // O aro é metálico, não luminoso: ele precisa reagir à luz da pista para
+  // parecer a borda cromada de um botão.
+  return new THREE.MeshStandardMaterial({ roughness: 0.22, metalness: 0.8 })
 }
 
 function sustainMaterial() {
