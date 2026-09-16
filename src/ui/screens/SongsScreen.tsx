@@ -1,8 +1,14 @@
 /**
- * Seleção de música e importação da biblioteca do jogador.
+ * Seleção de música e importação da biblioteca.
+ *
+ * A lista é dividida em duas: o que dá para tocar, e o que está esperando o
+ * arquivo de áudio. Não é enfeite — misturar as duas coisas numa lista só
+ * confunde de verdade quando a mesma música aparece duas vezes, uma tocável
+ * e outra não, e a que não toca vem primeiro. O jogador clica, encontra o
+ * botão travado e conclui que a música está quebrada.
  */
 
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useGame } from '../store'
 import { difficultyName } from './MenuScreen'
 import { DIFFICULTIES } from '../../engine/types'
@@ -11,6 +17,7 @@ import {
   importFromFileList,
   isPlayable,
   supportsDirectoryPicker,
+  type SongEntry,
 } from '../../songs/library'
 
 function formatDuration(seconds: number) {
@@ -23,12 +30,21 @@ export function SongsScreen() {
   const { library, selectedSongId, selectSong, setScreen, addSongs, profile } = useGame()
   const difficulty = useGame((s) => s.settings.difficulty)
   const updateSettings = useGame((s) => s.updateSettings)
-
   const refreshLocalLibrary = useGame((s) => s.refreshLocalLibrary)
   const loadingLibrary = useGame((s) => s.loadingLibrary)
 
   const inputRef = useRef<HTMLInputElement>(null)
   const [status, setStatus] = useState<string | null>(null)
+
+  const { playableSongs, waitingSongs } = useMemo(() => {
+    const byName = (a: SongEntry, b: SongEntry) =>
+      a.song.meta.name.localeCompare(b.song.meta.name, 'pt-BR')
+
+    return {
+      playableSongs: library.filter(isPlayable).sort(byName),
+      waitingSongs: library.filter((entry) => !isPlayable(entry)).sort(byName),
+    }
+  }, [library])
 
   const selected = library.find((e) => e.song.meta.id === selectedSongId)
   const available = selected ? DIFFICULTIES.filter((d) => selected.song.charts[d]) : []
@@ -41,11 +57,7 @@ export function SongsScreen() {
       setStatus('Lendo a pasta…')
       const entries = await importFromDirectoryPicker()
       addSongs(entries)
-      setStatus(
-        entries.length > 0
-          ? `${entries.length} música${entries.length === 1 ? '' : 's'} importada${entries.length === 1 ? '' : 's'}.`
-          : 'Nenhum .chart encontrado nessa pasta.',
-      )
+      setStatus(describeImport(entries.length))
     } catch (error) {
       // Cancelar o seletor cai aqui e não é erro.
       setStatus(error instanceof DOMException ? null : 'Não consegui ler essa pasta.')
@@ -57,10 +69,54 @@ export function SongsScreen() {
     setStatus('Lendo os arquivos…')
     const entries = await importFromFileList(files)
     addSongs(entries)
-    setStatus(
-      entries.length > 0
-        ? `${entries.length} música${entries.length === 1 ? '' : 's'} importada${entries.length === 1 ? '' : 's'}.`
-        : 'Nenhum .chart encontrado nesses arquivos.',
+    setStatus(describeImport(entries.length))
+  }
+
+  const renderRow = (entry: SongEntry) => {
+    const { meta } = entry.song
+    const record = profile.records[`${meta.id}:${difficulty}`]
+    const chart = entry.song.charts[difficulty]
+    const waiting = !isPlayable(entry)
+
+    return (
+      <button
+        key={meta.id}
+        className="song-row"
+        data-selected={meta.id === selectedSongId}
+        data-waiting={waiting}
+        onClick={() => selectSong(meta.id)}
+      >
+        <span>
+          <span className="song-name">{meta.name}</span>
+          <br />
+          <span className="song-artist">
+            {meta.artist}
+            {entry.synthesized ? ' · faixa gerada pelo jogo' : ''}
+          </span>
+        </span>
+
+        <span className="song-meta">
+          {chart ? `${chart.notes.length} notas` : 'sem este nível'}
+          <br />
+          {formatDuration(meta.length)}
+          {entry.format !== 'gerada' && (
+            <>
+              {` · ${entry.format === 'midi' ? '.mid' : '.chart'}`}
+              {waiting
+                ? ''
+                : entry.tracks.some((t) => t.role === 'guitar')
+                  ? ' · faixas separadas'
+                  : ''}
+            </>
+          )}
+        </span>
+
+        <span className="song-meta">
+          {record ? record.score.toLocaleString('pt-BR') : '—'}
+          <br />
+          {record ? '★'.repeat(record.stars) : ''}
+        </span>
+      </button>
     )
   }
 
@@ -72,7 +128,6 @@ export function SongsScreen() {
           <p className="screen-subtitle">
             Uma pasta por música, com o chart e o áudio dentro — o mesmo arranjo do Clone Hero.
             Largue as pastas em <code>songs/</code> dentro do projeto e elas entram sozinhas.
-            Os arquivos ficam no seu computador.
           </p>
         </div>
         <div className="segmented">
@@ -89,59 +144,26 @@ export function SongsScreen() {
       </header>
 
       <div className="screen-body">
-        <div className="song-list">
-          {library.map((entry) => {
-            const { meta } = entry.song
-            const record = profile.records[`${meta.id}:${difficulty}`]
-            const has = entry.song.charts[difficulty] !== undefined
+        <div className="song-list">{playableSongs.map(renderRow)}</div>
 
-            return (
-              <button
-                key={meta.id}
-                className="song-row"
-                data-selected={meta.id === selectedSongId}
-                onClick={() => selectSong(meta.id)}
-              >
-                <span>
-                  <span className="song-name">{meta.name}</span>
-                  <br />
-                  <span className="song-artist">
-                    {meta.artist}
-                    {entry.synthesized ? ' · faixa gerada pelo jogo' : ''}
-                  </span>
-                </span>
-                <span className="song-meta">
-                  {has ? `${entry.song.charts[difficulty]!.notes.length} notas` : 'sem este nível'}
-                  <br />
-                  {formatDuration(meta.length)}
-                  {/* O que foi detectado na importação: explica por que uma
-                      música não abafa a guitarra no erro, ou veio sem nome. */}
-                  {entry.format !== 'gerada' && (
-                    <>
-                      {` · ${entry.format === 'midi' ? '.mid' : '.chart'}`}
-                      {!isPlayable(entry)
-                        ? ' · sem áudio'
-                        : entry.tracks.some((t) => t.role === 'guitar')
-                          ? ' · faixas separadas'
-                          : ''}
-                    </>
-                  )}
-                </span>
-                <span className="song-meta">
-                  {record ? `${record.score.toLocaleString('pt-BR')}` : '—'}
-                  <br />
-                  {record ? `${'★'.repeat(record.stars)}` : ''}
-                </span>
-              </button>
-            )
-          })}
-        </div>
+        {waitingSongs.length > 0 && (
+          <>
+            <h2 className="list-heading">
+              Esperando áudio
+              <span>
+                {waitingSongs.length} pasta{waitingSongs.length === 1 ? '' : 's'} com o chart, sem
+                o arquivo de som. Coloque um <code>song.ogg</code> dentro e a música entra.
+              </span>
+            </h2>
+            <div className="song-list">{waitingSongs.map(renderRow)}</div>
+          </>
+        )}
 
         {selected && !hasAudio && (
           <p className="screen-subtitle" style={{ marginTop: 16 }}>
-            Essa pasta tem o chart, mas nenhum arquivo de áudio. Coloque o áudio dentro dela como{' '}
-            <code>song.ogg</code> — ou use <code>tools/gh3/place-audio.mjs</code> para preencher
-            várias de uma vez.
+            <b>{selected.song.meta.name}</b> tem o chart, mas nenhum arquivo de áudio na pasta. Use{' '}
+            <code>tools/gh3/place-audio.mjs</code> para preencher várias de uma vez, ou{' '}
+            <code>tools/prune-library.mjs</code> para tirá-las da lista.
           </p>
         )}
 
@@ -179,15 +201,12 @@ export function SongsScreen() {
           {loadingLibrary ? 'Lendo songs/…' : 'Reler a pasta songs/'}
         </button>
 
-        {supportsDirectoryPicker() ? (
-          <button className="btn" onClick={handlePicker}>
-            Importar pasta de músicas
-          </button>
-        ) : (
-          <button className="btn" onClick={() => inputRef.current?.click()}>
-            Importar pasta de músicas
-          </button>
-        )}
+        <button
+          className="btn"
+          onClick={() => (supportsDirectoryPicker() ? handlePicker() : inputRef.current?.click())}
+        >
+          Importar pasta de fora
+        </button>
 
         <input
           ref={inputRef}
@@ -212,4 +231,9 @@ export function SongsScreen() {
       </footer>
     </div>
   )
+}
+
+function describeImport(count: number) {
+  if (count === 0) return 'Nenhum chart encontrado aí.'
+  return `${count} música${count === 1 ? '' : 's'} importada${count === 1 ? '' : 's'}.`
 }
