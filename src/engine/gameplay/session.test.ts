@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { Session } from './session'
-import { CHORD_GRACE, HIT_WINDOW, POINTS_PER_NOTE } from './rules'
+import {
+  CHORD_GRACE,
+  GHOST_TAP_COST,
+  HIT_WINDOW,
+  METER_BY_DIFFICULTY,
+  METER_START,
+  POINTS_PER_NOTE,
+} from './rules'
 import type { Chart, Note, NoteType } from '../types'
 
 /** Monta um chart sintético: cada entrada vira uma nota num tempo exato. */
@@ -244,6 +251,92 @@ describe('notas perdidas', () => {
     const s = new Session(chartOf(notes), 'expert', { noFail: true })
     s.update(60)
     expect(s.getState().failed).toBe(false)
+  })
+})
+
+describe('medidor: escalada dos erros', () => {
+  function missing(count: number, difficulty: 'easy' | 'expert' = 'expert') {
+    const notes = Array.from({ length: count }, (_, i) => ({ time: 1 + i * 0.5, frets: GREEN }))
+    const s = new Session(chartOf(notes), difficulty)
+    s.update(1 + count * 0.5 + HIT_WINDOW + 0.01)
+    return METER_START - s.getState().rockMeter
+  }
+
+  it('o primeiro erro custa a perda base', () => {
+    expect(missing(1)).toBeCloseTo(METER_BY_DIFFICULTY.expert.loss, 6)
+  })
+
+  it('erros seguidos custam progressivamente mais', () => {
+    const um = missing(1)
+    const dois = missing(2)
+    const tres = missing(3)
+
+    // O segundo erro custa mais que o primeiro, e o terceiro mais que o
+    // segundo: é a escalada que separa um tropeço de um naufrágio.
+    expect(dois - um).toBeGreaterThan(um)
+    expect(tres - dois).toBeGreaterThan(dois - um)
+  })
+
+  it('acertar zera a escalada', () => {
+    const notes = [
+      { time: 1, frets: GREEN },
+      { time: 1.5, frets: GREEN },
+      { time: 2, frets: GREEN },
+      { time: 2.5, frets: GREEN },
+    ]
+    const s = new Session(chartOf(notes), 'expert')
+
+    // Erra duas, acerta uma, erra a quarta.
+    s.update(1 + HIT_WINDOW + 0.01)
+    s.update(1.5 + HIT_WINDOW + 0.01)
+    const afterTwo = s.getState().rockMeter
+
+    press(s, GREEN, 2)
+    press(s, 0, 2.05)
+    s.update(2.5 + HIT_WINDOW + 0.01)
+
+    const lastMiss = afterTwo + METER_BY_DIFFICULTY.expert.gain - s.getState().rockMeter
+    expect(lastMiss).toBeCloseTo(METER_BY_DIFFICULTY.expert.loss, 6)
+  })
+
+  it('o fácil perdoa mais que o expert na mesma sequência', () => {
+    expect(missing(4, 'easy')).toBeLessThan(missing(4, 'expert'))
+  })
+
+  it('a escalada tem teto', () => {
+    // Sem teto, uma passagem longa zeraria o medidor de qualquer nível quase
+    // instantaneamente, e a diferença entre as dificuldades sumiria.
+    const s = new Session(
+      chartOf(Array.from({ length: 40 }, (_, i) => ({ time: 1 + i * 0.5, frets: GREEN }))),
+      'easy',
+    )
+    s.update(4)
+    const afterSix = s.getState().rockMeter
+    s.update(5)
+    const afterEight = s.getState().rockMeter
+
+    // Depois do teto, cada erro tira sempre o mesmo tanto.
+    s.update(6)
+    const afterTen = s.getState().rockMeter
+    if (afterTen > 0) {
+      expect(afterEight - afterTen).toBeCloseTo(afterSix - afterEight, 1)
+    }
+  })
+})
+
+describe('medidor: toque no vazio custa menos', () => {
+  it('um toque no vazio tira menos que uma nota perdida', () => {
+    const vazio = new Session(chartOf([{ time: 9, frets: GREEN }]), 'expert')
+    press(vazio, GREEN, 1)
+    vazio.update(1 + CHORD_GRACE + 0.01)
+    const custoDoVazio = METER_START - vazio.getState().rockMeter
+
+    const perdida = new Session(chartOf([{ time: 1, frets: GREEN }]), 'expert')
+    perdida.update(1 + HIT_WINDOW + 0.01)
+    const custoDaPerdida = METER_START - perdida.getState().rockMeter
+
+    expect(custoDoVazio).toBeLessThan(custoDaPerdida)
+    expect(custoDoVazio).toBeCloseTo(custoDaPerdida * GHOST_TAP_COST, 6)
   })
 })
 

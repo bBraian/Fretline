@@ -25,6 +25,8 @@ import type { Chart, Difficulty, Judgement, Note, Verdict } from '../types'
 import { countFrets } from '../types'
 import {
   CHORD_GRACE,
+  ESCALATION_CAP,
+  GHOST_TAP_COST,
   HIT_WINDOW,
   METER_BY_DIFFICULTY,
   METER_START,
@@ -37,6 +39,7 @@ import {
   beatDurationAt,
   fretsSatisfyNote,
   multiplierFor,
+  type MeterTuning,
 } from './rules'
 
 export type InputEvent =
@@ -103,12 +106,14 @@ export class Session {
   private readonly noteStatus: NoteStatus[]
   private readonly notePhrase: Int32Array
   private readonly phrases: PhraseProgress[]
-  private readonly meter: { gain: number; loss: number }
+  private readonly meter: MeterTuning
   private readonly inputOffset: number
   private readonly noFail: boolean
 
   /** Primeira nota ainda não resolvida; só anda para frente. */
   private cursor = 0
+  /** Erros seguidos, para a escalada da perda de medidor. */
+  private consecutiveMisses = 0
   private sustains: ActiveSustain[] = []
   private events: SessionEvent[] = []
   /** Toque que ainda não resolveu nota; aguarda a folga do acorde. */
@@ -286,7 +291,7 @@ export class Session {
 
     this.pendingTap = null
     this.breakStreak()
-    this.damage()
+    this.damage(GHOST_TAP_COST)
     this.events.push({ kind: 'ghostTap', time: pending.time })
   }
 
@@ -320,6 +325,7 @@ export class Session {
     this.state.score += POINTS_PER_NOTE * chordSize * this.state.multiplier
 
     this.state.rockMeter = Math.min(1, this.state.rockMeter + this.meter.gain)
+    this.consecutiveMisses = 0
     this.state.lastJudgement = { noteIndex: note.index, delta, verdict, time }
 
     if (note.duration > 0) {
@@ -363,9 +369,20 @@ export class Session {
     this.state.multiplier = multiplierFor(this.state.streak, this.state.starPowerActive)
   }
 
-  private damage() {
+  /**
+   * Tira do medidor.
+   *
+   * `weight` abaixo de 1 é para falhas que valem menos que perder uma nota.
+   * A escalada por erros seguidos é o que faz um tropeço isolado ser barato
+   * e uma passagem inteira errada ser cara.
+   */
+  private damage(weight = 1) {
     if (this.state.starPowerActive || this.noFail) return
-    this.state.rockMeter = Math.max(0, this.state.rockMeter - this.meter.loss)
+
+    const escalated = 1 + Math.min(this.consecutiveMisses, ESCALATION_CAP) * this.meter.escalation
+    this.consecutiveMisses++
+
+    this.state.rockMeter = Math.max(0, this.state.rockMeter - this.meter.loss * escalated * weight)
     if (this.state.rockMeter <= 0 && !this.state.failed) {
       this.state.failed = true
       this.events.push({ kind: 'failed' })
