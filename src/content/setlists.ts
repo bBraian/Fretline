@@ -21,6 +21,16 @@ export interface SetlistEntry {
   year: number
   /** Faixa de encerramento do tier. */
   encore?: boolean
+  /**
+   * Outros nomes pelos quais esta faixa aparece.
+   *
+   * O nome interno do jogo original costuma ser abreviado ou escrito por
+   * extenso — `Citiesonflame` para "Cities on Flame with Rock and Roll",
+   * `Threesandsevens` para "3's & 7's". Nenhuma regra de texto casa os dois
+   * casos ao mesmo tempo, e adivinhar é perigoso quando o que está em jogo é
+   * apagar arquivo. Então os apelidos são declarados.
+   */
+  aliases?: string[]
 }
 
 export interface Setlist {
@@ -68,7 +78,7 @@ export const SETLISTS: Setlist[] = [
     name: 'Live in Japan',
     unlockAtStars: 65,
     songs: [
-      { title: "3's & 7's", artist: 'Queens of the Stone Age', year: 2007 },
+      { title: "3's & 7's", artist: 'Queens of the Stone Age', year: 2007, aliases: ['Threes and Sevens'] },
       { title: 'Before I Forget', artist: 'Slipknot', year: 2004 },
     ],
   },
@@ -83,6 +93,7 @@ export const SETLISTS: Setlist[] = [
         artist: 'Blue Öyster Cult',
         year: 1972,
         encore: true,
+        aliases: ['Cities on Flame'],
       },
     ],
   },
