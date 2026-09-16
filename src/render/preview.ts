@@ -71,7 +71,7 @@ export class ModelPreview {
     const pmrem = new THREE.PMREMGenerator(this.renderer)
     this.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
     this.scene.environment = this.environment
-    this.scene.environmentIntensity = 0.65
+    this.scene.environmentIntensity = 0.95
     pmrem.dispose()
 
     this.camera = new THREE.PerspectiveCamera(32, 1, 0.1, 40)
@@ -87,9 +87,16 @@ export class ModelPreview {
     key.shadow.camera.far = 14
     this.scene.add(key)
 
-    const rim = new THREE.DirectionalLight(0x8fb6ff, 2.6)
+    // Duas contraluzes, uma de cada lado. Um corpo preto e brilhante só
+    // aparece pelo que reflete: com uma luz frontal apenas, ele vira um
+    // buraco no meio do visor.
+    const rim = new THREE.DirectionalLight(0x8fb6ff, 3.4)
     rim.position.set(-3, 1.6, -3)
     this.scene.add(rim)
+
+    const rimWarm = new THREE.DirectionalLight(0xffd9a8, 2.2)
+    rimWarm.position.set(3.2, 0.8, -2.6)
+    this.scene.add(rimWarm)
 
     const fill = new THREE.DirectionalLight(0xffffff, 0.5)
     fill.position.set(-1, -2, 2)

@@ -23,6 +23,8 @@ export type BodyShape =
   | 'v'
   | 'explorer'
   | 'super-strat'
+  | 'swept-wing'
+  | 'mustang'
 
 export type HeadstockStyle = 'open-book' | 'inline' | 'pointed'
 
@@ -51,6 +53,10 @@ export interface BodySpec {
   pickguard: boolean
   /** Filete claro na borda do corpo. */
   binding: boolean
+  /** Marcadores da escala. */
+  inlays: 'dot' | 'trapezoid'
+  /** O que prende as cordas depois da ponte. */
+  tailpiece: 'stopbar' | 'tremolo' | 'bigsby'
 }
 
 /**
@@ -177,6 +183,37 @@ function superStrat(): THREE.Shape {
   ])
 }
 
+/**
+ * Asa varrida: um bojo grande e arredondado de um lado, que sobe numa ponta
+ * longa, e um chifre curto do outro. É a silhueta assimétrica dos corpos de
+ * "asa" dos anos sessenta — a que parece estar em movimento parada.
+ */
+function sweptWing(): THREE.Shape {
+  return outline([
+    [0.08, 0.50], [0.26, 0.52], [0.38, 0.40], [0.42, 0.18],
+    [0.38, -0.06], [0.30, -0.34], [0.14, -0.54], [-0.10, -0.62],
+    [-0.34, -0.56], [-0.50, -0.36], [-0.56, -0.08], [-0.55, 0.18],
+    [-0.62, 0.48], [-0.64, 0.82], [-0.56, 1.02], [-0.40, 0.94],
+    [-0.28, 0.74], [-0.14, 0.58], [-0.04, 0.50],
+  ])
+}
+
+/**
+ * Corpo curto e deslocado: menor que um corte duplo comum, com os chifres
+ * mais curtos e o bojo inferior mais redondo. É o formato das guitarras de
+ * escala curta, feitas para mão pequena e que acabaram virando padrão no
+ * rock de garagem.
+ */
+function mustang(): THREE.Shape {
+  return outline([
+    [0.08, 0.44], [0.22, 0.54], [0.34, 0.52], [0.42, 0.36],
+    [0.44, 0.12], [0.38, -0.06], [0.42, -0.28], [0.34, -0.48],
+    [0.14, -0.58], [-0.10, -0.58], [-0.30, -0.48], [-0.42, -0.28],
+    [-0.44, -0.04], [-0.38, 0.14], [-0.44, 0.36], [-0.42, 0.58],
+    [-0.30, 0.66], [-0.18, 0.56], [-0.08, 0.46],
+  ])
+}
+
 const HUMBUCKER_PAIR: BodySpec['pickups'] = [
   { y: 0.20, kind: 'humbucker' },
   { y: -0.08, kind: 'humbucker' },
@@ -207,6 +244,8 @@ export const BODY_SPECS: Record<BodyShape, BodySpec> = {
     tremolo: false,
     pickguard: false,
     binding: true,
+    inlays: 'trapezoid',
+    tailpiece: 'stopbar',
   },
   'double-cut': {
     shape: doubleCut(),
@@ -225,6 +264,8 @@ export const BODY_SPECS: Record<BodyShape, BodySpec> = {
     tremolo: true,
     pickguard: true,
     binding: false,
+    inlays: 'dot',
+    tailpiece: 'tremolo',
   },
   sg: {
     shape: sg(),
@@ -244,6 +285,8 @@ export const BODY_SPECS: Record<BodyShape, BodySpec> = {
     tremolo: false,
     pickguard: true,
     binding: false,
+    inlays: 'trapezoid',
+    tailpiece: 'stopbar',
   },
   tele: {
     shape: tele(),
@@ -264,6 +307,8 @@ export const BODY_SPECS: Record<BodyShape, BodySpec> = {
     tremolo: false,
     pickguard: true,
     binding: false,
+    inlays: 'dot',
+    tailpiece: 'stopbar',
   },
   offset: {
     shape: offset(),
@@ -284,6 +329,8 @@ export const BODY_SPECS: Record<BodyShape, BodySpec> = {
     tremolo: true,
     pickguard: true,
     binding: false,
+    inlays: 'dot',
+    tailpiece: 'tremolo',
   },
   v: {
     shape: flyingV(),
@@ -301,6 +348,8 @@ export const BODY_SPECS: Record<BodyShape, BodySpec> = {
     tremolo: false,
     pickguard: false,
     binding: false,
+    inlays: 'dot',
+    tailpiece: 'stopbar',
   },
   explorer: {
     shape: explorer(),
@@ -316,8 +365,10 @@ export const BODY_SPECS: Record<BodyShape, BodySpec> = {
     ],
     selector: [0.12, -0.08, 0.4],
     tremolo: false,
-    pickguard: false,
+    pickguard: true,
     binding: false,
+    inlays: 'dot',
+    tailpiece: 'stopbar',
   },
   'super-strat': {
     shape: superStrat(),
@@ -335,6 +386,50 @@ export const BODY_SPECS: Record<BodyShape, BodySpec> = {
     tremolo: true,
     pickguard: false,
     binding: false,
+    inlays: 'dot',
+    tailpiece: 'tremolo',
+  },
+  'swept-wing': {
+    shape: sweptWing(),
+    depth: 0.13,
+    carvedTop: false,
+    neckJoint: 0.5,
+    neckLength: 1.3,
+    headstock: 'open-book',
+    pickups: [
+      { y: 0.2, kind: 'p90' },
+      { y: -0.08, kind: 'p90' },
+    ],
+    knobs: [
+      [-0.3, -0.3],
+      [-0.4, -0.38],
+      [-0.2, -0.38],
+    ],
+    selector: [0.26, 0.3, 0.5],
+    tremolo: true,
+    pickguard: true,
+    binding: false,
+    inlays: 'trapezoid',
+    tailpiece: 'bigsby',
+  },
+  mustang: {
+    shape: mustang(),
+    depth: 0.11,
+    carvedTop: false,
+    neckJoint: 0.46,
+    neckLength: 1.2,
+    headstock: 'inline',
+    pickups: [
+      { y: 0.18, kind: 'humbucker' },
+      { y: -0.1, kind: 'single', angled: true },
+    ],
+    knobs: [[0.3, -0.32]],
+    selector: [0.28, -0.12, -0.5],
+    tremolo: false,
+    pickguard: true,
+    binding: false,
+    inlays: 'dot',
+    tailpiece: 'stopbar',
   },
 }
 

@@ -15,6 +15,7 @@
 import * as THREE from 'three'
 import type { Guitar } from '../../content/guitars'
 import { keepAnimated, mergeStatic } from '../mergeStatic'
+import { createSunburst } from './finishes'
 import { BODY_SPECS, headstockShape, tunerPositions, type PickupKind } from './shapes'
 
 /** Quantas casas a escala tem. */
@@ -69,6 +70,10 @@ function fretOffsets(scaleLength: number): number[] {
   return offsets
 }
 
+function hex(color: number) {
+  return `#${color.toString(16).padStart(6, '0')}`
+}
+
 function pickupSize(kind: PickupKind) {
   if (kind === 'humbucker') return { width: 0.175, height: 0.08, coils: 2 }
   if (kind === 'p90') return { width: 0.17, height: 0.065, coils: 1 }
@@ -86,9 +91,27 @@ export function buildGuitar(guitar: Guitar): GuitarModel {
 
   // --- materiais ---------------------------------------------------------
 
+  // Acabamento: cor chapada, ou um degradê desenhado em memória. Com
+  // textura a cor base vira branco, senão ela multiplicaria o degradê e o
+  // sunburst sairia encardido.
+  const finish = guitar.finish ?? 'solid'
+  const burst =
+    finish === 'solid'
+      ? null
+      : createSunburst(
+          {
+            center: hex(guitar.burst?.center ?? 0xf0a24a),
+            middle: hex(guitar.burst?.middle ?? 0xd4562a),
+            edge: hex(guitar.burst?.edge ?? 0x5a1512),
+          },
+          finish === 'flame',
+        )
+  if (burst) b.track(burst)
+
   const bodyMaterial = b.track(
     new THREE.MeshStandardMaterial({
-      color: colors.body,
+      color: burst ? 0xffffff : colors.body,
+      map: burst,
       roughness,
       metalness,
       emissive: colors.body,
@@ -130,7 +153,7 @@ export function buildGuitar(guitar: Guitar): GuitarModel {
     }),
   )
   const inlayMaterial = b.track(
-    new THREE.MeshStandardMaterial({ color: 0xe8e4d8, roughness: 0.3, metalness: 0.1 }),
+    new THREE.MeshStandardMaterial({ color: 0xd8d2c2, roughness: 0.42, metalness: 0.05 }),
   )
 
   // --- corpo -------------------------------------------------------------
@@ -199,6 +222,15 @@ export function buildGuitar(guitar: Guitar): GuitarModel {
   }
 
   if (spec.pickguard) {
+    // Um escudo da mesma cor do corpo desaparece. Quando as duas cores são
+    // próximas, o escudo escurece o suficiente para continuar sendo uma peça
+    // visível e não um retângulo fantasma.
+    const bodyColor = new THREE.Color(colors.body)
+    const guardColor = new THREE.Color(colors.pickguard)
+    if (Math.abs(bodyColor.getHSL({ h: 0, s: 0, l: 0 }).l - guardColor.getHSL({ h: 0, s: 0, l: 0 }).l) < 0.18) {
+      guardMaterial.color.copy(guardColor).multiplyScalar(0.62)
+    }
+
     const guardShape = spec.shape.clone()
     const guard = b.track(new THREE.ShapeGeometry(guardShape, 32))
     guard.center()
@@ -238,29 +270,56 @@ export function buildGuitar(guitar: Guitar): GuitarModel {
 
   const scaleLength = neckLength * 1.42
   const offsets = fretOffsets(scaleLength)
-  const fretGeometry = b.track(new THREE.CylinderGeometry(0.0045, 0.0045, 0.152, 6))
+  // Material próprio para os trastes, mais fosco que o resto do hardware:
+  // com o brilho da ponte e das tarraxas, vinte e dois trastes viram uma
+  // escada branca que rouba a escala inteira. Traste de verdade é fio de
+  // níquel gasto.
+  const fretMaterial = b.track(
+    new THREE.MeshStandardMaterial({ color: 0x9aa0aa, roughness: 0.52, metalness: 0.62 }),
+  )
+  const fretGeometry = b.track(new THREE.CylinderGeometry(0.0042, 0.0042, 0.152, 6))
 
   for (const offset of offsets) {
     if (offset > neckLength - 0.02) break
-    const fret = b.add(new THREE.Mesh(fretGeometry, hardware))
+    const fret = b.add(new THREE.Mesh(fretGeometry, fretMaterial))
     fret.rotation.z = Math.PI / 2
     fret.position.set(0, neckBase + offset, spec.depth * 0.1 + 0.055)
   }
 
   // Marcadores nas casas de sempre: 3, 5, 7, 9, 12 (duplo), 15, 17, 19, 21.
-  const dotGeometry = b.track(new THREE.CylinderGeometry(0.014, 0.014, 0.004, 12))
+  //
+  // O formato muda a cara da guitarra mais do que parece: o ponto pequeno é
+  // de instrumento de trabalho, o trapézio grande é de instrumento caro.
+  const trapezoid = spec.inlays === 'trapezoid'
+  const dotGeometry = b.track(new THREE.CylinderGeometry(0.016, 0.016, 0.004, 12))
+  const blockGeometry = b.track(new THREE.BoxGeometry(0.1, 0.05, 0.004))
   const doubleDots = [12]
+
   for (const fret of [3, 5, 7, 9, 12, 15, 17, 19, 21]) {
     if (fret >= offsets.length) continue
     const previous = fret === 1 ? 0 : offsets[fret - 2]
     const middle = (previous + offsets[fret - 1]) / 2
     if (middle > neckLength - 0.03) continue
 
+    const z = spec.depth * 0.1 + 0.0552
+
+    if (trapezoid) {
+      // Um trapézio ocupa a casa inteira; na décima segunda vêm dois.
+      const rows = doubleDots.includes(fret) ? [-0.03, 0.03] : [0]
+      for (const dy of rows) {
+        const block = b.add(new THREE.Mesh(blockGeometry, inlayMaterial))
+        block.position.set(0, neckBase + middle + dy, z)
+        // Estreita perto do corpo, acompanhando o afunilamento da escala.
+        block.scale.x = 1 - (middle / neckLength) * 0.25
+      }
+      continue
+    }
+
     const xs = doubleDots.includes(fret) ? [-0.038, 0.038] : [0]
     for (const x of xs) {
       const dot = b.add(new THREE.Mesh(dotGeometry, inlayMaterial))
       dot.rotation.x = Math.PI / 2
-      dot.position.set(x, neckBase + middle, spec.depth * 0.1 + 0.0552)
+      dot.position.set(x, neckBase + middle, z)
     }
   }
 
@@ -400,7 +459,26 @@ export function buildGuitar(guitar: Guitar): GuitarModel {
   whammyPivot.position.set(0.06, bridgeY - 0.01, topZ + 0.012)
   b.add(whammyPivot)
 
-  if (spec.tremolo) {
+  if (spec.tailpiece === 'bigsby') {
+    // Rolo de vibrato: um cilindro deitado com a alavanca saindo de lado, e
+    // uma chapa cobrindo a mola. É a peça que mais identifica esse tipo de
+    // guitarra de longe.
+    const roller = b.add(
+      new THREE.Mesh(b.track(new THREE.CylinderGeometry(0.03, 0.03, 0.17, 16)), hardware),
+    )
+    roller.rotation.z = Math.PI / 2
+    roller.position.set(0, bridgeY - 0.12, topZ + 0.03)
+
+    const plate = b.add(
+      new THREE.Mesh(b.track(new THREE.BoxGeometry(0.17, 0.2, 0.02)), hardware),
+    )
+    plate.position.set(0, bridgeY - 0.22, topZ + 0.01)
+
+    const arm = new THREE.Mesh(b.track(new THREE.CylinderGeometry(0.007, 0.007, 0.24, 8)), hardware)
+    arm.position.set(0.11, 0.02, 0)
+    arm.rotation.z = Math.PI / 2 - 0.5
+    whammyPivot.add(arm)
+  } else if (spec.tailpiece === 'tremolo') {
     const arm = new THREE.Mesh(b.track(new THREE.CylinderGeometry(0.008, 0.008, 0.26, 8)), hardware)
     arm.position.set(0.1, -0.03, 0)
     arm.rotation.z = Math.PI / 2 - 0.35
@@ -410,7 +488,7 @@ export function buildGuitar(guitar: Guitar): GuitarModel {
     tip.position.set(0.22, -0.11, 0)
     whammyPivot.add(tip)
   } else {
-    // Sem alavanca, o cordal fica logo atrás da ponte.
+    // Barra fixa logo atrás da ponte.
     const tailpiece = b.add(
       new THREE.Mesh(b.track(new THREE.BoxGeometry(0.15, 0.03, 0.028)), hardware),
     )

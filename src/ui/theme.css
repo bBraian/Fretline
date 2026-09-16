@@ -863,9 +863,11 @@ button {
   position: relative;
   border: 1px solid var(--line);
   border-radius: var(--radius);
+  /* Fundo com um halo atrás do objeto: instrumento preto brilhante precisa
+     de algo mais claro por trás para ter silhueta. */
   background:
-    radial-gradient(70% 60% at 50% 30%, rgba(80, 110, 190, 0.16), transparent 70%),
-    linear-gradient(180deg, #0d1018, #070910);
+    radial-gradient(58% 52% at 50% 42%, rgba(104, 134, 214, 0.3), transparent 72%),
+    linear-gradient(180deg, #151a26, #080a12);
   overflow: hidden;
   min-height: 0;
 }
