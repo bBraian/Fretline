@@ -51,8 +51,21 @@ da música. Um erro de layout não produziria um andamento certo por acaso.
 ## O áudio
 
 Os bancos `DATA/MUSIC/*.fsb.xen` estão cifrados e este extrator não mexe
-neles. Use uma ferramenta da comunidade de mods do Guitar Hero para
-decifrar e extrair, e largue o resultado nas pastas geradas.
+neles. Extraia com uma ferramenta da comunidade de mods do Guitar Hero e
+depois use o distribuidor:
+
+```bash
+node tools/gh3/place-audio.mjs <pasta com o áudio extraído> songs
+```
+
+Ele casa cada arquivo com a pasta do chart pelo nome normalizado — o mesmo
+critério que a carreira usa —, nomeia as faixas e apaga o aviso de áudio
+faltando. Sem isso são 158 pastas para preencher à mão.
+
+Quando o banco traz faixas separadas, a **ordem** dos arquivos decide o papel
+de cada uma, e isso varia por ferramenta. Confira uma música antes de rodar
+em tudo e ajuste com `--ordem=guitar,song,rhythm`. O papel importa: a faixa
+chamada `guitar` é a que o jogo corta quando você erra.
 
 ## Diagnóstico
 
