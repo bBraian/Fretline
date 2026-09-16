@@ -9,6 +9,7 @@ import { DIFFICULTIES } from '../../engine/types'
 import {
   importFromDirectoryPicker,
   importFromFileList,
+  isPlayable,
   supportsDirectoryPicker,
 } from '../../songs/library'
 
@@ -31,7 +32,9 @@ export function SongsScreen() {
 
   const selected = library.find((e) => e.song.meta.id === selectedSongId)
   const available = selected ? DIFFICULTIES.filter((d) => selected.song.charts[d]) : []
-  const playable = selected?.song.charts[difficulty] !== undefined
+  const hasChart = selected?.song.charts[difficulty] !== undefined
+  const hasAudio = selected ? isPlayable(selected) : false
+  const playable = hasChart && hasAudio
 
   const handlePicker = async () => {
     try {
@@ -116,7 +119,11 @@ export function SongsScreen() {
                   {entry.format !== 'gerada' && (
                     <>
                       {` · ${entry.format === 'midi' ? '.mid' : '.chart'}`}
-                      {entry.tracks.some((t) => t.role === 'guitar') ? ' · faixas separadas' : ''}
+                      {!isPlayable(entry)
+                        ? ' · sem áudio'
+                        : entry.tracks.some((t) => t.role === 'guitar')
+                          ? ' · faixas separadas'
+                          : ''}
                     </>
                   )}
                 </span>
@@ -130,7 +137,15 @@ export function SongsScreen() {
           })}
         </div>
 
-        {selected && available.length > 0 && !playable && (
+        {selected && !hasAudio && (
+          <p className="screen-subtitle" style={{ marginTop: 16 }}>
+            Essa pasta tem o chart, mas nenhum arquivo de áudio. Coloque o áudio dentro dela como{' '}
+            <code>song.ogg</code> — ou use <code>tools/gh3/place-audio.mjs</code> para preencher
+            várias de uma vez.
+          </p>
+        )}
+
+        {selected && hasAudio && available.length > 0 && !hasChart && (
           <p className="screen-subtitle" style={{ marginTop: 16 }}>
             Essa música não tem o nível {difficultyName(difficulty)}. Disponíveis:{' '}
             {available.map(difficultyName).join(', ')}.

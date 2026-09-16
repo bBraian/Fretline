@@ -256,6 +256,17 @@ export async function importFromDirectoryPicker(): Promise<SongEntry[]> {
   return entries
 }
 
+/**
+ * A música tem áudio?
+ *
+ * Um chart sem áudio carrega e desenha as notas, mas em silêncio — e um jogo
+ * de ritmo em silêncio não é jogável. Vale como item de lista, para mostrar
+ * o que está esperando o áudio chegar, mas não como algo que se inicia.
+ */
+export function isPlayable(entry: SongEntry): boolean {
+  return entry.synthesized || entry.tracks.length > 0
+}
+
 export function releaseEntry(entry: SongEntry) {
   for (const track of entry.tracks) URL.revokeObjectURL(track.url)
 }

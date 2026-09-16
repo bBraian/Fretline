@@ -11,7 +11,7 @@ import { useMemo } from 'react'
 import { useGame } from '../store'
 import { SETLISTS, normalizeTitle, type SetlistEntry } from '../../content/setlists'
 import { difficultyName } from './MenuScreen'
-import type { SongEntry } from '../../songs/library'
+import { isPlayable, type SongEntry } from '../../songs/library'
 
 interface Slot {
   entry: SetlistEntry
@@ -98,7 +98,8 @@ export function CareerScreen() {
                   const record = song
                     ? profile.records[`${song.song.meta.id}:${settings.difficulty}`]
                     : undefined
-                  const playable = !!song && !locked && !!song.song.charts[settings.difficulty]
+                  const playable =
+                    !!song && !locked && !!song.song.charts[settings.difficulty] && isPlayable(song)
 
                   return (
                     <button
@@ -122,11 +123,13 @@ export function CareerScreen() {
                         </span>
                       </span>
                       <span className="song-meta">
-                        {song
-                          ? playable
-                            ? `${song.song.charts[settings.difficulty]!.notes.length} notas`
-                            : `sem ${difficultyName(settings.difficulty)}`
-                          : 'não importada'}
+                        {!song
+                          ? 'não importada'
+                          : !isPlayable(song)
+                            ? 'sem áudio'
+                            : song.song.charts[settings.difficulty]
+                              ? `${song.song.charts[settings.difficulty]!.notes.length} notas`
+                              : `sem ${difficultyName(settings.difficulty)}`}
                       </span>
                       <span className="song-meta">
                         {record ? '★'.repeat(record.stars) : '—'}

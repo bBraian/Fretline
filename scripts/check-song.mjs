@@ -10,7 +10,8 @@
 import { chromium } from 'playwright'
 import { serve } from './serve.mjs'
 
-const wanted = (process.argv[2] ?? 'Barracuda').toLowerCase()
+const args = process.argv.slice(2)
+const wanted = (args.find((a) => !a.startsWith('--')) ?? 'Barracuda').toLowerCase()
 
 const external = process.env.BASE_URL
 const server = external ? null : await serve()
@@ -54,26 +55,63 @@ console.log(`alvo: ${report.alvo.id} — arquivos: ${report.alvo.files.join(', '
 await page.getByRole('button', { name: /Tocar/ }).first().click()
 await page.getByRole('heading', { name: 'Escolha a música' }).waitFor()
 
-const row = page.locator('.song-row').filter({ hasText: report.alvo.id })
-await row.first().waitFor({ timeout: 20000 })
-await row.first().click()
+// O nome na lista vem do `song.ini`, nao do nome da pasta — os dois
+// raramente coincidem num pack baixado.
+const displayName = report.alvo.files.includes('song.ini') ? null : report.alvo.id
+const filter = displayName ?? wanted.split(/[^a-z0-9]+/i).filter(Boolean).pop()
 
-const details = await page.evaluate((id) => {
-  // O estado do jogo nao esta exposto fora da tela de jogo, entao o chart e
-  // relido aqui pelo mesmo caminho que a tela usa.
-  const rows = [...document.querySelectorAll('.song-row')]
-  const target = rows.find((r) => r.innerText.includes(id))
-  return target ? target.innerText.replace(/\n+/g, ' | ') : null
-}, report.alvo.id)
+const matches = await page.evaluate((needle) => {
+  return [...document.querySelectorAll('.song-row')]
+    .map((r) => r.innerText.replace(/\n+/g, ' | '))
+    .filter((text) => text.toLowerCase().includes(needle.toLowerCase()))
+}, filter)
 
-console.log(`linha na lista: ${details}`)
+console.log(`linhas contendo "${filter}": ${matches.length}`)
+for (const text of matches) console.log(`  ${text}`)
+
+// `--linha=N` escolhe entre linhas homonimas; `--tocar` vai ate o jogo.
+const rowArg = args.find((a) => a.startsWith('--linha='))
+const rowIndex = rowArg ? Number(rowArg.slice('--linha='.length)) : 0
+
+const row = page.locator('.song-row').filter({ hasText: new RegExp(filter, 'i') }).nth(rowIndex)
+await row.waitFor({ timeout: 20000 })
+await row.click()
 
 for (const level of ['Fácil', 'Médio', 'Difícil', 'Expert']) {
   await page.getByRole('button', { name: level, exact: true }).click()
   await page.waitForTimeout(150)
-  const text = await row.first().innerText()
+  const text = await row.innerText()
   const notes = text.match(/(\d+)\s+notas/)
   console.log(`  ${level.padEnd(8)} ${notes ? notes[1] : 'sem este nível'} notas`)
+}
+
+if (args.includes('--tocar')) {
+  console.log('\n--- tocando ---')
+  await page.getByRole('button', { name: /^Tocar em/ }).click()
+  await page.waitForFunction(() => !document.body.innerText.includes('Afinando'), null, {
+    timeout: 120000,
+  })
+
+  const info = await page.evaluate(async () => {
+    const { chart, player, session } = window.__fretline
+    // Deixa a musica andar um pouco para conferir que o relogio corre.
+    const before = player.now()
+    await new Promise((r) => setTimeout(r, 3000))
+    return {
+      notas: chart.notes.length,
+      primeira: chart.notes[0]?.time,
+      ultima: chart.notes.at(-1)?.time,
+      audio: Math.round(player.duration),
+      faixaDeGuitarra: player.hasGuitarStem,
+      relogioAndou: +(player.now() - before).toFixed(2),
+      notasVistas: session.getState().notesSeen,
+    }
+  })
+
+  console.log(`  chart: ${info.notas} notas, de ${info.primeira?.toFixed(1)}s a ${info.ultima?.toFixed(1)}s`)
+  console.log(`  audio: ${info.audio}s, faixa de guitarra separada: ${info.faixaDeGuitarra ? 'sim' : 'nao'}`)
+  console.log(`  relogio andou ${info.relogioAndou}s em 3s de espera`)
+  console.log(`  notas ja passadas: ${info.notasVistas}`)
 }
 
 await browser.close()
