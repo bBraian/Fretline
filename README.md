@@ -104,6 +104,17 @@ A lista de faixas vive em `src/content/setlists.ts`, uma linha por música.
 Ela não precisa estar completa para a carreira funcionar: um tier com menos
 faixas simplesmente é mais curto.
 
+## Loja
+
+Todos os itens aparecem, comprados ou não. Clicar num item apenas o coloca no
+visor — **olhar não troca o que está equipado**. Comprar e equipar são dois
+botões distintos, e comprar não equipa sozinho: são duas decisões, e juntá-las
+tira do jogador a possibilidade de comprar algo para usar depois.
+
+Itens ainda bloqueados por estrelas continuam visíveis e giráveis no visor,
+com o número de estrelas que falta. Poder ver o que ainda não é seu é metade
+da graça de uma loja.
+
 ## Arte
 
 Personagens, guitarras, bateria e palco são construídos em código a partir
@@ -120,7 +131,30 @@ alguém, as duas coisas precisam sair da mesma fábrica.
 
 As silhuetas de corpo de guitarra são splines fechadas passando por
 pontos-guia, e não curvas de Bézier com pontos de controle: o que se edita é
-a borda em si, então mover um ponto muda a linha ali e só ali.
+a borda em si, então mover um ponto muda a linha ali e só ali. Dez famílias,
+de corte simples a asa varrida, com acabamento chapado, sunburst ou tampo
+flamejado — os dois últimos desenhados em canvas, porque um sunburst não é
+uma cor, é um degradê.
+
+Os personagens seguem marcos anatômicos (virilha, umbigo, peito, ombro,
+queixo, joelho) e têm as mãos posicionadas por cinemática inversa sobre o
+instrumento. Cabelo, roupa e acessórios são peças combináveis: cartola,
+cachos, cabelo caindo sobre o rosto, gargantilha, tachas no cinto, meia-luva
+comprida.
+
+## O braço e o painel
+
+O braço segue o desenho do original: papel de parede ornamentado rolando com
+a música, divisórias claras entre os cinco trastes, trilhos fortes nas bordas,
+linhas de compasso atravessando a pista — mais largas no início de cada
+compasso — e os cinco botões com anel metálico e aro colorido. As notas têm o
+mesmo aro, porque no original a nota *é* o botão.
+
+O painel também: pontuação num visor de sete segmentos verde à esquerda, com
+multiplicador e contador de notas seguidas, e o medidor de rock à direita como
+um mostrador de meia-lua com ponteiro, do vermelho ao verde. O mostrador é
+SVG, não WebGL — traço fino e texto pequeno são de graça em vetor, e em 3D
+exigiriam atlas de fonte.
 
 ## Câmeras
 

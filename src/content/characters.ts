@@ -23,8 +23,12 @@ export type HairStyle =
   | 'buzz'
   | 'bob'
   | 'dreads'
+  /** Liso e comprido, repartido no meio, caindo sobre o rosto. */
+  | 'curtain'
+  /** Cachos volumosos que descem até o ombro. */
+  | 'curls'
 
-export type OutfitTop = 'tee' | 'tank' | 'jacket' | 'vest' | 'shirt'
+export type OutfitTop = 'tee' | 'tank' | 'jacket' | 'vest' | 'shirt' | 'bra'
 export type OutfitLegs = 'jeans' | 'leather' | 'cargo' | 'skirt'
 export type Footwear = 'boots' | 'sneakers' | 'dress'
 
@@ -49,6 +53,16 @@ export interface Character {
     wristband: boolean
     beanie: boolean
     belt: boolean
+    /** Cartola, com fita e fivelas. */
+    topHat?: boolean
+    /** Gargantilha com pingente. */
+    choker?: boolean
+    /** Faixa no braço, acima do cotovelo. */
+    armband?: boolean
+    /** Meia-luva comprida, cobrindo o antebraço. */
+    armWarmer?: boolean
+    /** Fileira de tachas no cinto. */
+    studs?: boolean
   }
   colors: {
     skin: number
@@ -65,29 +79,102 @@ export interface Character {
 
 export const CHARACTERS: Character[] = [
   {
-    id: 'vega',
-    name: 'Vega Cruz',
-    subtitle: 'A caçula do bairro',
+    id: 'rane',
+    name: 'Rane Kowalczyk',
+    subtitle: 'Franzino, e ninguém aguenta o ritmo dele',
     unlockAtStars: 0,
     price: 0,
     build: 'slim',
-    height: 0.97,
-    hair: 'ponytail',
+    height: 1.03,
+    hair: 'curtain',
     beard: 0,
     top: 'tank',
     legs: 'jeans',
     shoes: 'sneakers',
-    accessories: { sunglasses: false, wristband: true, beanie: false, belt: true },
+    accessories: {
+      sunglasses: false,
+      wristband: false,
+      beanie: false,
+      belt: true,
+      studs: true,
+      armWarmer: true,
+    },
+    colors: {
+      skin: 0xe8c9a8,
+      hair: 0xa8541f,
+      top: 0x1d1d20,
+      topTrim: 0x3a3a40,
+      legs: 0x4a5160,
+      shoes: 0x141418,
+      accent: 0x8a8f9a,
+    },
+    energy: 0.9,
+  },
+  {
+    id: 'valdo',
+    name: 'Valdo Serra',
+    subtitle: 'Cartola, cachos e um solo que não acaba',
+    unlockAtStars: 0,
+    price: 0,
+    build: 'slim',
+    height: 1.05,
+    hair: 'curls',
+    beard: 0,
+    top: 'jacket',
+    legs: 'jeans',
+    shoes: 'sneakers',
+    accessories: {
+      sunglasses: false,
+      wristband: false,
+      beanie: false,
+      belt: true,
+      topHat: true,
+    },
     colors: {
       skin: 0xc68642,
-      hair: 0x2b1d17,
-      top: 0xd91e5a,
-      topTrim: 0xffd166,
-      legs: 0x243049,
-      shoes: 0xf2f2f2,
-      accent: 0xffd166,
+      hair: 0x14100e,
+      top: 0x23242a,
+      topTrim: 0x3c3e46,
+      legs: 0x2a2730,
+      shoes: 0x6a6a70,
+      accent: 0xb9a24a,
     },
-    energy: 0.85,
+    energy: 0.7,
+  },
+  {
+    id: 'skarlet',
+    name: 'Skarlet Vey',
+    subtitle: 'Toca descalça quando o palco deixa',
+    unlockAtStars: 3,
+    price: 2000,
+    build: 'slim',
+    height: 0.99,
+    hair: 'curtain',
+    beard: 0,
+    top: 'bra',
+    legs: 'jeans',
+    shoes: 'boots',
+    accessories: {
+      sunglasses: false,
+      wristband: true,
+      beanie: false,
+      belt: true,
+      studs: true,
+      choker: true,
+      armband: true,
+    },
+    colors: {
+      skin: 0xf0d5b8,
+      // Loiro acinzentado, não platinado: contra pele clara, um loiro muito
+      // claro desaparece e o personagem parece careca.
+      hair: 0xb09a72,
+      top: 0x2a2d33,
+      topTrim: 0x3a3e46,
+      legs: 0x2e3138,
+      shoes: 0x14141a,
+      accent: 0x8f95a2,
+    },
+    energy: 0.95,
   },
   {
     id: 'grim',
@@ -102,7 +189,7 @@ export const CHARACTERS: Character[] = [
     top: 'vest',
     legs: 'leather',
     shoes: 'boots',
-    accessories: { sunglasses: false, wristband: true, beanie: false, belt: true },
+    accessories: { sunglasses: false, wristband: true, beanie: false, belt: true, studs: true },
     colors: {
       skin: 0xe0ac69,
       hair: 0x14141a,
@@ -118,8 +205,8 @@ export const CHARACTERS: Character[] = [
     id: 'kiko',
     name: 'Kiko Mendes',
     subtitle: 'Palheta de titânio',
-    unlockAtStars: 4,
-    price: 2500,
+    unlockAtStars: 8,
+    price: 4000,
     build: 'regular',
     height: 0.99,
     hair: 'spiky',
@@ -143,8 +230,8 @@ export const CHARACTERS: Character[] = [
     id: 'nadia',
     name: 'Nádia Vox',
     subtitle: 'Fez o amplificador pedir arrego',
-    unlockAtStars: 12,
-    price: 7000,
+    unlockAtStars: 16,
+    price: 8000,
     build: 'slim',
     height: 1.02,
     hair: 'mohawk',
@@ -152,7 +239,7 @@ export const CHARACTERS: Character[] = [
     top: 'jacket',
     legs: 'leather',
     shoes: 'boots',
-    accessories: { sunglasses: true, wristband: true, beanie: false, belt: true },
+    accessories: { sunglasses: true, wristband: true, beanie: false, belt: true, studs: true },
     colors: {
       skin: 0xf1c27d,
       hair: 0xff3366,
@@ -168,8 +255,8 @@ export const CHARACTERS: Character[] = [
     id: 'otto',
     name: 'Otto Ferraz',
     subtitle: 'Toca de terno, sempre',
-    unlockAtStars: 24,
-    price: 13000,
+    unlockAtStars: 28,
+    price: 14000,
     build: 'regular',
     height: 1.05,
     hair: 'bald',
@@ -193,8 +280,8 @@ export const CHARACTERS: Character[] = [
     id: 'lupe',
     name: 'Lupe Andrade',
     subtitle: 'Solo de trinta e dois compassos',
-    unlockAtStars: 38,
-    price: 20000,
+    unlockAtStars: 42,
+    price: 21000,
     build: 'regular',
     height: 1.0,
     hair: 'afro',
@@ -218,8 +305,8 @@ export const CHARACTERS: Character[] = [
     id: 'stig',
     name: 'Stig Halloran',
     subtitle: 'Nunca tirou o gorro no palco',
-    unlockAtStars: 55,
-    price: 27000,
+    unlockAtStars: 58,
+    price: 28000,
     build: 'slim',
     height: 1.03,
     hair: 'buzz',
@@ -243,8 +330,8 @@ export const CHARACTERS: Character[] = [
     id: 'rhea',
     name: 'Rhea Kastro',
     subtitle: 'Aprendeu tocando em cima de disco riscado',
-    unlockAtStars: 75,
-    price: 36000,
+    unlockAtStars: 78,
+    price: 38000,
     build: 'heavy',
     height: 1.0,
     hair: 'dreads',

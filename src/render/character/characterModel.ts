@@ -223,23 +223,59 @@ private scalp(radius: number, material: THREE.Material, coverage = 0.78) {
     // Caixa torácica: o volume vai do umbigo ao ombro, e é mais largo do
     // que fundo — uma cápsula achatada em Z, não um cilindro.
     const chestHalf = 0.17 * build.width
-    const chest = this.mesh(new THREE.CapsuleGeometry(chestHalf, 0.05, 6, 18), top)
+    // Com top curto, o tronco é pele: o tecido são só as conchas.
+    const torsoMaterial = this.character.top === 'bra' ? this.skin : top
+    const chest = this.mesh(new THREE.CapsuleGeometry(chestHalf, 0.05, 6, 18), torsoMaterial)
     chest.scale.set(1, 1, 0.66 * build.depth)
     chest.position.y = LEVEL.chest - LEVEL.crotch
     this.torso.add(chest)
 
-    const waist = this.mesh(new THREE.CapsuleGeometry(0.132 * build.width, 0.05, 5, 16), top)
+    const waist = this.mesh(new THREE.CapsuleGeometry(0.132 * build.width, 0.05, 5, 16), torsoMaterial)
     waist.scale.set(1, 1, 0.72 * build.depth)
     waist.position.y = LEVEL.navel - LEVEL.crotch
     this.torso.add(waist)
 
     // Trapézio: o volume que liga o pescoço aos ombros. Sem ele a cabeça
     // parece espetada num tronco reto.
-    const traps = this.mesh(new THREE.CapsuleGeometry(0.075 * build.width, 0.18 * build.width, 5, 12), top)
+    const traps = this.mesh(
+      new THREE.CapsuleGeometry(0.075 * build.width, 0.18 * build.width, 5, 12),
+      torsoMaterial,
+    )
     traps.rotation.z = Math.PI / 2
     traps.scale.set(1, 1, 0.8)
     traps.position.y = LEVEL.shoulder - LEVEL.crotch - 0.02
     this.torso.add(traps)
+
+    if (this.character.top === 'bra') {
+      // Top curto: duas conchas e as alças. O tronco fica com a cor da pele,
+      // trocada logo acima.
+      const cup = this.material('top', c.top, 0.6)
+      for (const side of [-1, 1]) {
+        const shell = this.mesh(new THREE.SphereGeometry(0.075 * build.width, 14, 12), cup)
+        shell.scale.set(1.15, 0.9, 0.72)
+        shell.position.set(
+          side * 0.075 * build.width,
+          LEVEL.chest - LEVEL.crotch + 0.02,
+          0.1 * build.depth,
+        )
+        this.torso.add(shell)
+
+        const strap = this.mesh(new THREE.BoxGeometry(0.028, 0.2, 0.02), cup)
+        strap.position.set(
+          side * 0.13 * build.width,
+          LEVEL.chest - LEVEL.crotch + 0.11,
+          0.06 * build.depth,
+        )
+        strap.rotation.z = side * 0.3
+        this.torso.add(strap)
+      }
+
+      const band = this.mesh(new THREE.CapsuleGeometry(0.15 * build.width, 0.03, 4, 14), cup)
+      band.rotation.z = Math.PI / 2
+      band.scale.set(1, 1, 0.68 * build.depth)
+      band.position.y = LEVEL.chest - LEVEL.crotch - 0.04
+      this.torso.add(band)
+    }
 
     if (this.character.top === 'tank') {
       for (const side of [-1, 1]) {
@@ -284,12 +320,28 @@ private scalp(radius: number, material: THREE.Material, coverage = 0.78) {
       belt.position.y = 0.06
       this.torso.add(belt)
 
-      const buckle = this.mesh(
-        new THREE.BoxGeometry(0.055, 0.04, 0.02),
-        this.material('metal', c.accent, 0.25, 0.85),
-      )
+      const metal = this.material('metal', c.accent, 0.25, 0.85)
+      const buckle = this.mesh(new THREE.BoxGeometry(0.055, 0.04, 0.02), metal)
       buckle.position.set(0, 0.06, 0.108 * build.depth)
       this.torso.add(buckle)
+
+      if (this.character.accessories.studs) {
+        // Fileira de tachas em volta do cinto. É o detalhe que transforma
+        // uma tira escura num cinto de rock, e quase não custa geometria.
+        const studGeometry = new THREE.ConeGeometry(0.012, 0.022, 6)
+        for (let i = 0; i < 22; i++) {
+          const angle = (i / 22) * Math.PI * 2
+          const stud = this.mesh(studGeometry.clone(), metal)
+          stud.position.set(
+            Math.sin(angle) * 0.142 * build.width,
+            0.06,
+            Math.cos(angle) * 0.108 * build.depth,
+          )
+          stud.rotation.z = -Math.sin(angle) * 1.3
+          stud.rotation.x = Math.cos(angle) * 1.3
+          this.torso.add(stud)
+        }
+      }
     }
   }
 
@@ -331,6 +383,21 @@ private scalp(radius: number, material: THREE.Material, coverage = 0.78) {
 
     this.buildFace()
     this.buildHair()
+
+    if (this.character.accessories.choker) {
+      const chokerMaterial = this.material('choker', 0x16161c, 0.7)
+      const band = this.mesh(new THREE.TorusGeometry(0.058, 0.014, 8, 20), chokerMaterial)
+      band.rotation.x = Math.PI / 2
+      band.position.y = 0.03
+      this.neck.add(band)
+
+      const pendant = this.mesh(
+        new THREE.OctahedronGeometry(0.022),
+        this.material('metal', this.character.colors.accent, 0.25, 0.85),
+      )
+      pendant.position.set(0, -0.02, 0.055)
+      this.neck.add(pendant)
+    }
 
     if (this.character.beard > 0.05) {
       const beard = this.mesh(
@@ -400,6 +467,37 @@ private scalp(radius: number, material: THREE.Material, coverage = 0.78) {
   private buildHair() {
     const c = this.character.colors
     const hair = this.material('hair', c.hair, 0.95)
+
+    if (this.character.accessories.topHat) {
+      // Cartola: copa, aba e uma fita com fivelas. Vai antes do cabelo para
+      // os cachos poderem escapar por baixo dela.
+      const feltMaterial = this.material('felt', 0x1a1a1f, 0.95)
+      const crown = this.mesh(new THREE.CylinderGeometry(HEAD * 0.46, HEAD * 0.48, HEAD * 0.72, 22), feltMaterial)
+      crown.position.y = HEAD * 0.62
+      this.head.add(crown)
+
+      const brim = this.mesh(new THREE.CylinderGeometry(HEAD * 0.78, HEAD * 0.78, HEAD * 0.05, 26), feltMaterial)
+      brim.position.y = HEAD * 0.28
+      this.head.add(brim)
+
+      const band = this.mesh(
+        new THREE.CylinderGeometry(HEAD * 0.49, HEAD * 0.49, HEAD * 0.16, 22),
+        this.material('hatband', 0x2c2c33, 0.7),
+      )
+      band.position.y = HEAD * 0.34
+      this.head.add(band)
+
+      // Fivelas presas à fita, em volta da copa.
+      const conchoMaterial = this.material('metal', c.accent, 0.25, 0.85)
+      for (let i = 0; i < 7; i++) {
+        const angle = (i / 7) * Math.PI * 2
+        const concho = this.mesh(new THREE.CylinderGeometry(HEAD * 0.06, HEAD * 0.06, HEAD * 0.03, 12), conchoMaterial)
+        concho.rotation.z = Math.PI / 2
+        concho.rotation.y = -angle
+        concho.position.set(Math.cos(angle) * HEAD * 0.5, HEAD * 0.34, Math.sin(angle) * HEAD * 0.5)
+        this.head.add(concho)
+      }
+    }
 
     if (this.character.accessories.beanie) {
       const beanie = this.scalp(SKULL_RADIUS * 1.12, this.material('beanie', c.accent, 0.9), 0.9)
@@ -507,6 +605,60 @@ private scalp(radius: number, material: THREE.Material, coverage = 0.78) {
         break
       }
 
+      case 'curtain': {
+        // Liso e comprido, repartido no meio: a calota cobre a cabeça e duas
+        // mechas caem na frente dos ombros, deixando só parte do rosto à
+        // mostra. É o corte que mais define a silhueta de quem toca com a
+        // cabeça baixa.
+        const cap = this.scalp(SKULL_RADIUS * 1.06, hair, 0.86)
+        cap.scale.set(0.98, 1.04, 1)
+        cap.position.y = HEAD * 0.1
+        this.head.add(cap)
+
+        for (const side of [-1, 1]) {
+          const strand = this.mesh(
+            new THREE.BoxGeometry(HEAD * 0.2, HEAD * 1.05, HEAD * 0.12),
+            hair,
+          )
+          strand.position.set(side * HEAD * 0.3, -HEAD * 0.42, HEAD * 0.16)
+          strand.rotation.z = side * -0.08
+          this.head.add(strand)
+        }
+
+        // Franja: uma placa fina descendo pela testa até a altura dos olhos.
+        const fringe = this.mesh(new THREE.BoxGeometry(HEAD * 0.56, HEAD * 0.4, HEAD * 0.1), hair)
+        fringe.position.set(0, HEAD * 0.16, FACE_Z * 0.78)
+        fringe.rotation.x = -0.12
+        this.head.add(fringe)
+
+        const back = this.mesh(new THREE.BoxGeometry(HEAD * 0.62, HEAD * 1.0, HEAD * 0.2), hair)
+        back.position.set(0, -HEAD * 0.34, -HEAD * 0.2)
+        this.head.add(back)
+        break
+      }
+
+      case 'curls': {
+        // Massa de cachos: esferas sobrepostas em volta e abaixo da cabeça.
+        // Uma esfera só daria um capacete; o que faz parecer cabelo é a
+        // irregularidade do contorno.
+        const cap = this.scalp(SKULL_RADIUS * 1.12, hair, 0.8)
+        cap.position.y = HEAD * 0.08
+        this.head.add(cap)
+
+        for (let i = 0; i < 16; i++) {
+          const angle = (i / 16) * Math.PI * 2
+          const ring = 0.42 + (i % 3) * 0.06
+          const puff = this.mesh(new THREE.SphereGeometry(HEAD * (0.2 + (i % 4) * 0.035), 10, 8), hair)
+          puff.position.set(
+            Math.cos(angle) * HEAD * ring,
+            -HEAD * (0.05 + (i % 5) * 0.11),
+            Math.sin(angle) * HEAD * ring - HEAD * 0.05,
+          )
+          this.head.add(puff)
+        }
+        break
+      }
+
       case 'dreads': {
         const cap = this.scalp(SKULL_RADIUS * 1.06, hair, 0.82)
         cap.position.y = HEAD * 0.1
@@ -571,7 +723,11 @@ private scalp(radius: number, material: THREE.Material, coverage = 0.78) {
 
   private buildArms(build: (typeof BUILD)[keyof typeof BUILD]) {
     const c = this.character.colors
-    const sleeveless = this.character.top === 'tank' || this.character.top === 'vest'
+    // Quem usa regata, colete ou top curto está de braços de fora.
+    const sleeveless =
+      this.character.top === 'tank' ||
+      this.character.top === 'vest' ||
+      this.character.top === 'bra'
     const sleeve = sleeveless ? this.skin : this.material('top', c.top, 0.78)
     const forearmMaterial = this.character.top === 'shirt' ? this.material('top', c.top, 0.78) : this.skin
 
@@ -598,6 +754,27 @@ private scalp(radius: number, material: THREE.Material, coverage = 0.78) {
       thumb.position.set(-side * radius * 0.95, -radius * 0.75, radius * 0.35)
       thumb.rotation.z = side * 0.6
       limb.end.add(thumb)
+
+      if (this.character.accessories.armband) {
+        const band = this.mesh(
+          new THREE.CylinderGeometry(radius * 1.14, radius * 1.14, radius * 1.4, 14),
+          this.material('armband', 0x1a1a20, 0.75),
+        )
+        band.position.y = -UPPER_ARM * 0.45
+        limb.root.add(band)
+      }
+
+      if (this.character.accessories.armWarmer) {
+        // Meia-luva comprida cobrindo o antebraço inteiro, num tecido
+        // diferente da pele.
+        const warmer = this.mesh(
+          new THREE.CapsuleGeometry(radius * 0.96, FOREARM - radius * 1.4, 5, 12),
+          this.material('warmer', c.topTrim, 0.85),
+        )
+        warmer.scale.z = 0.82
+        warmer.position.y = -FOREARM / 2
+        limb.lower.add(warmer)
+      }
 
       if (this.character.accessories.wristband) {
         const band = this.mesh(
