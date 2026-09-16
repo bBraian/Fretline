@@ -17,6 +17,7 @@
 
 import { parseChart } from '../engine/chart/parseChart'
 import { parseMidi } from '../engine/chart/parseMidi'
+import { fillMissingDifficulties } from '../engine/chart/reduce'
 import type { Song } from '../engine/types'
 import { buildDemoSong } from '../content/demoSong'
 import { parseSongIni } from './songIni'
@@ -35,6 +36,14 @@ export interface SongEntry {
   synthesized: boolean
   /** De onde veio: `.chart` ou `notes.mid`. */
   format: 'chart' | 'midi' | 'gerada'
+  /**
+   * Dificuldade declarada da guitarra, de 0 a 6; -1 quando o pack não diz.
+   *
+   * É o número que o charter escolheu, e vale mais que qualquer medida
+   * automática — ele sabe se a música é difícil por velocidade, por acordes
+   * ou por um solo de dez segundos que não aparece na média.
+   */
+  declaredDifficulty: number
 }
 
 /**
@@ -94,7 +103,13 @@ function isChartFile(name: string) {
 }
 
 export function demoEntry(): SongEntry {
-  return { song: buildDemoSong(), tracks: [], synthesized: true, format: 'gerada' }
+  return {
+    song: buildDemoSong(),
+    tracks: [],
+    synthesized: true,
+    format: 'gerada',
+    declaredDifficulty: 1,
+  }
 }
 
 /** Agrupa uma lista plana de arquivos pela pasta que os contém. */
@@ -174,11 +189,17 @@ async function entryFromFiles(folderName: string, files: SongFile[]): Promise<So
     song = { ...song, meta: { ...song.meta, name: id.replace(/[-_]+/g, ' ') } }
   }
 
+  // A maioria dos charts da comunidade traz só o expert. Sem preencher o
+  // resto, três das quatro dificuldades ficam vazias e não existe rampa
+  // nenhuma entre o nível inicial e o mais alto.
+  song = { ...song, charts: fillMissingDifficulties(song.charts) }
+
   return {
     song,
     tracks: audioFiles.map((file) => ({ url: file.url, role: roleOf(file.name) })),
     synthesized: false,
     format,
+    declaredDifficulty: ini?.guitarDifficulty ?? -1,
   }
 }
 

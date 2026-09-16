@@ -1,103 +1,124 @@
 /**
- * A carreira, organizada nos tiers do Guitar Hero III.
+ * A carreira, montada a partir da biblioteca.
  *
- * O jogo não distribui áudio nenhum: esta lista é só a *estrutura* da
- * carreira — quais faixas compõem cada tier, em que ordem, e quanto é
- * preciso para abrir o próximo. Cada entrada é casada com a biblioteca do
- * jogador pelo título e pelo artista; as que ele ainda não tiver aparecem
- * como espaço vago, e as que tiver ficam jogáveis na posição certa.
+ * Antes isto era uma lista fixa de faixas do Guitar Hero III, e cada música
+ * nova exigia editar código. Não é o formato certo para uma biblioteca que
+ * cresce: o jogador baixa um pack e espera que ele apareça.
  *
- * O casamento é por título normalizado, então o nome da pasta não importa —
- * o que vale é o `name` do `song.ini` ou do `.chart`.
- *
- * Para acrescentar uma faixa, basta uma linha aqui. A lista abaixo é a que
- * foi levantada até agora; ela não precisa estar completa para a carreira
- * funcionar, e um tier com menos faixas simplesmente é mais curto.
+ * Agora os tiers são estrutura — nome e quanto custa abrir — e as músicas
+ * entram neles sozinhas, ordenadas da mais fácil para a mais difícil. Só
+ * entra o que dá para tocar: chart mais áudio. Um chart sem áudio existe na
+ * biblioteca como lembrete do que falta, mas não vira etapa de carreira.
  */
 
-export interface SetlistEntry {
-  title: string
-  artist: string
-  year: number
-  /** Faixa de encerramento do tier. */
-  encore?: boolean
-  /**
-   * Outros nomes pelos quais esta faixa aparece.
-   *
-   * O nome interno do jogo original costuma ser abreviado ou escrito por
-   * extenso — `Citiesonflame` para "Cities on Flame with Rock and Roll",
-   * `Threesandsevens` para "3's & 7's". Nenhuma regra de texto casa os dois
-   * casos ao mesmo tempo, e adivinhar é perigoso quando o que está em jogo é
-   * apagar arquivo. Então os apelidos são declarados.
-   */
-  aliases?: string[]
+import type { SongEntry } from '../songs/library'
+import { isPlayable } from '../songs/library'
+import type { Difficulty } from '../engine/types'
+
+/** Quantas músicas cada tier recebe. */
+const SONGS_PER_TIER = 4
+
+/**
+ * Nomes dos tiers, na ordem da carreira.
+ *
+ * São os do original, porque é a progressão que o jogo conta: começar tocando
+ * em bar, terminar num estádio. Se a biblioteca crescer além destes, os tiers
+ * seguintes recebem nome numerado.
+ */
+const TIER_NAMES = [
+  'Starting Out Small',
+  'Your First Real Gig',
+  'Making the Video',
+  'European Invasion',
+  'Bon Voyage',
+  'Hottest Band on Earth',
+  'Live in Japan',
+  'Encore',
+]
+
+export interface CareerSong {
+  entry: SongEntry
+  /** Fecha o tier. */
+  encore: boolean
 }
 
-export interface Setlist {
+export interface CareerTier {
   id: string
   /** Posição na carreira, a partir de 1. */
   order: number
   name: string
   /** Estrelas acumuladas para abrir este tier. */
   unlockAtStars: number
-  songs: SetlistEntry[]
+  songs: CareerSong[]
 }
 
-export const SETLISTS: Setlist[] = [
-  {
-    id: 'first-gig',
-    order: 2,
-    name: 'Your First Real Gig',
-    unlockAtStars: 5,
-    songs: [
-      { title: 'Barracuda', artist: 'Heart', year: 1977 },
-      { title: 'Bulls on Parade', artist: 'Rage Against the Machine', year: 1996, encore: true },
-    ],
-  },
-  {
-    id: 'european-invasion',
-    order: 4,
-    name: 'European Invasion',
-    unlockAtStars: 20,
-    songs: [{ title: 'Anarchy in the U.K.', artist: 'Sex Pistols', year: 1977 }],
-  },
-  {
-    id: 'hottest-band',
-    order: 6,
-    name: 'Hottest Band on Earth',
-    unlockAtStars: 45,
-    songs: [
-      { title: 'Black Magic Woman', artist: 'Santana', year: 1970 },
-      { title: 'Black Sunshine', artist: 'White Zombie', year: 1992 },
-      { title: 'Cherub Rock', artist: 'The Smashing Pumpkins', year: 1993 },
-    ],
-  },
-  {
-    id: 'live-in-japan',
-    order: 7,
-    name: 'Live in Japan',
-    unlockAtStars: 65,
-    songs: [
-      { title: "3's & 7's", artist: 'Queens of the Stone Age', year: 2007, aliases: ['Threes and Sevens'] },
-      { title: 'Before I Forget', artist: 'Slipknot', year: 2004 },
-    ],
-  },
-  {
-    id: 'encore',
-    order: 8,
-    name: 'Encore',
-    unlockAtStars: 85,
-    songs: [
-      {
-        title: 'Cities on Flame with Rock and Roll',
-        artist: 'Blue Öyster Cult',
-        year: 1972,
-        encore: true,
-        aliases: ['Cities on Flame'],
-      },
-    ],
-  },
-]
+/**
+ * Estrelas para abrir cada tier.
+ *
+ * Cresce mais rápido que o teto de estrelas que o tier anterior oferece, o
+ * que obriga a voltar e tocar melhor em vez de só atravessar tudo uma vez —
+ * é assim que a carreira do original segura o jogador.
+ */
+function unlockCost(index: number) {
+  return index === 0 ? 0 : Math.round(index * SONGS_PER_TIER * 2.4)
+}
+
+/**
+ * Quão difícil é uma música.
+ *
+ * A dificuldade declarada no `song.ini` tem precedência: é a avaliação de
+ * quem charteou, e captura coisas que uma média não vê — um solo curto e
+ * impossível no meio de uma música tranquila, por exemplo. Sem ela, sobra
+ * medir a densidade de notas do expert, que é uma aproximação grosseira mas
+ * ordena razoavelmente.
+ */
+export function difficultyScore(entry: SongEntry): number {
+  if (entry.declaredDifficulty >= 0) return entry.declaredDifficulty
+
+  const order: Difficulty[] = ['expert', 'hard', 'medium', 'easy']
+  const chart = order.map((level) => entry.song.charts[level]).find(Boolean)
+  if (!chart || chart.notes.length === 0) return 0
+
+  const span = (chart.notes.at(-1)?.time ?? 0) - chart.notes[0].time
+  if (span <= 0) return 0
+
+  // Notas por segundo, numa escala parecida com a do `song.ini` (0 a 6).
+  return Math.min(6, (chart.notes.length / span) * 1.6)
+}
+
+/** Monta a carreira com o que está tocável na biblioteca. */
+export function buildCareer(library: SongEntry[]): CareerTier[] {
+  const playable = library
+    .filter((entry) => isPlayable(entry) && Object.keys(entry.song.charts).length > 0)
+    .sort((a, b) => {
+      const byDifficulty = difficultyScore(a) - difficultyScore(b)
+      if (Math.abs(byDifficulty) > 0.01) return byDifficulty
+      // Empate resolvido pelo nome, para a ordem não dançar entre sessões.
+      return a.song.meta.name.localeCompare(b.song.meta.name)
+    })
+
+  const tiers: CareerTier[] = []
+
+  for (let i = 0; i < playable.length; i += SONGS_PER_TIER) {
+    const slice = playable.slice(i, i + SONGS_PER_TIER)
+    const index = tiers.length
+
+    tiers.push({
+      id: `tier-${index + 1}`,
+      order: index + 1,
+      name: TIER_NAMES[index] ?? `Turnê ${index + 1}`,
+      unlockAtStars: unlockCost(index),
+      songs: slice.map((entry, position) => ({
+        // A última de cada tier fecha o show — menos num tier incompleto,
+        // que ainda está esperando música.
+        encore: position === slice.length - 1 && slice.length === SONGS_PER_TIER,
+        entry,
+      })),
+    })
+  }
+
+  return tiers
+}
 
 /**
  * Normaliza um título para comparação.
@@ -116,11 +137,4 @@ export function normalizeTitle(value: string): string {
     .replace(/&/g, ' and ')
     .replace(/^the\s+/, '')
     .replace(/[^a-z0-9]+/g, '')
-}
-
-/** Todas as faixas da carreira, na ordem dos tiers. */
-export function careerSongs(): Array<SetlistEntry & { setlist: Setlist }> {
-  return [...SETLISTS]
-    .sort((a, b) => a.order - b.order)
-    .flatMap((setlist) => setlist.songs.map((song) => ({ ...song, setlist })))
 }

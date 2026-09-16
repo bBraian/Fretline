@@ -28,6 +28,21 @@ const RIFF = [
   [3, 3, 7],
   [3.5, 2, 5],
 ]
+
+/**
+ * Acordes sustentados, um por compasso.
+ *
+ * Existem para conferir dois detalhes de desenho que so aparecem aqui: cada
+ * traste do acorde precisa sair na *sua* cor, e cada um precisa ter o proprio
+ * rastro — um acorde sustentado em que so uma nota tem rastro parece uma nota
+ * para segurar mais uma para apertar.
+ */
+const CHORDS = [
+  [0, [0, 1], 0],
+  [4, [1, 2], 3],
+  [8, [2, 3], 5],
+  [12, [3, 4], 7],
+]
 const BARS = 8
 
 const notes = []
@@ -36,6 +51,13 @@ for (let bar = 0; bar < BARS; bar++) {
     notes.push({ beat: bar * 4 + offset + 4, fret, semitone })
   }
 }
+
+for (const [beat, frets, semitone] of CHORDS) {
+  for (const fret of frets) {
+    notes.push({ beat: beat + 4, fret, semitone, length: 2, chord: frets })
+  }
+}
+notes.sort((a, b) => a.beat - b.beat)
 
 const lastBeat = BARS * 4 + 6
 
@@ -56,7 +78,10 @@ const LEVELS = [
 const sections = LEVELS.map(({ section, lanes, grid }) => {
   const lines = notes
     .filter((n) => Math.abs(n.beat / grid - Math.round(n.beat / grid)) < 1e-6)
-    .map((n) => `  ${Math.round(n.beat * RESOLUTION)} = N ${Math.min(n.fret, lanes - 1)} 0`)
+    .map((n) => {
+      const length = Math.round((n.length ?? 0) * RESOLUTION)
+      return `  ${Math.round(n.beat * RESOLUTION)} = N ${Math.min(n.fret, lanes - 1)} ${length}`
+    })
 
   lines.push(`  ${Math.round(4 * RESOLUTION)} = S 2 ${Math.round(8 * RESOLUTION)}`)
   return `[${section}]\n{\n${lines.join('\n')}\n}`

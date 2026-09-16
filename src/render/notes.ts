@@ -14,7 +14,7 @@
  */
 
 import * as THREE from 'three'
-import type { Chart, Note } from '../engine/types'
+import type { Chart } from '../engine/types'
 import { FRET_COLORS, fretsToArray } from '../engine/types'
 import type { Session } from '../engine/gameplay/session'
 import { HIGHWAY_LENGTH, HIGHWAY_OVERSHOOT, HIGHWAY_WIDTH, LANE_WIDTH, NOTE_Y, laneX } from './layout'
@@ -26,6 +26,8 @@ const MAX_SUSTAINS = 320
 
 const STAR_POWER_COLOR = new THREE.Color(0xdfe9ff)
 const WHITE = new THREE.Color(0xffffff)
+/** Nota aberta não tem traste, então não tem cor de traste. */
+const OPEN_COLOR = new THREE.Color(0xc084fc)
 
 export class NoteField {
   readonly group = new THREE.Group()
@@ -106,7 +108,12 @@ export class NoteField {
 
       // Rastro de sustain: começa na nota, ou na linha de batida depois que
       // a nota já foi tocada, e termina onde o sustain acaba.
-      if (note.duration > 0 && sustainCount < MAX_SUSTAINS) {
+      //
+      // Um acorde é uma nota só com vários trastes e uma duração só, então
+      // *todos* os trastes dele seguram. Desenhar o rastro apenas no
+      // primeiro fazia um acorde sustentado parecer uma nota para segurar
+      // mais uma para apertar — e o jogador soltava a segunda.
+      if (note.duration > 0) {
         const tailStartTime = Math.max(note.time, songTime)
         const tailEndTime = note.time + note.duration
         if (tailEndTime > songTime) {
@@ -114,12 +121,16 @@ export class NoteField {
           const zEnd = -(tailEndTime - songTime) * this.speed
           const length = Math.max(0.01, zStart - zEnd)
           const held = status === 'hit'
+          const tailLanes = note.isOpen ? [-1] : fretsToArray(note.frets)
 
-          this.tintFor(note, missed, starPower, held)
-          this.placeSustain(note, zStart - length / 2, length, held)
-          this.sustains.setMatrixAt(sustainCount, this.dummy.matrix)
-          this.sustains.setColorAt(sustainCount, this.color)
-          sustainCount++
+          for (const lane of tailLanes) {
+            if (sustainCount >= MAX_SUSTAINS) break
+            this.tintFor(lane, missed, starPower, held)
+            this.placeSustain(lane, zStart - length / 2, length, held)
+            this.sustains.setMatrixAt(sustainCount, this.dummy.matrix)
+            this.sustains.setColorAt(sustainCount, this.color)
+            sustainCount++
+          }
         }
       }
 
@@ -127,7 +138,7 @@ export class NoteField {
 
       if (note.isOpen) {
         if (openCount >= MAX_OPENS) continue
-        this.tintFor(note, missed, starPower, false)
+        this.tintFor(-1, missed, starPower, false)
         this.dummy.position.set(0, NOTE_Y, z)
         this.dummy.rotation.set(0, 0, 0)
         this.dummy.scale.set(1, missed ? 0.4 : 1, 1)
@@ -141,7 +152,7 @@ export class NoteField {
       for (const lane of fretsToArray(note.frets)) {
         if (gemCount >= MAX_GEMS) break
         const base = this.laneColors[lane]
-        this.tintFor(note, missed, starPower, false)
+        this.tintFor(lane, missed, starPower, false)
 
         const scale = 1
         this.dummy.position.set(laneX(lane), NOTE_Y, z)
@@ -178,9 +189,18 @@ export class NoteField {
     commit(this.sustains, sustainCount)
   }
 
-  private tintFor(note: Note, missed: boolean, starPower: boolean, held: boolean) {
-    const lane = note.isOpen ? -1 : fretsToArray(note.frets)[0]
-    const base = lane >= 0 ? this.laneColors[lane] : new THREE.Color(0xc084fc)
+  /**
+   * Cor de uma peça, dada a pista em que ela está.
+   *
+   * Recebe a pista, e não a nota: um acorde ocupa várias pistas, e tingir
+   * todas as peças dele pela cor do primeiro traste pintava a gema do
+   * vermelho de verde. A cor do traste é a primeira coisa que o jogador lê,
+   * e errar nela é errar a informação principal da tela.
+   *
+   * `lane` igual a -1 é nota aberta, que não tem traste.
+   */
+  private tintFor(lane: number, missed: boolean, starPower: boolean, held: boolean) {
+    const base = lane >= 0 ? this.laneColors[lane] : OPEN_COLOR
 
     this.color.copy(base)
     // A lavagem do star power é leve de propósito. A cor do traste é a
@@ -193,10 +213,10 @@ export class NoteField {
     if (missed) this.color.multiplyScalar(0.18)
   }
 
-  private placeSustain(note: Note, zCenter: number, length: number, held: boolean) {
-    const lanes = note.isOpen ? [] : fretsToArray(note.frets)
-    const x = note.isOpen ? 0 : laneX(lanes[0])
-    const width = note.isOpen ? HIGHWAY_WIDTH * 0.9 : LANE_WIDTH * (held ? 0.42 : 0.3)
+  private placeSustain(lane: number, zCenter: number, length: number, held: boolean) {
+    const isOpen = lane < 0
+    const x = isOpen ? 0 : laneX(lane)
+    const width = isOpen ? HIGHWAY_WIDTH * 0.9 : LANE_WIDTH * (held ? 0.42 : 0.3)
 
     this.dummy.position.set(x, NOTE_Y - 0.02, zCenter)
     this.dummy.rotation.set(0, 0, 0)

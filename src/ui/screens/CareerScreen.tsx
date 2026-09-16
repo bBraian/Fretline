@@ -1,56 +1,26 @@
 /**
- * Carreira: os tiers do Guitar Hero III, preenchidos pela sua biblioteca.
+ * Carreira: os tiers preenchidos pela sua biblioteca.
  *
- * O jogo não traz áudio, então cada faixa aqui é um *lugar* na carreira. Se
- * a música correspondente estiver na biblioteca importada, o lugar fica
- * jogável; se não, aparece como vago, com o nome e o artista — que é
- * exatamente a informação necessária para ir atrás do chart.
+ * Nada aqui é uma lista fixa. As músicas entram nos tiers sozinhas, da mais
+ * fácil para a mais difícil, e só entra o que dá para tocar — chart mais
+ * áudio. Um chart sem áudio continua visível na biblioteca, como lembrete do
+ * que falta, mas não vira etapa de carreira.
  */
 
 import { useMemo } from 'react'
 import { useGame } from '../store'
-import { SETLISTS, normalizeTitle, type SetlistEntry } from '../../content/setlists'
+import { buildCareer } from '../../content/setlists'
 import { difficultyName } from './MenuScreen'
-import { isPlayable, type SongEntry } from '../../songs/library'
-
-interface Slot {
-  entry: SetlistEntry
-  /** Música da biblioteca que preenche este lugar, se houver. */
-  song: SongEntry | null
-}
+import { isPlayable } from '../../songs/library'
 
 export function CareerScreen() {
   const { library, setScreen, selectSong, profile, settings } = useGame()
   const totalStars = useGame((s) => s.totalStars())
 
-  // Índice por título normalizado: a mesma faixa aparece escrita de formas
-  // diferentes entre packs, e comparar texto cru erraria quase sempre.
-  const byTitle = useMemo(() => {
-    const index = new Map<string, SongEntry>()
-    for (const entry of library) {
-      index.set(normalizeTitle(entry.song.meta.name), entry)
-    }
-    return index
-  }, [library])
+  const tiers = useMemo(() => buildCareer(library), [library])
 
-  const tiers = useMemo(
-    () =>
-      [...SETLISTS]
-        .sort((a, b) => a.order - b.order)
-        .map((setlist) => ({
-          setlist,
-          slots: setlist.songs.map<Slot>((entry) => ({
-            entry,
-            song: byTitle.get(normalizeTitle(entry.title)) ?? null,
-          })),
-        })),
-    [byTitle],
-  )
-
-  const missing = tiers.reduce(
-    (sum, tier) => sum + tier.slots.filter((slot) => !slot.song).length,
-    0,
-  )
+  const waiting = library.filter((entry) => !isPlayable(entry)).length
+  const total = tiers.reduce((sum, tier) => sum + tier.songs.length, 0)
 
   return (
     <div className="screen">
@@ -58,9 +28,8 @@ export function CareerScreen() {
         <div>
           <h1 className="screen-title">Carreira</h1>
           <p className="screen-subtitle">
-            Os tiers na ordem original. Cada faixa fica jogável assim que a música
-            correspondente estiver na sua biblioteca — o casamento é pelo título, não pelo nome
-            da pasta.
+            As músicas da sua biblioteca, da mais fácil para a mais difícil. Cada pack novo entra
+            sozinho no tier que couber.
           </p>
         </div>
         <div className="menu-stats">
@@ -69,71 +38,71 @@ export function CareerScreen() {
             estrelas
           </div>
           <div>
-            <b>{missing}</b>
-            faixas faltando
+            <b>{total}</b>
+            músicas
           </div>
         </div>
       </header>
 
       <div className="screen-body">
-        {tiers.map(({ setlist, slots }) => {
-          const locked = totalStars < setlist.unlockAtStars
+        {tiers.length === 0 && (
+          <p className="empty">
+            Nenhuma música tocável ainda. Coloque as pastas em <code>songs/</code> — cada uma com o
+            chart e o áudio dentro — e elas aparecem aqui.
+          </p>
+        )}
+
+        {tiers.map((tier) => {
+          const locked = totalStars < tier.unlockAtStars
 
           return (
-            <section key={setlist.id} className="tier" data-locked={locked}>
+            <section key={tier.id} className="tier" data-locked={locked}>
               <header className="tier-head">
-                <span className="tier-order">{setlist.order}</span>
+                <span className="tier-order">{tier.order}</span>
                 <span>
-                  <strong>{setlist.name}</strong>
+                  <strong>{tier.name}</strong>
                   <span className="song-artist">
                     {locked
-                      ? `Abre com ${setlist.unlockAtStars} estrelas`
-                      : `${slots.filter((s) => s.song).length} de ${slots.length} disponíveis`}
+                      ? `Abre com ${tier.unlockAtStars} estrelas`
+                      : `${tier.songs.length} música${tier.songs.length === 1 ? '' : 's'}`}
                   </span>
                 </span>
               </header>
 
               <div className="song-list">
-                {slots.map(({ entry, song }) => {
-                  const record = song
-                    ? profile.records[`${song.song.meta.id}:${settings.difficulty}`]
-                    : undefined
-                  const playable =
-                    !!song && !locked && !!song.song.charts[settings.difficulty] && isPlayable(song)
+                {tier.songs.map(({ entry, encore }) => {
+                  const { meta } = entry.song
+                  const record = profile.records[`${meta.id}:${settings.difficulty}`]
+                  const chart = entry.song.charts[settings.difficulty]
+                  const playable = !locked && !!chart
 
                   return (
                     <button
-                      key={entry.title}
+                      key={meta.id}
                       className="song-row"
                       disabled={!playable}
                       onClick={() => {
-                        if (!song) return
-                        selectSong(song.song.meta.id)
+                        selectSong(meta.id)
                         setScreen('play')
                       }}
                     >
                       <span>
                         <span className="song-name">
-                          {entry.title}
-                          {entry.encore ? ' · encore' : ''}
+                          {meta.name}
+                          {encore ? ' · encore' : ''}
                         </span>
                         <br />
                         <span className="song-artist">
-                          {entry.artist} · {entry.year}
+                          {meta.artist}
+                          {meta.year ? ` · ${meta.year}` : ''}
                         </span>
                       </span>
                       <span className="song-meta">
-                        {!song
-                          ? 'não importada'
-                          : !isPlayable(song)
-                            ? 'sem áudio'
-                            : song.song.charts[settings.difficulty]
-                              ? `${song.song.charts[settings.difficulty]!.notes.length} notas`
-                              : `sem ${difficultyName(settings.difficulty)}`}
+                        {chart
+                          ? `${chart.notes.length} notas`
+                          : `sem ${difficultyName(settings.difficulty)}`}
                       </span>
-                      <span className="song-meta">
-                        {record ? '★'.repeat(record.stars) : '—'}
-                      </span>
+                      <span className="song-meta">{record ? '★'.repeat(record.stars) : '—'}</span>
                     </button>
                   )
                 })}
@@ -142,11 +111,10 @@ export function CareerScreen() {
           )
         })}
 
-        {missing > 0 && (
+        {waiting > 0 && (
           <p className="empty" style={{ marginTop: 24 }}>
-            As faixas marcadas como não importadas ainda não estão na sua biblioteca. Importe a
-            pasta delas em <b>Tocar → Importar pasta de músicas</b> e elas assumem o lugar
-            sozinhas.
+            {waiting} pasta{waiting === 1 ? '' : 's'} com chart mas sem áudio, esperando o arquivo.
+            Elas aparecem na biblioteca, não na carreira.
           </p>
         )}
       </div>
