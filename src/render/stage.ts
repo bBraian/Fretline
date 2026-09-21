@@ -11,6 +11,7 @@
 import * as THREE from 'three'
 import { CharacterModel, GUITAR_BODY_OFFSET, GUITAR_TILT, type PerformanceState } from './character/characterModel'
 import { buildGuitar, type GuitarModel } from './guitar/guitarModel'
+import { loadGuitarGlb } from './guitar/guitarGlb'
 import { CHARACTERS, characterById, type Character } from '../content/characters'
 import { guitarById, type Guitar } from '../content/guitars'
 import { LightRig } from './stage/lightRig'
@@ -361,12 +362,49 @@ export class Stage {
   }
 
   private attachGuitar(guitar: Guitar): GuitarModel {
+    // A construída em código entra na hora, mesmo quando a guitarra é de
+    // arquivo: ela é o lugar-guardado enquanto o `.glb` chega. Esperar o
+    // arquivo aqui atrasaria o início da música, e um guitarrista de mão
+    // vazia no palco é pior que uma guitarra provisória.
     const model = buildGuitar(guitar)
-    model.group.scale.setScalar(0.36)
+    this.poseGuitar(model, 0.36)
+    this.guitarist.instrumentAnchor.add(model.group)
+    if (guitar.model) void this.swapInImported(guitar)
+    return model
+  }
+
+  /** Pendura a guitarra na mão do personagem, no ângulo de quem a segura. */
+  private poseGuitar(model: GuitarModel, scale: number) {
+    model.group.scale.setScalar(scale)
     model.group.rotation.set(-0.1, 0.22, -GUITAR_TILT)
     model.group.position.set(GUITAR_BODY_OFFSET.x, GUITAR_BODY_OFFSET.y, GUITAR_BODY_OFFSET.z)
-    this.guitarist.instrumentAnchor.add(model.group)
-    return model
+  }
+
+  /**
+   * Troca a guitarra provisória pela do arquivo, quando ele termina de
+   * carregar.
+   *
+   * O `id` é conferido na volta porque o jogador pode ter trocado de
+   * guitarra nesse meio-tempo — sem isso, um carregamento lento aparece por
+   * cima de uma escolha mais nova.
+   */
+  private async swapInImported(guitar: Guitar) {
+    try {
+      const imported = await loadGuitarGlb(guitar.model!, guitar, guitar.modelAdjust)
+      if (this.currentGuitarId !== guitar.id) {
+        imported.dispose()
+        return
+      }
+      this.guitarist.instrumentAnchor.remove(this.guitarModel.group)
+      this.guitarModel.dispose()
+      this.poseGuitar(imported, 0.36)
+      this.guitarist.instrumentAnchor.add(imported.group)
+      this.guitarModel = imported
+    } catch (erro) {
+      // Falhar aqui não tira o jogador da música: a provisória continua na
+      // mão, e o show segue.
+      console.error(`não deu para carregar ${guitar.model}`, erro)
+    }
   }
 
   private buildBandmates() {
@@ -381,9 +419,7 @@ export class Stage {
     bassist.group.rotation.y = -0.34
     const bass = buildGuitar({ ...guitarById('nocturne'), id: 'bass-prop' })
     // O baixo é maior que a guitarra e tem o braço mais comprido.
-    bass.group.scale.setScalar(0.42)
-    bass.group.rotation.set(-0.1, 0.22, -GUITAR_TILT)
-    bass.group.position.set(GUITAR_BODY_OFFSET.x, GUITAR_BODY_OFFSET.y, GUITAR_BODY_OFFSET.z)
+    this.poseGuitar(bass, 0.42)
     bassist.instrumentAnchor.add(bass.group)
     this.group.add(bassist.group)
     this.bandmates.push(bassist)

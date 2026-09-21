@@ -6,10 +6,11 @@
  * e também o que faz sentido para um objeto cuja graça está na silhueta.
  */
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { owns, useGame } from '../store'
 import { ShopActions, ShopTag } from './ShopActions'
 import { GUITARS, SHAPE_NAMES, guitarById } from '../../content/guitars'
+import { loadGuitarGlb } from '../../render/guitar/guitarGlb'
 import { buildGuitar } from '../../render/guitar/guitarModel'
 import { ModelPreview } from '../../render/preview'
 import { Backdrop } from '../Backdrop'
@@ -23,6 +24,7 @@ export function GuitarsScreen() {
   const totalStars = useGame((s) => s.totalStars())
   const previewId = useGame((s) => s.previewGuitarId)
 
+  const [loading, setLoading] = useState(false)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const previewRef = useRef<ModelPreview | null>(null)
 
@@ -40,15 +42,49 @@ export function GuitarsScreen() {
     }
   }, [])
 
+  // De frente e levemente inclinada. O tampo é a face interessante: é onde
+  // ficam captadores, escudo e controles.
+  const POSE: [number, number, number] = [0.1, 0.34, 0.1]
+
   useEffect(() => {
     const preview = previewRef.current
     if (!preview) return
 
-    const model = buildGuitar(guitarById(shownId))
-    // De frente e levemente inclinada. O tampo é a face interessante: é
-    // onde ficam captadores, escudo e controles.
-    model.group.rotation.set(0.1, 0.34, 0.1)
-    preview.setModel(model.group, model.dispose)
+    const guitar = guitarById(shownId)
+
+    if (!guitar.model) {
+      const model = buildGuitar(guitar)
+      model.group.rotation.set(...POSE)
+      preview.setModel(model.group, model.dispose)
+      setLoading(false)
+      return
+    }
+
+    // Guitarra de arquivo chega depois, e o jogador pode ter trocado de item
+    // nesse meio-tempo. `cancelado` é o que impede um carregamento antigo de
+    // aparecer por cima de um mais novo — sem ele, clicar rápido na lista
+    // mostra a guitarra errada.
+    let cancelado = false
+    setLoading(true)
+    void loadGuitarGlb(guitar.model, guitar, guitar.modelAdjust)
+      .then((model) => {
+        if (cancelado) {
+          model.dispose()
+          return
+        }
+        model.group.rotation.set(...POSE)
+        preview.setModel(model.group, model.dispose)
+        setLoading(false)
+      })
+      .catch((erro) => {
+        if (cancelado) return
+        console.error(`não deu para carregar ${guitar.model}`, erro)
+        setLoading(false)
+      })
+
+    return () => {
+      cancelado = true
+    }
   }, [shownId])
 
   const shown = guitarById(shownId)
@@ -79,7 +115,7 @@ export function GuitarsScreen() {
         <div className="picker">
           <div className="picker-stage">
             <canvas ref={canvasRef} />
-            <span className="picker-hint">arraste para girar</span>
+            <span className="picker-hint">{loading ? 'carregando modelo…' : 'arraste para girar'}</span>
             <div className="picker-caption">
               <h2>{shown.name}</h2>
               <p>{shown.brandless}</p>

@@ -179,6 +179,13 @@ export class ModelPreview {
     return this.current?.position.z ?? NaN
   }
 
+  /** Caixa do modelo em exibição, para conferir normalização de importados. */
+  get modelBounds() {
+    if (!this.current) return null
+    const size = new THREE.Box3().setFromObject(this.current).getSize(new THREE.Vector3())
+    return { x: +size.x.toFixed(2), y: +size.y.toFixed(2), z: +size.z.toFixed(2) }
+  }
+
   /** Centraliza e enquadra o objeto pelo seu tamanho real. */
   private frameObject(object: THREE.Object3D) {
     const box = new THREE.Box3().setFromObject(object)

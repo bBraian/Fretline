@@ -15,7 +15,8 @@
     "gallery": "node scripts/gallery.mjs",
     "menus": "node scripts/menus.mjs",
     "library": "node scripts/library.mjs",
-    "test-song": "node tools/make-test-song.mjs"
+    "test-song": "node tools/make-test-song.mjs",
+    "optimize-models": "node tools/optimize-models.mjs"
   },
   "dependencies": {
     "react": "^19.2.0",

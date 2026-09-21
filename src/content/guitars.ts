@@ -42,6 +42,40 @@ export interface Guitar {
   gloss: number
   /** Intensidade do rastro luminoso no star power. */
   aura: number
+  /**
+   * Arquivo glTF/GLB, quando a guitarra vem de fora.
+   *
+   * Com este campo, o modelo é carregado do arquivo; sem ele, é construído
+   * em código a partir de `shape` e `colors`. Os dois caminhos convivem, e
+   * nenhuma guitarra existente precisou mudar.
+   */
+  model?: string
+  /** Correções de orientação, quando a normalização automática erra. */
+  modelAdjust?: GlbAdjust
+}
+
+/**
+ * Ajustes de um modelo importado.
+ *
+ * Mora aqui, junto dos dados que o usam, e não no carregador: assim o
+ * carregador continua importando de `content/`, e não o contrário — a
+ * direção que o resto do projeto segue.
+ */
+export interface GlbAdjust {
+  /**
+   * Giro aplicado **antes** de qualquer medição, em radianos por eixo.
+   *
+   * Existe para o caso que a detecção de eixo não resolve: quando a caixa
+   * do modelo é quase quadrada, "o eixo mais longo é o do braço" não decide
+   * nada, e a guitarra sai deitada. Aqui se diz como ela estava.
+   */
+  preRotate?: [number, number, number]
+  /** Vira a guitarra de ponta-cabeça, quando o braço sai para o lado errado. */
+  flip?: boolean
+  /** Giro em torno do eixo do braço, em radianos: põe o tampo de frente. */
+  roll?: number
+  /** Multiplica o comprimento final, se 2,5 não ficar bem para este modelo. */
+  scale?: number
 }
 
 const ROSEWOOD = 0x3a2118
@@ -188,6 +222,57 @@ export const GUITARS: Guitar[] = [
     aura: 1.0,
   },
 ]
+
+/**
+ * Guitarras importadas.
+ *
+ * Ficam depois das construídas em código, e não no lugar delas: ter as duas
+ * lado a lado na loja é o que deixa comparar o resultado da importação com
+ * o que o projeto já fazia.
+ *
+ * `shape` e `colors` continuam preenchidos porque o resto do jogo lê esses
+ * campos — a bolinha de cor na lista de seleção sai de `colors.body`. Eles
+ * não afetam a geometria quando há `model`.
+ */
+const HALF_TURN = Math.PI
+
+/**
+ * A normalização automática acerta a orientação em cerca de dois terços dos
+ * arquivos. Os ajustes abaixo cobrem o resto, e saíram de olhar cada uma
+ * carregada na prévia — `flip` quando saiu de ponta-cabeça, `roll` quando
+ * saiu de costas. É uma linha por modelo, e é mais barato que perseguir uma
+ * heurística que acerte sempre.
+ */
+const IMPORTED: Guitar[] = ([
+  ['electric_guitar', 'Stratos', 'Corte duplo clássico, três captadores', 'super-strat', 0xd8d3c8, undefined],
+  ['electric_guitar-1', 'Vanguarda', 'Tampo trabalhado, ferragem escura', 'double-cut', 0x8c3b2a, undefined],
+  ['electric_guitar_explorer', 'Angular XR', 'Corpo angular, atitude de arena', 'explorer', 0x2f2f33, { roll: HALF_TURN }],
+  ['electric_guitar_dragons_v1.2', 'Dragão', 'Entalhe de dragão no corpo inteiro', 'single-cut', 0x6b2f1e, undefined],
+  ['electric_guitar_lowpoly_model', 'Prisma', 'Poucas faces, silhueta limpa', 'tele', 0xc2a15a, { flip: false }],
+  ['flying-v_electric_guitar', 'Flecha', 'O V de sempre, sem meio-termo', 'v', 0x9b1c1c, { flip: false }],
+  ['guitar', 'Oficina', 'Madeira à mostra, ferragem cromada', 'single-cut', 0x7a4a24, { flip: false }],
+  ['white_electric_guitar', 'Alvorada', 'Branca inteira, escudo claro', 'offset', 0xe8e6e1, undefined],
+] as const).map(([file, name, brandless, shape, body, modelAdjust]) => ({
+  id: `glb-${file}`,
+  name: name as string,
+  brandless: brandless as string,
+  unlockAtStars: 0,
+  price: 0,
+  shape: shape as BodyShape,
+  colors: {
+    body: body as number,
+    neck: MAHOGANY,
+    fretboard: ROSEWOOD,
+    hardware: CHROME,
+    pickguard: BLACK_HW,
+  },
+  gloss: 0.9,
+  aura: 0.9,
+  model: `/models/guitars/${file}.glb`,
+  modelAdjust,
+}))
+
+GUITARS.push(...IMPORTED)
 
 export function guitarById(id: string): Guitar {
   return GUITARS.find((g) => g.id === id) ?? GUITARS[0]

@@ -97,6 +97,16 @@ isoladas entram sem atrito** (cabeça, botas, chapéu, e a guitarra inteira,
 que é um adereço rígido), desde que parenteadas ao mesmo nó `Object3D`.
 Um corpo de personagem inteiro, não.
 
+**Guitarras importadas já funcionam.** Uma entrada com o campo `model` em
+`content/guitars.ts` é carregada de um `.glb` por
+`render/guitar/guitarGlb.ts`, que normaliza escala e orientação sozinho —
+arquivo de banco público não segue convenção nenhuma. Os detalhes e as
+armadilhas estão em `docs/specs/gltf-glb.md`.
+
+Os arquivos ficam em `public/models/`, **fora do versionamento**: são
+megabytes de binário e têm licença própria, que às vezes proíbe
+redistribuir. `npm run optimize-models <pasta>` prepara os baixados.
+
 ## Telas e estilo
 
 Todas as telas ficam em `src/ui/screens/`, e todo o estilo em um arquivo
@@ -130,7 +140,7 @@ Mudança visual se confere olhando: rode `npm run menus` (ou `shots`,
 | | |
 |---|---|
 | `docs/design/README.md` | contrato visual das telas de menu |
-| `docs/specs/gltf-glb.md` | plano para migrar arte para glTF/GLB |
+| `docs/specs/gltf-glb.md` | importar arte em glTF/GLB: o que já funciona e o que falta |
 
 ## Músicas
 

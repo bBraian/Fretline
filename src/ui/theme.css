@@ -1761,3 +1761,10 @@ button {
 .screen-paper .song-row[data-waiting='true'] .song-name {
   color: #6b7590;
 }
+
+/* Enquanto um modelo de arquivo chega. A dica do canto vira o aviso, em vez
+   de aparecer um segundo rótulo: são a mesma informação em momentos
+   diferentes. */
+.picker-hint {
+  transition: color 150ms ease;
+}

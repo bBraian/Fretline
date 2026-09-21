@@ -3,7 +3,8 @@
 Plano para trocar geometria construída em código por modelos importados,
 sem perder o que a construção em código dá de graça.
 
-Estado em 21/09/2026: nenhum arquivo de modelo existe no projeto.
+**Estado em 21/09/2026: a Fase 1 está implementada e funcionando** com oito
+guitarras importadas do Sketchfab. As fases 2 e 3 continuam por fazer.
 
 ## O que torna isso diferente de "só carregar um GLB"
 
@@ -17,55 +18,106 @@ Daí a regra que organiza este plano inteiro:
 > Peça rígida importada entra sem briga. Corpo articulado importado, não —
 > ele viria sem o rig que anima tudo.
 
-## Fase 1 — Guitarras (o caminho curto)
+## Fase 1 — Guitarras — FEITA
 
-A costura já existe. `src/render/guitar/guitarModel.ts` expõe:
+`src/render/guitar/guitarGlb.ts` devolve o mesmo `GuitarModel` que
+`buildGuitar()` monta em código, então cena e prévia não sabem de onde veio
+o instrumento. Uma guitarra com o campo `model` em `content/guitars.ts` é
+carregada do arquivo; sem o campo, é construída como sempre. As duas formas
+convivem e nenhuma guitarra existente precisou mudar.
 
-```ts
-export interface GuitarModel {
-  group: THREE.Group
-  setGlow(amount: number): void    // star power
-  setWhammy(amount: number): void  // alavanca
-  dispose(): void
-}
-```
+### O que a prática desmentiu no plano original
 
-E `CharacterModel` tem um `instrumentAnchor` público, um `Group` pendurado
-no torso. Uma função que devolva esse mesmo contrato entra no lugar de
-`buildGuitar()` e nada mais na cena precisa saber.
+O plano dizia que o arquivo deveria respeitar a convenção do `shapes.ts`.
+**Isso não funciona.** Os oito primeiros arquivos importados vinham assim:
 
-**Trabalho:**
+| eixo do braço no arquivo | quantos |
+|---|---|
+| X | 3 |
+| Y | 2 |
+| Z | 3 |
 
-1. `src/render/guitar/guitarGlb.ts`, com
-   `loadGuitarGlb(url, guitar): Promise<GuitarModel>` usando `GLTFLoader`.
-2. Convenção de nomes dentro do `.glb`, para o carregador achar o que
-   precisa sem adivinhar:
-   - malhas com prefixo `glow_` entram na lista do `setGlow`;
-   - um nó chamado `whammy_pivot` é o que o `setWhammy` gira;
-   - o resto é geometria muda.
-3. Campo opcional `model?: string` em `Guitar`
-   (`src/content/guitars.ts`). Com ele, carrega o GLB; sem ele, constrói
-   como hoje. As duas formas convivem, e nenhuma guitarra existente
-   precisa ser refeita.
-4. `dispose()` precisa liberar geometria, materiais **e texturas** do GLB.
-   O caminho procedural não tem textura e por isso o `dispose` atual não
-   trata disso.
+E o comprimento ia de **2 a 1055 unidades** — quinhentas vezes de variação.
+Quem exportou o modelo não conhecia a convenção, e não há como pedir que
+conheça. O carregador mede o que recebeu e conserta.
 
-**A armadilha, e é real:** as mãos são posicionadas por *constantes de
-distância* em `characterModel.ts` — entre elas a distância do corpo até o
-fim da escala —, e não medidas a partir da geometria. Um GLB fora da
-convenção do `shapes.ts` faz a mão flutuar ao lado do braço da guitarra.
+### A normalização, em quatro passos
 
-Convenção a respeitar: corpo centrado na origem, `+Y` apontando para o
-braço, 1 unidade ≈ 30cm, guitarra inteira ≈ 2,5 unidades.
+1. **Eixo do braço para Y.** Uma guitarra é comprida numa direção e estreita
+   nas outras duas, então o eixo mais longo é o do braço.
+2. **Escala**, para o comprimento virar 2,5 unidades.
+3. **Qual ponta é o corpo**, comparando o ponto mais largo de cada metade —
+   nenhuma parte de uma guitarra é mais larga que o corpo. O corpo vai para
+   baixo, porque +Y é a direção do braço.
+4. **Tampo de frente**: alinhado o braço em Y, sobram largura e espessura, e
+   a espessura é sempre a menor. Vai para Z, como no `shapes.ts`.
 
-**Melhoria que vale fazer junto:** transformar essas constantes em campos
-do modelo (`neckEnd`, `bridge`), lidos tanto pelo caminho procedural quanto
-pelo importado. Aí um GLB em qualquer escala funciona declarando onde
-ficam seus pontos, e a IK para de depender de um número global.
+Por fim o corpo — não o centro da caixa — vai para a origem, porque é dele
+que saem as distâncias que posicionam as mãos.
 
-**Como validar:** `npm run gallery` fotografa cada guitarra; uma importada
-ao lado das procedurais mostra escala e orientação erradas de imediato.
+**A heurística do passo 3 acerta cerca de dois terços dos arquivos.**
+Reconhecer a orientação de um objeto arbitrário é um problema difícil, e não
+vale persegui-lo: `modelAdjust` corrige o resto com uma linha por modelo
+(`flip` quando sai de ponta-cabeça, `roll` quando sai de costas).
+
+### Três erros que só a medição pegou
+
+1. **Rotacionar em eixos locais.** `rotateX` e companhia giram em torno dos
+   eixos do objeto, que os passos anteriores já mexeram — então cada etapa
+   dependia da ordem das outras, e um ajuste no começo desalinhava tudo
+   depois. A correção foi `rotateOnWorldAxis`. Com ela, um modelo que exigia
+   ajuste manual passou a ser resolvido sozinho.
+2. **Escala aplicada duas vezes.** `multiplyScalar` já multiplica pela escala
+   corrente; o cálculo também multiplicava por `root.scale.x`. Passou
+   despercebido porque quase todo arquivo vem com escala 1 na raiz.
+3. **Emissivo aceso por padrão.** O carregador põe cor emissiva branca para
+   o star power, mas não zerava a intensidade — e o material nasce com ela
+   em 1. Toda guitarra aparecia branca lisa até alguém chamar `setGlow`, o
+   que na prévia nunca acontece.
+
+### Convenção de nomes dentro do arquivo
+
+Opcional, e nenhum modelo de banco público traz:
+
+- malha com prefixo `glow_` entra na lista do `setGlow`; sem nenhuma, o
+  brilho vai em todos os materiais;
+- nó chamado `whammy_pivot` é o que o `setWhammy` gira; sem ele, a alavanca
+  simplesmente não mexe, o que é melhor que girar outra coisa no lugar.
+
+### Carregamento assíncrono
+
+A cena monta tudo de forma síncrona, e o arquivo chega depois. Nos dois
+lugares onde isso aparece:
+
+- **na prévia da loja**, um sinalizador de cancelamento descarta um
+  carregamento antigo que chegue depois de o jogador já ter trocado de item;
+- **no palco**, a guitarra construída em código entra na hora como
+  lugar-guardado e é trocada quando o arquivo chega. Esperar o arquivo
+  atrasaria o início da música, e um guitarrista de mão vazia é pior que uma
+  guitarra provisória.
+
+### Peso
+
+Arquivo de banco público vem pesado pelo motivo errado. Nos oito primeiros,
+**53% do peso era textura**, e um deles trazia 31 mapas de 1024×1024 para
+uma guitarra só — perto de 124 MB de memória de vídeo. A geometria, que é
+onde se costuma olhar, não era problema em nenhum: 94 mil vértices no pior
+caso, e o jogo já desenha uma banda inteira todo quadro.
+
+`npm run optimize-models <pasta>` corta textura para 512 em WebP e comprime
+a geometria com `quantize`. Nos oito: **26,4 MB → 5,3 MB**.
+
+Fica no `quantize` e não no Draco de propósito: o Draco levaria a um quinto
+disso, mas exige um decodificador WebAssembly no cliente, e o bundle já
+passa de 900 kB.
+
+### O que ficou por fazer nesta fase
+
+`GUITAR_NECK_REACH` e os offsets em `characterModel.ts` continuam
+constantes. A normalização põe todo modelo na mesma escala, o que faz as
+constantes valerem para todos — mas uma guitarra de proporções muito fora do
+comum ainda deslocaria a mão. Transformá-las em campos do modelo
+(`neckEnd`, `bridge`) continua valendo.
 
 ## Fase 2 — Peças rígidas de personagem
 
