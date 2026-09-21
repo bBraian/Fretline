@@ -52,16 +52,16 @@ export const ATTACHMENTS: Record<string, Attachment> = {
   /** Baixo, um pouco maior e mais baixo que a guitarra. */
   bass: {
     bone: 'Hips',
-    position: [0.04, -0.04, 0.2],
-    rotation: [-0.1, 0.22, -1.02],
+    position: [-0.12, 0.15, 0.31],
+    rotation: [0.078, -0.022, -0.982],
     scale: 0.42,
   },
 
   /** Microfone: vai na mão, não na cintura. */
   mic: {
     bone: 'RightHand',
-    position: [0, 0, 0],
-    rotation: [-0.5, 0, 0],
+    position: [-0.795, -0.15, 0.015],
+    rotation: [1.678, 2.638, -0.602],
     scale: 0.2,
   },
 }

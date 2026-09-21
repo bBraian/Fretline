@@ -8,6 +8,7 @@
 
 import { useEffect } from 'react'
 import { useGame } from './ui/store'
+import { mixer } from './audio/mixer'
 import { MenuScreen } from './ui/screens/MenuScreen'
 import { CareerScreen } from './ui/screens/CareerScreen'
 import { SongsScreen } from './ui/screens/SongsScreen'
@@ -21,12 +22,44 @@ import { PlayScreen } from './ui/PlayScreen'
 export function App() {
   const screen = useGame((s) => s.screen)
   const refreshLocalLibrary = useGame((s) => s.refreshLocalLibrary)
+  const volume = useGame((s) => s.settings.volume)
+  const menuMusic = useGame((s) => s.settings.menuMusic)
 
   // A pasta `songs/` é lida uma vez ao abrir. Falhar aqui não é erro: num
   // build estático, sem o servidor local, simplesmente não há pasta.
   useEffect(() => {
     void refreshLocalLibrary()
   }, [refreshLocalLibrary])
+
+  // A mesa de som nasce com o que estava salvo.
+  useEffect(() => {
+    mixer.setVolume(volume)
+    mixer.setMenuMusicEnabled(menuMusic)
+  }, [volume, menuMusic])
+
+  /**
+   * A música de fundo acompanha a navegação, não a tela.
+   *
+   * Ligar e desligar por tela faria a música recomeçar a cada passo entre
+   * menus. Aqui ela só para de verdade ao entrar no palco, e volta ao sair
+   * — o que mantém uma instância só no ar o tempo todo.
+   */
+  useEffect(() => {
+    if (screen === 'play') mixer.stopMenuMusic()
+    else mixer.startMenuMusic()
+  }, [screen])
+
+  // O navegador só deixa tocar som depois de um gesto. O primeiro clique ou
+  // tecla é o que acorda a mesa.
+  useEffect(() => {
+    const acordar = () => mixer.startMenuMusic()
+    window.addEventListener('pointerdown', acordar, { once: true })
+    window.addEventListener('keydown', acordar, { once: true })
+    return () => {
+      window.removeEventListener('pointerdown', acordar)
+      window.removeEventListener('keydown', acordar)
+    }
+  }, [])
 
   switch (screen) {
     case 'career':

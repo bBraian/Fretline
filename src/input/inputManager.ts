@@ -25,6 +25,8 @@ export class InputManager {
   private gamepad: GamepadBindings = DEFAULT_GAMEPAD
   private mask = 0
   private whammy = 0
+  /** Instante do último strum, para o retorno visual. */
+  private strummedAt = -1
   private previousButtons: boolean[] = []
   private attached = false
 
@@ -72,6 +74,11 @@ export class InputManager {
 
   get whammyValue() {
     return this.whammy
+  }
+
+  /** Há quanto tempo a barra de strum foi usada, em segundos. */
+  strumAge(now: number) {
+    return this.strummedAt < 0 ? Infinity : now - this.strummedAt
   }
 
   /**
@@ -166,6 +173,17 @@ export class InputManager {
     const sp = this.gamepad.starPower
     if ((pressed[sp] ?? false) && !(this.previousButtons[sp] ?? false)) {
       this.sink({ kind: 'starPower', time })
+    }
+
+    // A barra de strum. O jogo não exige palhetada, mas quem tem controle de
+    // guitarra espera que ela responda — e ignorá-la dá a impressão de que o
+    // controle não foi reconhecido.
+    for (const strum of [this.gamepad.strumUp, this.gamepad.strumDown]) {
+      if (strum < 0) continue
+      if ((pressed[strum] ?? false) && !(this.previousButtons[strum] ?? false)) {
+        this.strummedAt = time
+        this.sink({ kind: 'starPower', time })
+      }
     }
 
     if (this.gamepad.whammyAxis >= 0) {

@@ -6,6 +6,7 @@ import { useGame } from '../store'
 import { starLabel } from '../../content/progression'
 import { difficultyName } from './MenuScreen'
 import { Backdrop } from '../Backdrop'
+import { mixer } from '../../audio/mixer'
 
 export function ResultsScreen() {
   const { lastPerformance, setScreen, selectedSongId, library, settings } = useGame()
@@ -67,7 +68,10 @@ export function ResultsScreen() {
       </div>
 
       <footer className="screen-foot">
-        <button className="btn btn-ghost" onClick={() => setScreen('menu')}>
+        <button className="btn btn-ghost" onClick={() => {
+            mixer.play('back')
+            setScreen('menu')
+          }}>
           Menu
         </button>
         <button className="btn" onClick={() => setScreen('songs')}>

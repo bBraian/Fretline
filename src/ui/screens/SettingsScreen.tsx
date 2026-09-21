@@ -6,15 +6,25 @@ import { useEffect, useState } from 'react'
 import { useGame } from '../store'
 import { difficultyName } from './MenuScreen'
 import { DIFFICULTIES, FRET_COLORS, FRET_NAMES } from '../../engine/types'
-import { DEFAULT_GAMEPAD, DEFAULT_KEYBOARD, keyLabel } from '../../input/bindings'
+import { gamepadAxisLabel, gamepadButtonLabel, DEFAULT_GAMEPAD, DEFAULT_KEYBOARD, keyLabel } from '../../input/bindings'
 import { Backdrop } from '../Backdrop'
+import { mixer } from '../../audio/mixer'
 
 type Listening = { kind: 'fret'; index: number } | { kind: 'starPower' | 'whammy' } | null
+
+/** O mesmo, para o controle. */
+type PadListening =
+  | { kind: 'fret'; index: number }
+  | { kind: 'starPower' | 'strumUp' | 'strumDown' }
+  | null
 
 export function SettingsScreen() {
   const { settings, updateSettings, setScreen } = useGame()
   const [listening, setListening] = useState<Listening>(null)
   const [gamepadName, setGamepadName] = useState<string | null>(null)
+  const [padListening, setPadListening] = useState<PadListening>(null)
+  const [livePressed, setLivePressed] = useState<number[]>([])
+  const [axes, setAxes] = useState<number[]>([])
 
   // Captura a próxima tecla apertada e grava no comando escolhido.
   useEffect(() => {
@@ -40,15 +50,92 @@ export function SettingsScreen() {
   }, [listening, settings.keyboard, updateSettings])
 
   // Mostra se há controle conectado, para o jogador não ficar no escuro.
+  /**
+   * Lê o controle continuamente.
+   *
+   * A API de gamepad não emite eventos de botão — só expõe um retrato do
+   * estado —, então descobrir qual botão o jogador apertou exige perguntar a
+   * cada quadro. É o mesmo laço que alimenta a lista de "apertados agora" e a
+   * captura de um novo mapeamento.
+   *
+   * Conectar e desconectar também passam por aqui: o retrato some quando o
+   * controle sai, e a tela acompanha sem precisar recarregar.
+   */
   useEffect(() => {
-    const check = () => {
-      const pad = (navigator.getGamepads?.() ?? []).find((p) => p?.connected)
+    let frame = 0
+    const tick = () => {
+      const pad = (navigator.getGamepads?.() ?? []).find((p) => p?.connected) ?? null
       setGamepadName(pad ? pad.id : null)
+      const pressed = pad ? pad.buttons.flatMap((b, i) => (b.pressed ? [i] : [])) : []
+      setLivePressed((antes) =>
+        antes.length === pressed.length && antes.every((v, i) => v === pressed[i]) ? antes : pressed,
+      )
+      setAxes((antes) => {
+        const atual = pad ? [...pad.axes] : []
+        return antes.length === atual.length && antes.every((v, i) => v === atual[i]) ? antes : atual
+      })
+      frame = requestAnimationFrame(tick)
     }
-    check()
-    const id = window.setInterval(check, 1000)
-    return () => window.clearInterval(id)
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
   }, [])
+
+  /**
+   * Grava o próximo botão apertado no comando escolhido.
+   *
+   * Espera o botão ser **solto e apertado de novo**: sem isso, o clique do
+   * mouse que abriu a captura já chegaria com um botão do controle
+   * pressionado e gravaria o errado.
+   */
+  useEffect(() => {
+    if (!padListening) return
+    let armado = livePressed.length === 0
+    let frame = 0
+    const tick = () => {
+      const pad = (navigator.getGamepads?.() ?? []).find((p) => p?.connected)
+      const apertado = pad?.buttons.findIndex((b) => b.pressed) ?? -1
+      if (apertado < 0) armado = true
+      else if (armado) {
+        const gamepad = { ...settings.gamepad, frets: [...settings.gamepad.frets] }
+        if (padListening.kind === 'fret') gamepad.frets[padListening.index] = apertado
+        else gamepad[padListening.kind] = apertado
+        updateSettings({ gamepad })
+        mixer.play('select')
+        setPadListening(null)
+        return
+      }
+      frame = requestAnimationFrame(tick)
+    }
+    frame = requestAnimationFrame(tick)
+
+    const cancelar = (e: KeyboardEvent) => {
+      if (e.code === 'Escape') setPadListening(null)
+    }
+    window.addEventListener('keydown', cancelar)
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener('keydown', cancelar)
+    }
+  }, [padListening, livePressed.length, settings.gamepad, updateSettings])
+
+  const padButton = (label: string, index: number, target: PadListening) => {
+    const ativo = padListening !== null && JSON.stringify(padListening) === JSON.stringify(target)
+    return (
+      <div className="field-row" key={label}>
+        <span style={{ minWidth: 130 }}>{label}</span>
+        <button
+          className="btn key-binding"
+          data-listening={ativo}
+          onClick={() => {
+            setPadListening(target)
+            mixer.play('move')
+          }}
+        >
+          {ativo ? 'aperte um botão…' : gamepadButtonLabel(index)}
+        </button>
+      </div>
+    )
+  }
 
   const bindingButton = (label: string, code: string, target: Listening) => (
     <div className="field-row" key={label}>
@@ -119,10 +206,32 @@ export function SettingsScreen() {
               max={1}
               step={0.01}
               value={settings.volume}
-              onChange={(e) => updateSettings({ volume: Number(e.target.value) })}
+              onChange={(e) => {
+                updateSettings({ volume: Number(e.target.value) })
+                mixer.play('tweak')
+              }}
             />
             <span className="field-value">{Math.round(settings.volume * 100)}%</span>
           </div>
+        </div>
+
+        <div className="field">
+          <span className="field-label">Música nos menus</span>
+          <p className="field-hint">
+            Um laço de fundo enquanto você escolhe música e personagem. Toca à metade do volume
+            geral, para não disputar com os efeitos.
+          </p>
+          <label className="field-row">
+            <input
+              type="checkbox"
+              checked={settings.menuMusic}
+              onChange={(e) => {
+                updateSettings({ menuMusic: e.target.checked })
+                mixer.play('tweak')
+              }}
+            />
+            <span className="field-value">{settings.menuMusic ? 'Ligada' : 'Desligada'}</span>
+          </label>
         </div>
 
         <div className="field">
@@ -224,12 +333,63 @@ export function SettingsScreen() {
           <span className="field-label">Controle</span>
           <p className="field-hint">
             {gamepadName
-              ? `Conectado: ${gamepadName}. Trastes nos quatro botões de ação mais o bumper direito.`
+              ? `Conectado: ${gamepadName}. Clique num comando e aperte o botão que quer usar.`
               : 'Nenhum controle detectado. Conecte e aperte um botão — o navegador só o revela depois disso.'}
           </p>
+
+          {gamepadName && (
+            <>
+              {settings.gamepad.frets.map((button, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span
+                    className="swatch"
+                    style={{ background: `#${FRET_COLORS[i].toString(16).padStart(6, '0')}` }}
+                  />
+                  {padButton(`Traste ${FRET_NAMES[i]}`, button, { kind: 'fret', index: i })}
+                </div>
+              ))}
+              {padButton('Star power', settings.gamepad.starPower, { kind: 'starPower' })}
+              {padButton('Strum para cima', settings.gamepad.strumUp, { kind: 'strumUp' })}
+              {padButton('Strum para baixo', settings.gamepad.strumDown, { kind: 'strumDown' })}
+
+              <div className="field-row">
+                <span style={{ minWidth: 92 }}>Alavanca</span>
+                <select
+                  value={settings.gamepad.whammyAxis}
+                  onChange={(e) => {
+                    updateSettings({
+                      gamepad: { ...settings.gamepad, whammyAxis: Number(e.target.value) },
+                    })
+                    mixer.play('tweak')
+                  }}
+                >
+                  <option value={-1}>desligada</option>
+                  {axes.map((_, i) => (
+                    <option key={i} value={i}>
+                      {gamepadAxisLabel(i)}
+                    </option>
+                  ))}
+                </select>
+                <span className="field-value">
+                  {(axes[settings.gamepad.whammyAxis] ?? 0).toFixed(2)}
+                </span>
+              </div>
+
+              {/* Um retrato do que o controle está mandando agora: é o que
+                  permite descobrir o número de um botão sem consultar tabela
+                  nenhuma. */}
+              <p className="field-hint">
+                Apertados agora: {livePressed.length ? livePressed.map(gamepadButtonLabel).join(', ') : 'nenhum'}
+              </p>
+            </>
+          )}
+
           <button
             className="btn btn-ghost"
-            onClick={() => updateSettings({ gamepad: DEFAULT_GAMEPAD })}
+            onClick={() => {
+              updateSettings({ gamepad: DEFAULT_GAMEPAD })
+              mixer.play('back')
+            }}
           >
             Restaurar o padrão
           </button>
@@ -237,7 +397,10 @@ export function SettingsScreen() {
       </div>
 
       <footer className="screen-foot">
-        <button className="btn btn-ghost" onClick={() => setScreen('menu')}>
+        <button className="btn btn-ghost" onClick={() => {
+            mixer.play('back')
+            setScreen('menu')
+          }}>
           ← Voltar
         </button>
       </footer>

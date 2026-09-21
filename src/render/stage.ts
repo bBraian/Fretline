@@ -51,8 +51,58 @@ export class Stage {
    */
   private destroyed = false
 
+  /**
+   * Carregamentos em andamento, para a tela de jogo poder esperar.
+   *
+   * O palco monta tudo de forma síncrona e depois troca cada peça pelo
+   * arquivo quando ele chega. Isso mantém a cena sempre completa, mas
+   * significa que entrar no palco no primeiro quadro mostra personagens sem
+   * textura e instrumentos provisórios. Quem espera por estas promessas vê
+   * o palco já pronto.
+   */
+  private pending: Array<Promise<unknown>> = []
+
+  /** O que já chegou, para a tela de espera listar. */
+  private loadingLabels = new Map<string, boolean>()
+
+  /**
+   * Registra um carregamento.
+   *
+   * Nunca rejeita para quem espera: uma peça que falha deixa o provisório no
+   * lugar, e a música precisa começar de qualquer jeito.
+   */
+  private awaitAsset<T>(label: string, promise: Promise<T>): Promise<T> {
+    if (!this.loadingLabels.has(label)) this.loadingLabels.set(label, false)
+    this.pending.push(
+      promise.then(
+        () => void this.loadingLabels.set(label, true),
+        () => void this.loadingLabels.set(label, true),
+      ),
+    )
+    return promise
+  }
+
+  /** Espera tudo que foi registrado, inclusive o que nascer no caminho. */
+  async ready() {
+    // Um carregamento dispara outro — o personagem chega e só então a
+    // guitarra dele é pendurada —, então espera até a fila parar de crescer.
+    let antes = -1
+    while (this.pending.length !== antes) {
+      antes = this.pending.length
+      await Promise.allSettled(this.pending)
+    }
+  }
+
+  /** O que já chegou e o que falta, para a tela de espera. */
+  get loadingProgress() {
+    const itens = [...this.loadingLabels.entries()].map(([label, done]) => ({ label, done }))
+    return { itens, done: itens.filter((i) => i.done).length, total: itens.length }
+  }
+
   private clock = 0
   private starPower = 0
+  /** Quanto a alavanca está puxada, de 0 a 1. */
+  private whammy = 0
   private energy = 0.5
   private currentCharacterId: string
   private currentGuitarId: string
@@ -244,8 +294,9 @@ export class Stage {
     // o arquivo chegar — o palco nunca aparece sem bateria.
     // O kit fica **à frente** do baterista, que senta em z = -4,1: a plateia
     // está em +z, então um kit mais ao fundo ficaria atrás de quem toca.
-    void loadProp({ url: STAGE_PROPS.drums, size: 2.9, anchor: 'bottom' })
-      .then((prop) => {
+    void this.awaitAsset(
+      'Bateria',
+      loadProp({ url: STAGE_PROPS.drums, size: 2.9, anchor: 'bottom' }).then((prop) => {
         if (this.destroyed) {
           prop.dispose()
           return
@@ -254,8 +305,8 @@ export class Stage {
         prop.group.position.set(0, 0, -3.5)
         this.group.add(prop.group)
         this.disposables.push(prop)
-      })
-      .catch((erro) => console.error(`não deu para carregar ${STAGE_PROPS.drums}`, erro))
+      }),
+    ).catch((erro) => console.error(`não deu para carregar ${STAGE_PROPS.drums}`, erro))
   }
 
   private buildAmbientLight() {
@@ -392,7 +443,7 @@ export class Stage {
     model.group.position.set(-2.6, 0, -0.6)
     model.group.rotation.y = 0.3
     this.group.add(model.group)
-    if (character.model) void this.swapInImportedCharacter(character)
+    if (character.model) void this.awaitAsset('Personagem', this.swapInImportedCharacter(character))
     return model
   }
 
@@ -443,7 +494,7 @@ export class Stage {
     const model = buildGuitar(guitar)
     this.poseInstrument(model.group, 'guitar')
     this.guitarist.instrumentAnchor.add(model.group)
-    if (guitar.model) void this.swapInImported(guitar)
+    if (guitar.model) void this.awaitAsset('Guitarra', this.swapInImported(guitar))
     return model
   }
 
@@ -503,7 +554,7 @@ export class Stage {
    * muda de dono junto: pertence ao papel, não ao corpo.
    */
   private swapInBandMember(slot: number, role: BandRole, position: THREE.Vector3, turn: number) {
-    void loadBandMember(role)
+    return loadBandMember(role)
       .then((membro) => {
         const antigo = this.bandmates[slot]
         if (this.destroyed || !antigo) {
@@ -544,29 +595,32 @@ export class Stage {
     bassist.setRole('bass')
     bassist.group.position.set(2.7, 0, -0.9)
     bassist.group.rotation.y = -0.34
-    const bass = buildGuitar(BASS_PROP)
-    // O baixo é maior que a guitarra e tem o braço mais comprido.
-    this.poseInstrument(bass.group, 'bass')
+    // O baixo é sempre o modelo de arquivo, sem provisório.
+    //
+    // Guitarra e baixo seguiam o mesmo caminho — construir em código e
+    // trocar quando o arquivo chegasse —, mas a guitarra é escolha do
+    // jogador e o baixo não é. Desde que a entrada no palco passou a esperar
+    // os arquivos, o provisório do baixo não chegava a ser visto por
+    // ninguém: era só uma troca a mais e uma segunda aparência possível
+    // para a mesma coisa.
+    //
     // Um baixo é uma guitarra, então reaproveita a normalização dela; o
     // `scale` compensa o corpo e o braço maiores.
-    void loadGuitarGlb(STAGE_PROPS.bass, BASS_PROP, { scale: 1.15 })
-      .then((imported) => {
+    void this.awaitAsset(
+      'Baixo',
+      loadGuitarGlb(STAGE_PROPS.bass, BASS_PROP, { scale: 1.15 }).then((imported) => {
         if (this.destroyed) {
           imported.dispose()
           return
         }
-        bassist.instrumentAnchor.remove(bass.group)
-        bass.dispose()
         this.poseInstrument(imported.group, 'bass')
         bassist.instrumentAnchor.add(imported.group)
         this.disposables.push(imported)
-      })
-      .catch((erro) => console.error(`não deu para carregar ${STAGE_PROPS.bass}`, erro))
-    bassist.instrumentAnchor.add(bass.group)
+      }),
+    ).catch((erro) => console.error(`não deu para carregar ${STAGE_PROPS.bass}`, erro))
     this.group.add(bassist.group)
     this.bandmates.push(bassist)
-    this.disposables.push(bass)
-    this.swapInBandMember(0, 'bass', new THREE.Vector3(2.7, 0, -0.9), -0.34)
+    void this.awaitAsset('Baixista', this.swapInBandMember(0, 'bass', new THREE.Vector3(2.7, 0, -0.9), -0.34))
 
     const singer = new CharacterModel(others[1] ?? CHARACTERS[2])
     singer.setRole('vocals')
@@ -574,13 +628,14 @@ export class Stage {
     singer.group.rotation.y = 0.1
     this.group.add(singer.group)
     this.bandmates.push(singer)
-    this.swapInBandMember(1, 'vocals', new THREE.Vector3(-0.1, 0, 3.4), 0.1)
+    void this.awaitAsset('Vocalista', this.swapInBandMember(1, 'vocals', new THREE.Vector3(-0.1, 0, 3.4), 0.1))
 
     // Microfone na mão, não num pedestal à parte: assim ele acompanha o
     // gesto do braço em vez de ficar parado enquanto a mão se mexe.
     const micHand = singer.pickHand
-    void loadProp({ url: STAGE_PROPS.mic, size: 1, anchor: 'center' })
-      .then((prop) => {
+    void this.awaitAsset(
+      'Microfone',
+      loadProp({ url: STAGE_PROPS.mic, size: 1, anchor: 'center' }).then((prop) => {
         if (this.destroyed) {
           prop.dispose()
           return
@@ -591,8 +646,8 @@ export class Stage {
         this.poseInstrument(prop.group, 'mic')
         micHand.add(prop.group)
         this.disposables.push(prop)
-      })
-      .catch((erro) => console.error(`não deu para carregar ${STAGE_PROPS.mic}`, erro))
+      }),
+    ).catch((erro) => console.error(`não deu para carregar ${STAGE_PROPS.mic}`, erro))
 
     const drummer = new CharacterModel(others[2] ?? CHARACTERS[3])
     drummer.setRole('drums')
@@ -600,7 +655,7 @@ export class Stage {
     this.group.add(drummer.group)
     this.bandmates.push(drummer)
     // O baterista senta atrás do kit, que está em z = -3,5.
-    this.swapInBandMember(2, 'drums', new THREE.Vector3(0, 0.42, -4.35), 0)
+    void this.awaitAsset('Baterista', this.swapInBandMember(2, 'drums', new THREE.Vector3(0, 0.42, -4.35), 0))
 
     // Banquinho, para o baterista não ficar sentado no ar.
     const stool = new THREE.Mesh(
@@ -674,6 +729,17 @@ export class Stage {
     }
   }
 
+  /**
+   * Quanto a alavanca está puxada.
+   *
+   * O modelo da guitarra já sabia girar a alavanca desde que foi escrito,
+   * mas ninguém lhe dizia o valor — `setWhammy` existia sem chamador, e por
+   * isso a alavanca nunca se mexia na tela por mais que o jogador puxasse.
+   */
+  setWhammy(value: number) {
+    this.whammy = Math.min(1, Math.max(0, value))
+  }
+
   setPerformance(state: PerformanceState, intensity: number, starPower: number) {
     this.starPower = starPower
     this.energy = intensity
@@ -694,6 +760,7 @@ export class Stage {
     this.bandmates.forEach((mate, i) => mate.update(dt, (beatPhase + i * 0.17) % 1))
 
     this.guitarModel.setGlow(this.starPower)
+    this.guitarModel.setWhammy(this.whammy)
     this.rig.update(dt, beatPhase, this.energy, this.starPower)
 
     // A lavagem da plateia pulsa na batida, como os blinders de um show.

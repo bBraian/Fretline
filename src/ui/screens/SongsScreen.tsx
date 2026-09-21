@@ -20,6 +20,7 @@ import {
   type SongEntry,
 } from '../../songs/library'
 import { SongRow } from './SongRow'
+import { mixer } from '../../audio/mixer'
 
 function formatDuration(seconds: number) {
   if (!Number.isFinite(seconds) || seconds <= 0) return '—'
@@ -168,7 +169,10 @@ export function SongsScreen() {
       </div>
 
       <footer className="screen-foot">
-        <button className="btn btn-ghost" onClick={() => setScreen('menu')}>
+        <button className="btn btn-ghost" onClick={() => {
+            mixer.play('back')
+            setScreen('menu')
+          }}>
           ← Voltar
         </button>
 

@@ -13,6 +13,7 @@ import type { SongEntry } from '../songs/library'
 import { demoEntry, loadLocalLibrary } from '../songs/library'
 import { CHARACTERS } from '../content/characters'
 import { GUITARS } from '../content/guitars'
+import { mixer } from '../audio/mixer'
 import type { Performance } from '../content/progression'
 import { DEFAULT_GAMEPAD, DEFAULT_KEYBOARD, type GamepadBindings, type KeyboardBindings } from '../input/bindings'
 import { DEFAULT_NOTE_SPEED } from '../render/layout'
@@ -43,6 +44,8 @@ export interface Settings {
   /** Calibração de vídeo: desloca só o desenho. */
   videoOffset: number
   volume: number
+  /** Música de fundo nos menus. */
+  menuMusic: boolean
   noFail: boolean
   quality: Quality
   keyboard: KeyboardBindings
@@ -102,6 +105,7 @@ const DEFAULT_SETTINGS: Settings = {
   audioOffset: 0,
   videoOffset: 0,
   volume: 0.8,
+  menuMusic: true,
   noFail: false,
   quality: 'alta',
   keyboard: DEFAULT_KEYBOARD,
@@ -198,6 +202,10 @@ export const useGame = create<State>((set, get) => ({
   updateSettings: (patch) =>
     set((state) => {
       const settings = { ...state.settings, ...patch }
+      // A mesa de som é quem manda no volume de verdade; o ajuste só
+      // atravessa por aqui. Aplicado na hora, sem esperar a próxima música.
+      if (patch.volume !== undefined) mixer.setVolume(patch.volume)
+      if (patch.menuMusic !== undefined) mixer.setMenuMusicEnabled(patch.menuMusic)
       save({ settings, profile: state.profile })
       return { settings }
     }),

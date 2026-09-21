@@ -25,6 +25,7 @@ import { buildGuitar, type GuitarModel } from '../../render/guitar/guitarModel'
 import { guitarById } from '../../content/guitars'
 import { ModelPreview } from '../../render/preview'
 import { Backdrop } from '../Backdrop'
+import { mixer } from '../../audio/mixer'
 
 function hex(color: number) {
   return `#${color.toString(16).padStart(6, '0')}`
@@ -254,7 +255,10 @@ export function CharactersScreen() {
       </div>
 
       <footer className="screen-foot">
-        <button className="btn btn-ghost" onClick={() => setScreen('menu')}>
+        <button className="btn btn-ghost" onClick={() => {
+            mixer.play('back')
+            setScreen('menu')
+          }}>
           ← Voltar
         </button>
         <span className="screen-subtitle">

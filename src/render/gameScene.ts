@@ -72,6 +72,9 @@ export class GameScene {
   private director: CameraDirector
   /** Painel de encaixes: congela a banda e os cortes de câmera. */
   private frozen = false
+  /** Em encerramento: a pista sai e o palco fica. */
+  private outro = false
+  private outroFade = 0
   /** Instante em que congelou, para o diretor não avançar de plano. */
   private frozenAt: number | null = null
   private environment: THREE.Texture | null = null
@@ -246,6 +249,35 @@ export class GameScene {
   }
 
   /** Estado dos trastes pressionados, vindo do gerenciador de input. */
+  /**
+   * Encerramento da apresentação.
+   *
+   * A banda continua no palco tocando o fim, a câmera abre para um plano
+   * geral e a pista some. É o contrário do que acontecia: a tela de
+   * resultados entrava no mesmo quadro em que a última nota passava, e o
+   * corte lia como travamento.
+   */
+  beginOutro() {
+    this.outro = true
+    this.director.lockShot('wide')
+    this.stage.setPerformance('playing', 1, 0)
+  }
+
+  /** Espera o palco terminar de carregar o que precisa aparecer pronto. */
+  ready() {
+    return this.stage.ready()
+  }
+
+  /** O que já chegou, para a tela de espera mostrar progresso de verdade. */
+  get loadingProgress() {
+    return this.stage.loadingProgress
+  }
+
+  /** Repassa a alavanca ao palco, que a leva até o modelo da guitarra. */
+  setWhammy(value: number) {
+    this.stage.setWhammy(value)
+  }
+
   setPressed(mask: number) {
     this.highway.setPressed(mask)
   }
@@ -295,6 +327,16 @@ export class GameScene {
     this.highway.setStarPower(state.starPowerActive ? 1 : state.starPowerAmount * 0.25)
     this.highway.setDanger(state.rockMeter < 0.25 ? 1 - state.rockMeter / 0.25 : 0)
     this.highway.update(dt, songTime + this.videoOffset, this.noteSpeed)
+
+    // A pista se apaga no encerramento, deixando o palco sozinho.
+    if (this.outro) {
+      this.outroFade = Math.min(1, this.outroFade + dt / 1.1)
+      const restante = 1 - this.outroFade
+      this.highway.group.visible = restante > 0.02
+      this.notes.group.visible = restante > 0.02
+      this.highway.group.scale.setScalar(Math.max(0.001, restante))
+      this.notes.group.scale.setScalar(Math.max(0.001, restante))
+    }
 
     this.effects.update(this.frozen ? 0 : dt, this.camera.quaternion)
     this.stage.setPerformance(this.performanceState(), this.excitement(), state.starPowerActive ? 1 : 0)

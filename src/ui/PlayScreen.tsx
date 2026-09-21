@@ -19,10 +19,14 @@ import { GameScene } from '../render/gameScene'
 import { evaluate } from '../content/progression'
 import { useGame } from './store'
 import { Hud } from './hud/Hud'
+import { mixer } from '../audio/mixer'
 
 const LEAD_IN = 3
 
-type Phase = 'loading' | 'countdown' | 'playing' | 'paused' | 'failed' | 'error'
+type Phase = 'loading' | 'countdown' | 'playing' | 'outro' | 'paused' | 'failed' | 'error'
+
+/** Quanto dura o encerramento, do fim da música até os resultados. */
+const OUTRO_SECONDS = 3.2
 
 export function PlayScreen() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -40,6 +44,11 @@ export function PlayScreen() {
   const finishSong = useGame((s) => s.finishSong)
 
   const [phase, setPhase] = useState<Phase>('loading')
+  const [assets, setAssets] = useState<{
+    itens: Array<{ label: string; done: boolean }>
+    done: number
+    total: number
+  }>({ itens: [], done: 0, total: 0 })
   const [error, setError] = useState<string | null>(null)
   const [countdown, setCountdown] = useState(LEAD_IN)
   const [hudState, setHudState] = useState<SessionState | null>(null)
@@ -48,14 +57,29 @@ export function PlayScreen() {
   const entry = library.find((e) => e.song.meta.id === selectedSongId)
   const chart = entry?.song.charts[settings.difficulty]
 
+  /**
+   * Encerramento da apresentação.
+   *
+   * Antes a última nota e a tela de resultados aconteciam no mesmo quadro, o
+   * que lia como travamento. Agora a banda fica no palco tocando o fim, a
+   * câmera abre, o som desce e só então os resultados entram — e o som não é
+   * cortado, é baixado.
+   */
   const finish = useCallback(() => {
     const session = sessionRef.current
     if (!session || finishedRef.current) return
     finishedRef.current = true
 
-    playerRef.current?.pause()
-    sceneRef.current?.stop()
-    finishSong(evaluate(session.getState(), settings.difficulty))
+    setPhase('outro')
+    sceneRef.current?.beginOutro()
+    playerRef.current?.fadeOut(OUTRO_SECONDS * 0.8)
+
+    const resultado = evaluate(session.getState(), settings.difficulty)
+    window.setTimeout(() => {
+      playerRef.current?.pause()
+      sceneRef.current?.stop()
+      finishSong(resultado)
+    }, OUTRO_SECONDS * 1000)
   }, [finishSong, settings.difficulty])
 
   // Montagem: áudio, sessão, input e cena. Roda uma vez por entrada na tela.
@@ -67,6 +91,7 @@ export function PlayScreen() {
     }
 
     let cancelled = false
+    let unsubscribeVolume: (() => void) | undefined
     const canvas = canvasRef.current
     finishedRef.current = false
 
@@ -115,7 +140,10 @@ export function PlayScreen() {
         return
       }
 
-      player.setVolume(settings.volume)
+      player.setVolume(mixer.getVolume())
+      // O controle da tela de ajustes vale durante a partida, não só no
+      // início dela: a mesa avisa e o tocador acompanha.
+      unsubscribeVolume = mixer.onVolumeChange((v) => player.setVolume(v))
 
       const session = new Session(chart, settings.difficulty, {
         inputOffset: settings.audioOffset,
@@ -156,6 +184,16 @@ export function PlayScreen() {
         }
       }
 
+      // O palco só entra em cena depois de o que se vê estar carregado.
+      // Antes o jogo começava e os personagens apareciam sem textura,
+      // trocando de modelo no meio da primeira frase da música.
+      setAssets(scene.loadingProgress)
+      const relatorio = window.setInterval(() => setAssets(scene.loadingProgress), 120)
+      await scene.ready()
+      window.clearInterval(relatorio)
+      setAssets(scene.loadingProgress)
+      if (cancelled) return
+
       scene.start()
       await player.start()
       if (!cancelled) setPhase('countdown')
@@ -165,6 +203,7 @@ export function PlayScreen() {
 
     return () => {
       cancelled = true
+      unsubscribeVolume?.()
       inputRef.current?.detach()
       sceneRef.current?.dispose()
       void playerRef.current?.dispose()
@@ -188,6 +227,7 @@ export function PlayScreen() {
       if (input && scene) {
         input.pollGamepad()
         scene.setPressed(input.fretMask)
+        scene.setWhammy(input.whammyValue)
       }
       frame = requestAnimationFrame(tick)
     }
@@ -272,14 +312,40 @@ export function PlayScreen() {
 
       {phase === 'countdown' && <div className="countdown">{countdown}</div>}
 
+      {/* Véu do encerramento: escurece devagar até os resultados entrarem,
+          para a troca de tela não aparecer como um corte. */}
+      {phase === 'outro' && <div className="outro-veil" />}
+
       {phase === 'loading' && (
         <div className="overlay">
-          <div className="overlay-panel">
+          <div className="overlay-panel loading-panel">
             <h2>Afinando</h2>
             <p className="screen-subtitle">
               {entry?.synthesized
                 ? 'Sintetizando a faixa de demonstração…'
                 : 'Decodificando o áudio…'}
+            </p>
+
+            {/* Progresso de verdade: cada linha é um arquivo que o palco
+                está esperando, e some da lista só quando chega. */}
+            {assets.total > 0 && (
+              <ul className="loading-list">
+                {assets.itens.map((item) => (
+                  <li key={item.label} data-done={item.done}>
+                    <span>{item.label}</span>
+                    <b>{item.done ? '✓' : '…'}</b>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <div className="loading-bar">
+              <i style={{ width: `${assets.total ? (assets.done / assets.total) * 100 : 8}%` }} />
+            </div>
+            <p className="screen-subtitle">
+              {assets.total && assets.done >= assets.total
+                ? 'Preparando o palco…'
+                : `Carregando o palco (${assets.done}/${assets.total || '…'})`}
             </p>
           </div>
         </div>

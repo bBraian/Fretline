@@ -164,6 +164,20 @@ export class SongPlayer implements Clock {
   }
 
   /**
+   * Baixa o som até o silêncio, em vez de cortá-lo.
+   *
+   * O fim de uma música cortado no meio do último acorde soa como falha
+   * técnica. A sequência de encerramento acontece sobre este fecho.
+   */
+  fadeOut(seconds = 1.6) {
+    const now = this.ctx.currentTime
+    const atual = this.gain.gain.value
+    this.gain.gain.cancelScheduledValues(now)
+    this.gain.gain.setValueAtTime(atual, now)
+    this.gain.gain.linearRampToValueAtTime(0.0001, now + seconds)
+  }
+
+  /**
    * Abafa a guitarra quando o jogador erra, como no original.
    *
    * Com faixas separadas, só a guitarra cai — o resto da banda continua

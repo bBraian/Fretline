@@ -86,6 +86,10 @@ export async function loadGuitarGlb(
   const group = new THREE.Group()
   group.add(root)
 
+  // Pose de repouso, para a alavanca voltar exatamente ao lugar.
+  const baseRoll = root.rotation.z
+  const baseLift = root.position.y
+
   return {
     group,
     setGlow(amount: number) {
@@ -93,9 +97,17 @@ export async function loadGuitarGlb(
       for (const material of glowing) material.emissiveIntensity = glow * 0.85
     },
     setWhammy(amount: number) {
-      // Modelo sem pivô de alavanca simplesmente não tem alavanca. Girar
-      // outra coisa no lugar seria pior que não mexer.
-      if (whammyPivot) whammyPivot.rotation.z = -amount * 0.45
+      if (whammyPivot) {
+        whammyPivot.rotation.z = -amount * 0.45
+        return
+      }
+      // Nenhum modelo de banco público traz pivô de alavanca. Sem um
+      // retorno visual o jogador não sabe se a alavanca está sendo lida, e
+      // esse era o caso: a guitarra ficava imóvel por mais que ele puxasse.
+      // Balançar o corpo inteiro é o gesto disponível — é pequeno, mas
+      // aparece, e é o que um braço de guitarra faz quando alguém o puxa.
+      root.rotation.z = baseRoll - amount * 0.07
+      root.position.y = baseLift - amount * 0.015
     },
     dispose() {
       root.traverse((node) => {

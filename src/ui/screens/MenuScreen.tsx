@@ -21,6 +21,7 @@ import { useGame } from '../store'
 import { characterById } from '../../content/characters'
 import { guitarById } from '../../content/guitars'
 import { Backdrop } from '../Backdrop'
+import { mixer } from '../../audio/mixer'
 import type { Screen } from '../store'
 
 type ItemSize = 'lg' | 'md' | 'sm'
@@ -58,12 +59,11 @@ export function MenuScreen() {
     },
     { screen: 'characters', label: 'Personagem', size: 'md', hint: character.name },
     { screen: 'guitars', label: 'Guitarra', size: 'md', hint: guitar.name },
-    { screen: 'settings', label: 'Ajustes', size: 'lg', hint: 'Dificuldade, velocidade, controles' },
     {
-      screen: 'calibration',
-      label: 'Calibrar',
-      size: 'sm',
-      hint: 'Alinhe o som e a imagem com o seu equipamento',
+      screen: 'settings',
+      label: 'Ajustes',
+      size: 'lg',
+      hint: 'Dificuldade, velocidade, controles e calibração',
     },
   ]
 
@@ -84,6 +84,7 @@ export function MenuScreen() {
       setSelected((current) => {
         const next = (current + step + entries.length) % entries.length
         buttons.current[next]?.focus()
+        mixer.play('move')
         return next
       })
     }
@@ -119,9 +120,15 @@ export function MenuScreen() {
                 buttons.current[i] = node
               }}
               className={`menu-item menu-item-${entry.size}${i === selected ? ' is-selected' : ''}`}
-              onMouseEnter={() => setSelected(i)}
+              onMouseEnter={() => {
+                if (i !== selected) mixer.play('move')
+                setSelected(i)
+              }}
               onFocus={() => setSelected(i)}
-              onClick={() => setScreen(entry.screen)}
+              onClick={() => {
+                mixer.play('select')
+                setScreen(entry.screen)
+              }}
             >
               <span className="menu-item-mark" aria-hidden>
                 ◆

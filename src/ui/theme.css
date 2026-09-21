@@ -1775,3 +1775,75 @@ button {
 .picker-hint {
   text-shadow: 0 1px 3px rgba(20, 12, 5, 0.9);
 }
+
+/* --- tela de espera antes do palco ------------------------------------- */
+
+.loading-panel {
+  min-width: min(420px, 82vw);
+}
+
+/* Uma linha por arquivo que o palco espera. Ver o que falta é o que
+   diferencia uma espera de um travamento. */
+.loading-list {
+  list-style: none;
+  margin: 14px 0 10px;
+  padding: 0;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+}
+
+.loading-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 0;
+  color: var(--gh-ochre-dim);
+  border-bottom: 1px dotted rgba(205, 159, 91, 0.25);
+}
+
+.loading-list li[data-done='true'] {
+  color: var(--gh-bone);
+}
+
+.loading-list li[data-done='true'] b {
+  color: var(--good);
+}
+
+.loading-bar {
+  height: 8px;
+  margin: 12px 0 8px;
+  border: 2px solid var(--line-strong);
+  border-radius: 2px;
+  overflow: hidden;
+  background: rgba(20, 12, 5, 0.8);
+}
+
+.loading-bar i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--gh-ochre), var(--gh-bone));
+  transition: width 180ms ease;
+}
+
+/* Véu do encerramento. A opacidade sobe devagar e só fecha de vez no fim,
+   para o palco ainda ser visto durante a última pose da banda. */
+.outro-veil {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  background: #050303;
+  animation: outro-fade 3.2s ease-in forwards;
+}
+
+@keyframes outro-fade {
+  0% { opacity: 0; }
+  55% { opacity: 0.15; }
+  100% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .outro-veil {
+    animation-duration: 0.6s;
+  }
+}

@@ -13,6 +13,7 @@ import { buildCareer } from '../../content/setlists'
 import { difficultyName } from './MenuScreen'
 import { isPlayable } from '../../songs/library'
 import { SongRow } from './SongRow'
+import { mixer } from '../../audio/mixer'
 
 export function CareerScreen() {
   const { library, setScreen, selectSong, profile, settings } = useGame()
@@ -111,7 +112,10 @@ export function CareerScreen() {
       </div>
 
       <footer className="screen-foot">
-        <button className="btn btn-ghost" onClick={() => setScreen('menu')}>
+        <button className="btn btn-ghost" onClick={() => {
+            mixer.play('back')
+            setScreen('menu')
+          }}>
           ← Voltar
         </button>
         <button className="btn" onClick={() => setScreen('songs')}>
