@@ -11,7 +11,8 @@ import { owns, useGame } from '../store'
 import { ShopActions, ShopTag } from './ShopActions'
 import { BUILD_NAMES, CHARACTERS, characterById } from '../../content/characters'
 import { CharacterModel, GUITAR_BODY_OFFSET, GUITAR_TILT } from '../../render/character/characterModel'
-import { buildGuitar } from '../../render/guitar/guitarModel'
+import { loadGuitarGlb } from '../../render/guitar/guitarGlb'
+import { buildGuitar, type GuitarModel } from '../../render/guitar/guitarModel'
 import { guitarById } from '../../content/guitars'
 import { ModelPreview } from '../../render/preview'
 import { Backdrop } from '../Backdrop'
@@ -68,17 +69,42 @@ export function CharactersScreen() {
     model.setState('playing')
     model.setIntensity(0.8)
 
-    const guitar = buildGuitar(guitarById(guitarId))
     // Uma guitarra tem por volta de um metro contra 1,78m de pessoa; o
     // modelo mede ~2,5 unidades de ponta a ponta, daí a escala.
-    guitar.group.scale.setScalar(0.36)
-    guitar.group.rotation.set(-0.1, 0.22, -GUITAR_TILT)
-    guitar.group.position.set(GUITAR_BODY_OFFSET.x, GUITAR_BODY_OFFSET.y, GUITAR_BODY_OFFSET.z)
-    model.instrumentAnchor.add(guitar.group)
+    const pendurar = (guitar: GuitarModel) => {
+      guitar.group.scale.setScalar(0.36)
+      guitar.group.rotation.set(-0.1, 0.22, -GUITAR_TILT)
+      guitar.group.position.set(GUITAR_BODY_OFFSET.x, GUITAR_BODY_OFFSET.y, GUITAR_BODY_OFFSET.z)
+      model.instrumentAnchor.add(guitar.group)
+    }
+
+    // Mesma troca do palco: a construída em código entra na hora e a de
+    // arquivo a substitui ao chegar, para o personagem nunca aparecer de
+    // mãos vazias.
+    const escolhida = guitarById(guitarId)
+    let atual = buildGuitar(escolhida)
+    pendurar(atual)
+
+    let descartado = false
+    if (escolhida.model) {
+      void loadGuitarGlb(escolhida.model, escolhida, escolhida.modelAdjust)
+        .then((importada) => {
+          if (descartado) {
+            importada.dispose()
+            return
+          }
+          model.instrumentAnchor.remove(atual.group)
+          atual.dispose()
+          pendurar(importada)
+          atual = importada
+        })
+        .catch((erro) => console.error(`não deu para carregar ${escolhida.model}`, erro))
+    }
 
     modelRef.current = model
     preview.setModel(model.group, () => {
-      guitar.dispose()
+      descartado = true
+      atual.dispose()
       model.dispose()
     })
   }, [shownId, guitarId])

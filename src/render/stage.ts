@@ -13,7 +13,7 @@ import { CharacterModel, GUITAR_BODY_OFFSET, GUITAR_TILT, type PerformanceState 
 import { buildGuitar, type GuitarModel } from './guitar/guitarModel'
 import { loadGuitarGlb } from './guitar/guitarGlb'
 import { CHARACTERS, characterById, type Character } from '../content/characters'
-import { guitarById, type Guitar } from '../content/guitars'
+import { BASS_PROP, guitarById, type Guitar } from '../content/guitars'
 import { LightRig } from './stage/lightRig'
 
 const CROWD_ROWS = 7
@@ -417,7 +417,7 @@ export class Stage {
     bassist.setRole('bass')
     bassist.group.position.set(2.7, 0, -0.9)
     bassist.group.rotation.y = -0.34
-    const bass = buildGuitar({ ...guitarById('nocturne'), id: 'bass-prop' })
+    const bass = buildGuitar(BASS_PROP)
     // O baixo é maior que a guitarra e tem o braço mais comprido.
     this.poseGuitar(bass, 0.42)
     bassist.instrumentAnchor.add(bass.group)

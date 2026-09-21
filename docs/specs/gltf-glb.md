@@ -41,7 +41,20 @@ E o comprimento ia de **2 a 1055 unidades** — quinhentas vezes de variação.
 Quem exportou o modelo não conhecia a convenção, e não há como pedir que
 conheça. O carregador mede o que recebeu e conserta.
 
-### A normalização, em quatro passos
+### O catálogo é só de importadas
+
+As guitarras construídas em código saíram da loja: todas as que o jogador
+escolhe vêm de arquivo. O montador procedural **continua no projeto**, por
+dois usos que não são a loja:
+
+- o **baixo do palco** (`BASS_PROP`), que o jogador não escolhe;
+- o **lugar-guardado** enquanto um `.glb` carrega.
+
+Um perfil salvo que aponte para uma guitarra removida cai no fallback de
+`guitarById` e o jogo abre normalmente — o jogador só perde o que tinha
+equipado.
+
+### A normalização, em cinco passos
 
 1. **Eixo do braço para Y.** Uma guitarra é comprida numa direção e estreita
    nas outras duas, então o eixo mais longo é o do braço.
@@ -51,6 +64,16 @@ conheça. O carregador mede o que recebeu e conserta.
    baixo, porque +Y é a direção do braço.
 4. **Tampo de frente**: alinhado o braço em Y, sobram largura e espessura, e
    a espessura é sempre a menor. Vai para Z, como no `shapes.ts`.
+5. **Braço exatamente na vertical.** Os passos acima alinham a *caixa*, e a
+   caixa não é a guitarra: com o braço alguns graus torto dentro do arquivo,
+   a caixa fica reta e o instrumento não. Do centro de massa do terço de
+   baixo ao do terço de cima sai o eixo real, que é alinhado com +Y. Usa
+   centro de massa, e não vértices extremos, porque um extremo é um ponto só
+   — a ponta de um headstock ou uma alavanca mandaria o eixo para o lado.
+
+**A escala vem por último, depois de todos os giros.** Medida no meio do
+caminho, o mesmo alvo de 2,5 produzia comprimentos de 2,40 a 2,62, porque a
+medida sai de uma caixa alinhada aos eixos e cada rotação muda essa caixa.
 
 Por fim o corpo — não o centro da caixa — vai para a origem, porque é dele
 que saem as distâncias que posicionam as mãos.
@@ -86,15 +109,25 @@ Opcional, e nenhum modelo de banco público traz:
 
 ### Carregamento assíncrono
 
-A cena monta tudo de forma síncrona, e o arquivo chega depois. Nos dois
+A cena monta tudo de forma síncrona, e o arquivo chega depois. Nos três
 lugares onde isso aparece:
 
 - **na prévia da loja**, um sinalizador de cancelamento descarta um
   carregamento antigo que chegue depois de o jogador já ter trocado de item;
-- **no palco**, a guitarra construída em código entra na hora como
-  lugar-guardado e é trocada quando o arquivo chega. Esperar o arquivo
-  atrasaria o início da música, e um guitarrista de mão vazia é pior que uma
-  guitarra provisória.
+- **no palco** e **na prévia de personagem**, a guitarra construída em
+  código entra na hora como lugar-guardado e é trocada quando o arquivo
+  chega. Esperar o arquivo atrasaria o início da música, e um guitarrista de
+  mão vazia é pior que uma guitarra provisória.
+
+### Enquadramento na loja
+
+Todas no mesmo ângulo: de frente, braço para cima, inclinadas uns seis graus
+para a esquerda — sem giro em torno da vertical. A pose anterior girava
+0,34 rad, quase vinte graus, e punha cada guitarra num ângulo diferente
+conforme a espessura do corpo.
+
+O `fit` da prévia é 1,05: no padrão de 0,88, o enquadramento encostava nas
+bordas e a ponta do headstock saía do quadro.
 
 ### Peso
 

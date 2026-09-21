@@ -135,21 +135,13 @@ function normalize(root: THREE.Object3D, adjust: GlbAdjust) {
   if (longest === 'x') turn(root, AXIS_Z, Math.PI / 2)
   else if (longest === 'z') turn(root, AXIS_X, -Math.PI / 2)
 
-  // 2. Escala, para o comprimento virar o do jogo.
-  const spanY = new THREE.Box3().setFromObject(root).getSize(new THREE.Vector3()).y || 1
-  // `spanY` já é medido no mundo, com a escala da raiz aplicada, então o
-  // fator é a razão direta. Multiplicar também por `root.scale.x` — como
-  // este cálculo fazia — aplicava a escala duas vezes, e passou despercebido
-  // porque quase todo arquivo vem com escala 1 na raiz.
-  root.scale.multiplyScalar((TARGET_LENGTH * (adjust.scale ?? 1)) / spanY)
-
-  // 3. Qual ponta é o corpo. O braço é fino e o corpo é largo, então a
+  // 2. Qual ponta é o corpo. O braço é fino e o corpo é largo, então a
   //    metade com maior área transversal é o corpo — e ele tem que ficar
   //    embaixo, porque +Y é a direção do braço.
   root.updateWorldMatrix(true, true)
   if (adjust.flip ?? bodyIsOnTop(root)) turn(root, AXIS_X, Math.PI)
 
-  // 3b. O tampo de frente. Alinhado o braço em Y, sobram dois eixos: a
+  // 2b. O tampo de frente. Alinhado o braço em Y, sobram dois eixos: a
   //     largura do corpo e a espessura. A espessura é sempre a menor das
   //     duas, e a convenção do `shapes.ts` é largura em X, espessura em Z.
   //     Sem isto, metade dos modelos aparece de perfil, mostrando o canto
@@ -157,7 +149,32 @@ function normalize(root: THREE.Object3D, adjust: GlbAdjust) {
   const spread = new THREE.Box3().setFromObject(root).getSize(new THREE.Vector3())
   if (spread.z > spread.x) turn(root, AXIS_Y, Math.PI / 2)
 
+  // 2c. O braço exatamente na vertical.
+  //
+  //     Os passos acima alinham a **caixa** do modelo, e a caixa não é a
+  //     guitarra: se o braço estiver alguns graus torto dentro do arquivo, a
+  //     caixa fica reta e o instrumento não. Na loja isso aparecia como oito
+  //     guitarras cada uma com uma inclinação própria, quando o ponto era
+  //     todas saírem iguais.
+  alignNeck(root)
+
   if (adjust.roll) turn(root, AXIS_Y, adjust.roll)
+
+  // 3. Escala, por último.
+  //
+  //    Aqui, e não antes dos giros: a medida sai de uma caixa alinhada aos
+  //    eixos, e cada rotação muda essa caixa. Escalando no meio do caminho,
+  //    o mesmo alvo de 2,5 produzia comprimentos de 2,40 a 2,62 conforme os
+  //    giros que ainda faltavam — e o ponto de importar é que todas saiam do
+  //    mesmo tamanho.
+  //
+  //    `spanY` já é medido no mundo, com a escala da raiz aplicada, então o
+  //    fator é a razão direta. Multiplicar também por `root.scale.x` — como
+  //    este cálculo fazia — aplicava a escala duas vezes, e passou
+  //    despercebido porque quase todo arquivo vem com escala 1 na raiz.
+  root.updateWorldMatrix(true, true)
+  const spanY = new THREE.Box3().setFromObject(root).getSize(new THREE.Vector3()).y || 1
+  root.scale.multiplyScalar((TARGET_LENGTH * (adjust.scale ?? 1)) / spanY)
 
   // 4. O corpo vai para a origem — não o centro da caixa. A convenção do
   //    `shapes.ts` é o corpo em (0,0), e é dele que saem as distâncias que
@@ -202,6 +219,61 @@ function bodyIsOnTop(root: THREE.Object3D): boolean {
   })
 
   return topWidest > bottomWidest
+}
+
+/**
+ * Endireita o braço, medindo para onde ele de fato aponta.
+ *
+ * Do centro de massa do terço de baixo (corpo) ao do terço de cima
+ * (headstock) sai o eixo real do instrumento. Alinhar esse vetor com +Y põe
+ * todo modelo na mesma vertical, independente de como foi exportado.
+ *
+ * Usa centro de massa, e não os vértices extremos: um extremo é um ponto só,
+ * e a ponta de um headstock pontudo ou de uma alavanca mandaria o eixo para
+ * o lado errado.
+ */
+function alignNeck(root: THREE.Object3D) {
+  const box = new THREE.Box3().setFromObject(root)
+  const min = box.min.y
+  const span = box.max.y - min
+  if (span <= 0) return
+
+  const bottom = new THREE.Vector3()
+  const top = new THREE.Vector3()
+  let bottomCount = 0
+  let topCount = 0
+  const vertex = new THREE.Vector3()
+
+  root.traverse((node) => {
+    const mesh = node as THREE.Mesh
+    if (!mesh.isMesh) return
+    const position = mesh.geometry.getAttribute('position')
+    if (!position) return
+    for (let i = 0; i < position.count; i += SAMPLE_STRIDE) {
+      vertex.fromBufferAttribute(position, i).applyMatrix4(mesh.matrixWorld)
+      const t = (vertex.y - min) / span
+      if (t < 0.33) {
+        bottom.add(vertex)
+        bottomCount++
+      } else if (t > 0.67) {
+        top.add(vertex)
+        topCount++
+      }
+    }
+  })
+
+  if (!bottomCount || !topCount) return
+  bottom.divideScalar(bottomCount)
+  top.divideScalar(topCount)
+
+  const axis = top.sub(bottom)
+  if (axis.lengthSq() < 1e-8) return
+  axis.normalize()
+
+  const correction = new THREE.Quaternion().setFromUnitVectors(axis, AXIS_Y)
+  // Pré-multiplicar gira em torno do mundo, como as outras etapas.
+  root.quaternion.premultiply(correction)
+  root.updateWorldMatrix(true, true)
 }
 
 /** Meia altura do corpo, para assentá-lo na origem. */

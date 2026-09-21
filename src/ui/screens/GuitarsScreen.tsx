@@ -34,7 +34,13 @@ export function GuitarsScreen() {
 
   useEffect(() => {
     if (!canvasRef.current) return
-    const preview = new ModelPreview({ canvas: canvasRef.current, entry: 'dolly' })
+    const preview = new ModelPreview({
+      canvas: canvasRef.current,
+      entry: 'dolly',
+      // Folga em volta: no padrão, o enquadramento encostava nas bordas e a
+      // ponta do headstock saía do quadro.
+      fit: 1.05,
+    })
     previewRef.current = preview
     return () => {
       preview.dispose()
@@ -42,9 +48,14 @@ export function GuitarsScreen() {
     }
   }, [])
 
-  // De frente e levemente inclinada. O tampo é a face interessante: é onde
-  // ficam captadores, escudo e controles.
-  const POSE: [number, number, number] = [0.1, 0.34, 0.1]
+  // Todas no mesmo enquadramento: de frente, braço para cima, inclinadas um
+  // pouco para a direita.
+  //
+  // Sem giro em Y — a pose antiga tinha 0,34 rad, quase vinte graus, e
+  // punha cada guitarra num ângulo diferente conforme a espessura do corpo.
+  // O tampo é a face que interessa, e é onde ficam captadores, escudo e
+  // controles.
+  const POSE: [number, number, number] = [0, 0, -0.1]
 
   useEffect(() => {
     const preview = previewRef.current
