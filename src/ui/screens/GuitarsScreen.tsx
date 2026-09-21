@@ -12,6 +12,7 @@ import { ShopActions, ShopTag } from './ShopActions'
 import { GUITARS, SHAPE_NAMES, guitarById } from '../../content/guitars'
 import { buildGuitar } from '../../render/guitar/guitarModel'
 import { ModelPreview } from '../../render/preview'
+import { Backdrop } from '../Backdrop'
 
 function hex(color: number) {
   return `#${color.toString(16).padStart(6, '0')}`
@@ -31,7 +32,7 @@ export function GuitarsScreen() {
 
   useEffect(() => {
     if (!canvasRef.current) return
-    const preview = new ModelPreview({ canvas: canvasRef.current, spin: 0.18 })
+    const preview = new ModelPreview({ canvas: canvasRef.current, entry: 'dolly' })
     previewRef.current = preview
     return () => {
       preview.dispose()
@@ -54,6 +55,7 @@ export function GuitarsScreen() {
 
   return (
     <div className="screen">
+      <Backdrop variant="content" />
       <header className="screen-head">
         <div>
           <h1 className="screen-title">A guitarra</h1>

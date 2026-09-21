@@ -20,7 +20,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useGame } from '../store'
 import { characterById } from '../../content/characters'
 import { guitarById } from '../../content/guitars'
-import { MenuBackdrop } from './MenuBackdrop'
+import { Backdrop } from '../Backdrop'
 import type { Screen } from '../store'
 
 type ItemSize = 'lg' | 'md' | 'sm'
@@ -93,7 +93,7 @@ export function MenuScreen() {
 
   return (
     <div className="screen menu-screen">
-      <MenuBackdrop />
+      <Backdrop />
 
       <div className="menu">
         <div className="menu-brand">

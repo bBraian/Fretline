@@ -1,5 +1,5 @@
 /**
- * Fundo do menu principal: a colagem de cartaz do Guitar Hero III.
+ * Fundo de todas as telas de menu: a colagem de cartaz do Guitar Hero III.
  *
  * O original é arte desenhada à mão — painéis de tatuagem velha espalhados
  * pela tela, cada um com uma borda de osso, girados fora do esquadro. Aqui
@@ -14,6 +14,11 @@
  *
  * O desenho todo vive num viewBox de 1280x720 com `slice`, então em telas
  * mais largas ou mais altas a colagem é cortada em vez de esticada.
+ *
+ * Duas intensidades. O menu principal tem seis palavras na tela e aguenta a
+ * colagem no volume cheio; as telas de conteúdo têm listas, números e
+ * parágrafos, e ali a mesma colagem vira ruído em cima do texto. `content`
+ * afunda a arte e é o padrão para tudo que não seja o menu.
  */
 
 type PatternId = 'rays' | 'flames' | 'stars' | 'hatch' | 'bolts' | 'rings'
@@ -78,10 +83,17 @@ const PANELS: Panel[] = [
 const BONE = '#efe0bd'
 const INK = '#1a1008'
 
-export function MenuBackdrop() {
+export interface BackdropProps {
+  /** `poster` é o menu principal; `content` é toda tela com texto para ler. */
+  variant?: 'poster' | 'content'
+}
+
+export function Backdrop({ variant = 'poster' }: BackdropProps) {
+  const poster = variant === 'poster'
+  const veil = poster ? 0.42 : 0.88
   return (
     <svg
-      className="menu-backdrop"
+      className="app-backdrop"
       viewBox="0 0 1280 720"
       preserveAspectRatio="xMidYMid slice"
       aria-hidden="true"
@@ -149,11 +161,17 @@ export function MenuBackdrop() {
         </g>
       ))}
 
-      <rect width="1280" height="720" fill="#140c05" opacity="0.42" />
+      <rect width="1280" height="720" fill="#140c05" opacity={veil} />
       <rect width="1280" height="720" fill="url(#gh-vignette)" />
-      <rect width="1280" height="720" filter="url(#gh-grain)" opacity="0.14" style={{ mixBlendMode: 'overlay' }} />
+      <rect
+        width="1280"
+        height="720"
+        filter="url(#gh-grain)"
+        opacity={poster ? 0.14 : 0.06}
+        style={{ mixBlendMode: 'overlay' }}
+      />
 
-      <Frame />
+      {poster && <Frame />}
     </svg>
   )
 }

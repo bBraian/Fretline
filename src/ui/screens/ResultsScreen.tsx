@@ -5,6 +5,7 @@
 import { useGame } from '../store'
 import { starLabel } from '../../content/progression'
 import { difficultyName } from './MenuScreen'
+import { Backdrop } from '../Backdrop'
 
 export function ResultsScreen() {
   const { lastPerformance, setScreen, selectedSongId, library, settings } = useGame()
@@ -19,6 +20,7 @@ export function ResultsScreen() {
 
   return (
     <div className="screen">
+      <Backdrop variant="content" />
       <header className="screen-head">
         <div>
           <h1 className="screen-title">{p.failed ? 'A plateia foi embora' : starLabel(p.stars)}</h1>

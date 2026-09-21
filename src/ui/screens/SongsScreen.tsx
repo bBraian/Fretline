@@ -19,6 +19,7 @@ import {
   supportsDirectoryPicker,
   type SongEntry,
 } from '../../songs/library'
+import { SongRow } from './SongRow'
 
 function formatDuration(seconds: number) {
   if (!Number.isFinite(seconds) || seconds <= 0) return '—'
@@ -78,50 +79,35 @@ export function SongsScreen() {
     const chart = entry.song.charts[difficulty]
     const waiting = !isPlayable(entry)
 
+    // Os dados de arquivo vão na linha do artista, como no original vai o
+    // ano: a folha só tem duas linhas por música, e abrir uma terceira
+    // desmancharia o ritmo da lista.
+    const detalhes = [
+      chart ? `${chart.notes.length} notas` : 'sem este nível',
+      formatDuration(meta.length),
+      entry.synthesized ? 'faixa gerada pelo jogo' : null,
+      entry.format === 'gerada' ? null : entry.format === 'midi' ? '.mid' : '.chart',
+      !waiting && entry.tracks.some((t) => t.role === 'guitar') ? 'faixas separadas' : null,
+    ].filter(Boolean)
+
     return (
-      <button
+      <SongRow
         key={meta.id}
-        className="song-row"
-        data-selected={meta.id === selectedSongId}
-        data-waiting={waiting}
+        name={meta.name}
+        artist={meta.artist}
+        meta={detalhes.join(' · ')}
+        stars={record ? record.stars : null}
+        score={record ? record.score : null}
+        selected={meta.id === selectedSongId}
+        waiting={waiting}
         onClick={() => selectSong(meta.id)}
-      >
-        <span>
-          <span className="song-name">{meta.name}</span>
-          <br />
-          <span className="song-artist">
-            {meta.artist}
-            {entry.synthesized ? ' · faixa gerada pelo jogo' : ''}
-          </span>
-        </span>
-
-        <span className="song-meta">
-          {chart ? `${chart.notes.length} notas` : 'sem este nível'}
-          <br />
-          {formatDuration(meta.length)}
-          {entry.format !== 'gerada' && (
-            <>
-              {` · ${entry.format === 'midi' ? '.mid' : '.chart'}`}
-              {waiting
-                ? ''
-                : entry.tracks.some((t) => t.role === 'guitar')
-                  ? ' · faixas separadas'
-                  : ''}
-            </>
-          )}
-        </span>
-
-        <span className="song-meta">
-          {record ? record.score.toLocaleString('pt-BR') : '—'}
-          <br />
-          {record ? '★'.repeat(record.stars) : ''}
-        </span>
-      </button>
+      />
     )
   }
 
+
   return (
-    <div className="screen">
+    <div className="screen screen-paper">
       <header className="screen-head">
         <div>
           <h1 className="screen-title">Escolha a música</h1>

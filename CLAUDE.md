@@ -7,6 +7,11 @@ O `README.md` é a documentação do projeto e está completo — este arquivo
 guarda só o que um agente precisa saber antes de editar, e as decisões que
 o código sozinho não explica.
 
+**Antes de mexer em qualquer interface, leia `docs/design/README.md`.** É o
+contrato visual das telas de menu: paleta, tipografia, linguagem de seleção
+e as armadilhas que já custaram uma ida e volta. Não improvise estilo novo
+sem passar por ele.
+
 ## Comandos
 
 ```bash
@@ -102,13 +107,14 @@ classes (`.menu-stats` serve carreira, personagens e guitarras). Antes de
 redefinir uma regra, `grep` pelo nome da classe em `src/**/*.tsx` — mudar
 uma regra para uma tela já quebrou outras três.
 
-O menu principal (`MenuScreen.tsx` + `MenuBackdrop.tsx`) tem visual próprio,
-no desenho de cartaz do Guitar Hero III, com as cores escopadas em
-`.menu-screen`. As demais telas seguem a paleta fria do `:root`.
+Todas as telas de menu seguem o desenho de cartaz do Guitar Hero III, com a
+paleta em `:root` e o fundo em `src/ui/Backdrop.tsx`. **O HUD e a pista
+(`.hud*`, `.score-panel`, `.lcd`, `.rock-dial`) ficam de fora**: ali a cor
+carrega informação de jogo, não estilo, e as cinco cores de traste não se
+mexem.
 
-A colagem de fundo do menu é gerada em SVG, sem bitmap, e a **lista de
-painéis é fixa e não sorteada**: um fundo que muda a cada montagem faria
-`npm run menus` acusar diferença em toda execução.
+As decisões todas — e o porquê de cada uma — estão em
+`docs/design/README.md`.
 
 ## Capturas de tela como verificação
 
@@ -118,6 +124,13 @@ painéis é fixa e não sorteada**: um fundo que muda a cada montagem faria
 
 Mudança visual se confere olhando: rode `npm run menus` (ou `shots`,
 `gallery`) e leia o PNG. Alegar que ficou bom sem ver a imagem não vale.
+
+## Documentos
+
+| | |
+|---|---|
+| `docs/design/README.md` | contrato visual das telas de menu |
+| `docs/specs/gltf-glb.md` | plano para migrar arte para glTF/GLB |
 
 ## Músicas
 

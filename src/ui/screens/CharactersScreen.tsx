@@ -14,6 +14,7 @@ import { CharacterModel, GUITAR_BODY_OFFSET, GUITAR_TILT } from '../../render/ch
 import { buildGuitar } from '../../render/guitar/guitarModel'
 import { guitarById } from '../../content/guitars'
 import { ModelPreview } from '../../render/preview'
+import { Backdrop } from '../Backdrop'
 
 function hex(color: number) {
   return `#${color.toString(16).padStart(6, '0')}`
@@ -34,7 +35,7 @@ export function CharactersScreen() {
 
   useEffect(() => {
     if (!canvasRef.current) return
-    const preview = new ModelPreview({ canvas: canvasRef.current, spin: 0.14, fit: 1.02 })
+    const preview = new ModelPreview({ canvas: canvasRef.current, entry: 'step', fit: 1.02 })
     previewRef.current = preview
 
     // O personagem continua tocando no visor; o relógio vem do próprio
@@ -86,6 +87,7 @@ export function CharactersScreen() {
 
   return (
     <div className="screen">
+      <Backdrop variant="content" />
       <header className="screen-head">
         <div>
           <h1 className="screen-title">Quem sobe no palco</h1>

@@ -12,6 +12,7 @@ import { useGame } from '../store'
 import { buildCareer } from '../../content/setlists'
 import { difficultyName } from './MenuScreen'
 import { isPlayable } from '../../songs/library'
+import { SongRow } from './SongRow'
 
 export function CareerScreen() {
   const { library, setScreen, selectSong, profile, settings } = useGame()
@@ -23,7 +24,7 @@ export function CareerScreen() {
   const total = tiers.reduce((sum, tier) => sum + tier.songs.length, 0)
 
   return (
-    <div className="screen">
+    <div className="screen screen-paper">
       <header className="screen-head">
         <div>
           <h1 className="screen-title">Carreira</h1>
@@ -77,33 +78,23 @@ export function CareerScreen() {
                   const playable = !locked && !!chart
 
                   return (
-                    <button
+                    <SongRow
                       key={meta.id}
-                      className="song-row"
+                      name={meta.name + (encore ? ' · encore' : '')}
+                      artist={meta.artist + (meta.year ? `, ${meta.year}` : '')}
+                      meta={
+                        chart
+                          ? `${chart.notes.length} notas`
+                          : `sem ${difficultyName(settings.difficulty)}`
+                      }
+                      stars={record ? record.stars : null}
+                      score={record ? record.score : null}
                       disabled={!playable}
                       onClick={() => {
                         selectSong(meta.id)
                         setScreen('play')
                       }}
-                    >
-                      <span>
-                        <span className="song-name">
-                          {meta.name}
-                          {encore ? ' · encore' : ''}
-                        </span>
-                        <br />
-                        <span className="song-artist">
-                          {meta.artist}
-                          {meta.year ? ` · ${meta.year}` : ''}
-                        </span>
-                      </span>
-                      <span className="song-meta">
-                        {chart
-                          ? `${chart.notes.length} notas`
-                          : `sem ${difficultyName(settings.difficulty)}`}
-                      </span>
-                      <span className="song-meta">{record ? '★'.repeat(record.stars) : '—'}</span>
-                    </button>
+                    />
                   )
                 })}
               </div>

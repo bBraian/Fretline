@@ -15,6 +15,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useGame } from '../store'
+import { Backdrop } from '../Backdrop'
 
 type Mode = 'idle' | 'audio' | 'video'
 
@@ -129,6 +130,7 @@ export function CalibrationScreen() {
 
   return (
     <div className="screen">
+      <Backdrop variant="content" />
       <header className="screen-head">
         <div>
           <h1 className="screen-title">Calibração</h1>

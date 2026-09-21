@@ -17,6 +17,9 @@
 import * as THREE from 'three'
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 
+/** Duração da animação de entrada. Curta: ela acontece a cada troca de item. */
+const ENTRY_SECONDS = 0.55
+
 export interface PreviewOptions {
   canvas: HTMLCanvasElement
   /** Distância da câmera ao centro do prato. */
@@ -25,8 +28,19 @@ export interface PreviewOptions {
   fit?: number
   /** Altura da câmera. */
   height?: number
-  /** Voltas por segundo do prato. */
-  spin?: number
+  /**
+   * Como o modelo entra em cena quando é trocado.
+   *
+   * `dolly` traz o objeto de longe até parar no lugar — é o gesto para um
+   * instrumento, que se aproxima para ser olhado. `step` adianta o objeto
+   * um passo curto, com o peso caindo no fim, que é como alguém dá um passo
+   * à frente. `none` aparece no lugar, sem animação.
+   *
+   * O prato **não gira sozinho** em nenhum dos casos: girar sem parar é
+   * vitrine de loja, e impede olhar uma peça de um ângulo escolhido.
+   * Arrastar continua girando.
+   */
+  entry?: 'dolly' | 'step' | 'none' 
   /** Cor de fundo; transparente por padrão. */
   background?: number | null
 }
@@ -41,7 +55,12 @@ export class ModelPreview {
   private current: THREE.Object3D | null = null
   private disposeCurrent: (() => void) | null = null
 
-  private spin: number
+  private entry: 'dolly' | 'step' | 'none'
+  /** Segundos decorridos da animação de entrada; passado da duração, parou. */
+  private entryTime = Infinity
+  private lastEntryTick = 0
+  private entryFrom = new THREE.Vector3()
+  private entryTo = new THREE.Vector3()
   private dragging = false
   private pointerAngle = 0
   private lastPointerX = 0
@@ -49,10 +68,10 @@ export class ModelPreview {
 
   constructor(private options: PreviewOptions) {
     const { canvas } = options
-    // `?still` trava o prato: a galeria de conferência precisa do mesmo
-    // ângulo em todas as fotos para comparar silhuetas entre si.
+    // `?still` corta a animação de entrada: a galeria de conferência precisa
+    // do mesmo enquadramento em todas as fotos para comparar silhuetas.
     const still = new URLSearchParams(location.search).has('still')
-    this.spin = still ? 0 : (options.spin ?? 0.12)
+    this.entry = still ? 'none' : (options.entry ?? 'dolly')
 
     this.renderer = new THREE.WebGLRenderer({
       canvas,
@@ -107,6 +126,13 @@ export class ModelPreview {
     window.addEventListener('pointerup', this.onPointerUp)
 
     this.resize()
+    // Mesmo gancho de depuração do PlayScreen: com `?debug`, a prévia fica
+    // acessível para a conferência automatizada, que precisa amostrar a
+    // animação de entrada mais rápido do que uma captura de tela consegue.
+    if (new URLSearchParams(location.search).has('debug')) {
+      ;(window as unknown as { __preview?: unknown }).__preview = this
+    }
+
     this.renderer.setAnimationLoop(this.frame)
   }
 
@@ -120,6 +146,37 @@ export class ModelPreview {
     this.disposeCurrent = dispose
     this.turntable.add(object)
     if (frame) this.frameObject(object)
+    this.startEntry(object)
+  }
+
+  /**
+   * Prepara a animação de entrada a partir da pose final, que o
+   * enquadramento acabou de definir.
+   *
+   * O recuo é uma fração da distância da câmera, e não do tamanho do objeto.
+   * Pela caixa do objeto seria mais óbvio, mas a profundidade de uma
+   * guitarra é a espessura do corpo — alguns centímetros —, e um recuo
+   * proporcional a isso não aparece na tela. Medir contra a câmera dá o
+   * mesmo deslocamento aparente para uma guitarra fina e para um
+   * personagem inteiro.
+   */
+  private startEntry(object: THREE.Object3D) {
+    this.entryTo.copy(object.position)
+    if (this.entry === 'none') {
+      this.entryTime = Infinity
+      return
+    }
+    const distance = this.camera.position.z
+    const back = distance * (this.entry === 'dolly' ? 0.55 : 0.16)
+    this.entryFrom.copy(this.entryTo).setZ(this.entryTo.z - back)
+    object.position.copy(this.entryFrom)
+    this.entryTime = 0
+    this.lastEntryTick = performance.now()
+  }
+
+  /** Onde o modelo está agora, para conferência. */
+  get modelZ() {
+    return this.current?.position.z ?? NaN
   }
 
   /** Centraliza e enquadra o objeto pelo seu tamanho real. */
@@ -177,9 +234,29 @@ export class ModelPreview {
   private frame = () => {
     this.resize()
     this.clock += 1 / 60
-    if (!this.dragging) this.pointerAngle += this.spin / 60
+    this.advanceEntry()
     this.turntable.rotation.y = this.pointerAngle
     this.renderer.render(this.scene, this.camera)
+  }
+
+  /**
+   * Avança a animação de entrada, se houver uma em curso.
+   *
+   * A curva é um `easeOutCubic`: quase toda a distância é vencida no começo
+   * e o fim é uma parada macia. O contrário — acelerar até o fim — faria o
+   * objeto bater no lugar.
+   */
+  private advanceEntry() {
+    if (!this.current || this.entryTime >= ENTRY_SECONDS) return
+    // Tempo de relógio, e não um passo fixo de 1/60: a animação tem começo e
+    // fim, e contar quadros faria ela durar o triplo numa máquina que
+    // desenha a 20 quadros por segundo.
+    const now = performance.now()
+    this.entryTime += (now - this.lastEntryTick) / 1000
+    this.lastEntryTick = now
+    const t = Math.min(1, this.entryTime / ENTRY_SECONDS)
+    const eased = 1 - Math.pow(1 - t, 3)
+    this.current.position.lerpVectors(this.entryFrom, this.entryTo, eased)
   }
 
   dispose() {

@@ -7,6 +7,7 @@ import { useGame } from '../store'
 import { difficultyName } from './MenuScreen'
 import { DIFFICULTIES, FRET_COLORS, FRET_NAMES } from '../../engine/types'
 import { DEFAULT_GAMEPAD, DEFAULT_KEYBOARD, keyLabel } from '../../input/bindings'
+import { Backdrop } from '../Backdrop'
 
 type Listening = { kind: 'fret'; index: number } | { kind: 'starPower' | 'whammy' } | null
 
@@ -66,6 +67,7 @@ export function SettingsScreen() {
 
   return (
     <div className="screen">
+      <Backdrop variant="content" />
       <header className="screen-head">
         <div>
           <h1 className="screen-title">Ajustes</h1>

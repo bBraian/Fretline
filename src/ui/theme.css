@@ -1,24 +1,79 @@
-/* Paleta de clube pequeno: muito preto, luz de palco como único acento. */
+/* Patrick Hand, SIL Open Font License. Servida de public/fonts/, e não do
+   Google Fonts: uma folha de estilo de terceiros faria a lista de músicas
+   depender de rede para desenhar, e o jogo roda offline. Ver
+   public/fonts/LEIA-ME.txt. */
+@font-face {
+  font-family: 'Patrick Hand';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/patrick-hand-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191,
+    U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Patrick Hand';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/patrick-hand-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7,
+    U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F,
+    U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+
+/* Paleta de cartaz de rock velho: sépia, ocre, osso e um vermelho de tinta.
+ *
+ * Os tokens abaixo servem todas as telas de menu. As cinco cores de traste
+ * (--green e companhia) são do jogo, não do tema, e por isso continuam
+ * exatamente como estavam: mexer nelas mudaria o que o jogador lê na pista.
+ */
 :root {
-  --bg: #05060a;
-  --bg-raised: #0c0e15;
-  --bg-card: #12151f;
-  --line: #222736;
-  --line-strong: #39415a;
-  --text: #e8ecf6;
-  --text-dim: #8a94ad;
-  --text-faint: #5b6480;
-  --accent: #4b7bff;
-  --accent-warm: #ffb703;
-  --danger: #ff4d6d;
-  --good: #3ddc84;
+  --bg: #140c05;
+  --bg-raised: #241608;
+  --bg-card: rgba(32, 20, 9, 0.94);
+  --line: rgba(201, 162, 79, 0.28);
+  --line-strong: rgba(242, 228, 196, 0.5);
+  --text: #f2e4c4;
+  --text-dim: #c9a96f;
+  --text-faint: #97733f;
+  --accent: #c2601f;
+  --accent-warm: #f0a63a;
+  --danger: #c0392b;
+  --good: #8fae72;
+
+  /* Cores dos trastes — do jogo, não do tema. */
   --green: #22c55e;
   --red: #ef4444;
   --yellow: #facc15;
   --blue: #3b82f6;
   --orange: #f97316;
-  --radius: 14px;
-  --radius-sm: 9px;
+
+  /* Família do cartaz. */
+  --gh-bone: #f2e4c4;
+  --gh-ochre: #cd9f5b;
+  --gh-ochre-dim: #9a7338;
+  --gh-red: #a81f16;
+  --gh-ink: #17100a;
+
+  /* Letra de mão da folha de setlist. */
+  --gh-hand: 'Patrick Hand', 'Segoe Print', 'Bradley Hand', 'Chalkboard SE',
+    'Comic Sans MS', cursive;
+
+  /* Impact e as condensadas pesadas são o que existe de mais próximo da
+     letra de cartaz sem carregar arquivo de fonte. A lista desce por
+     Windows, macOS e Linux até um peso 900 qualquer. */
+  --gh-display: 'Impact', 'Haettenschweiler', 'Franklin Gothic Heavy',
+    'Arial Narrow Bold', 'Liberation Sans Narrow', 'DejaVu Sans Condensed',
+    'Oswald', system-ui, sans-serif;
+
+  /* Cartaz não tem canto arredondado de interface. O pouco que sobra é
+     para o traço não terminar em bico. */
+  --radius: 3px;
+  --radius-sm: 2px;
   color-scheme: dark;
 }
 
@@ -52,14 +107,19 @@ button {
 /* --- estrutura de tela ------------------------------------------------- */
 
 .screen {
+  position: relative;
   height: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background:
-    radial-gradient(120% 80% at 50% -10%, #16203a 0%, transparent 60%),
-    radial-gradient(90% 60% at 80% 110%, #23142c 0%, transparent 65%),
-    var(--bg);
+  background: var(--bg);
+}
+
+/* Tudo que vem depois da colagem precisa subir acima dela; o backdrop é o
+   único filho de `.screen` sem empilhamento próprio. */
+.screen > *:not(.app-backdrop) {
+  position: relative;
+  z-index: 1;
 }
 
 .screen-head {
@@ -67,22 +127,34 @@ button {
   align-items: flex-end;
   justify-content: space-between;
   gap: 16px;
-  padding: 28px clamp(20px, 5vw, 64px) 18px;
-  border-bottom: 1px solid var(--line);
+  padding: 24px clamp(20px, 5vw, 64px) 16px;
+  border-bottom: 2px solid var(--line-strong);
+  background: linear-gradient(180deg, rgba(20, 12, 5, 0.9), rgba(20, 12, 5, 0.35));
   flex-wrap: wrap;
 }
 
 .screen-title {
   margin: 0;
-  font-size: clamp(22px, 3.2vw, 34px);
-  font-weight: 800;
-  letter-spacing: -0.02em;
+  font-family: var(--gh-display);
+  font-size: clamp(26px, 4vw, 46px);
+  font-weight: 900;
+  line-height: 1.02;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  color: var(--gh-ochre);
+  transform: skewX(-3deg);
+  text-shadow:
+    -2px -2px 0 var(--gh-ink), 0 -2px 0 var(--gh-ink), 2px -2px 0 var(--gh-ink),
+    2px 0 0 var(--gh-ink), 2px 2px 0 var(--gh-ink), 0 2px 0 var(--gh-ink),
+    -2px 2px 0 var(--gh-ink), -2px 0 0 var(--gh-ink),
+    0 4px 0 rgba(0, 0, 0, 0.5), 0 7px 12px rgba(0, 0, 0, 0.85);
 }
 
 .screen-subtitle {
-  margin: 4px 0 0;
+  margin: 6px 0 0;
   color: var(--text-dim);
   font-size: 14px;
+  text-shadow: 0 0 6px var(--bg), 0 1px 2px rgba(0, 0, 0, 0.9);
 }
 
 .screen-body {
@@ -97,40 +169,48 @@ button {
   gap: 12px;
   align-items: center;
   flex-wrap: wrap;
-  padding: 16px clamp(20px, 5vw, 64px);
-  border-top: 1px solid var(--line);
-  background: rgba(5, 6, 10, 0.7);
+  padding: 14px clamp(20px, 5vw, 64px);
+  border-top: 2px solid var(--line-strong);
+  background: linear-gradient(0deg, rgba(20, 12, 5, 0.94), rgba(20, 12, 5, 0.6));
 }
 
 /* --- botões ------------------------------------------------------------ */
 
 .btn {
-  border: 1px solid var(--line-strong);
-  background: var(--bg-card);
-  padding: 10px 18px;
+  border: 2px solid var(--line-strong);
+  background: linear-gradient(180deg, rgba(58, 38, 20, 0.95), rgba(26, 16, 8, 0.95));
+  padding: 9px 20px;
   border-radius: var(--radius-sm);
-  font-weight: 600;
+  font-family: var(--gh-display);
+  font-weight: 900;
   font-size: 14px;
-  transition: background 120ms ease, border-color 120ms ease, transform 120ms ease;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gh-bone);
+  transition: background 110ms ease, color 110ms ease, transform 110ms ease;
 }
 
 .btn:hover {
-  background: #1b2030;
-  border-color: var(--line-strong);
+  background: linear-gradient(180deg, #7a4a1e, #4a2a10);
+  border-color: var(--gh-bone);
 }
 
 .btn:active {
   transform: translateY(1px);
 }
 
+/* O botão principal é o respingo de tinta clara do menu, à escala de um
+   controle: fundo de osso, letra vermelha. */
 .btn-primary {
-  background: linear-gradient(180deg, #5b86ff, #3961e0);
-  border-color: #6f96ff;
-  color: #fff;
+  background: linear-gradient(180deg, #fdf4dd, var(--gh-bone) 58%, #d9c396);
+  border-color: var(--gh-bone);
+  color: var(--gh-red);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
 .btn-primary:hover {
-  background: linear-gradient(180deg, #6e95ff, #4670ee);
+  background: linear-gradient(180deg, #ffffff, #f7ecd2 58%, #e3d0a6);
+  color: #8e1810;
 }
 
 .btn-ghost {
@@ -176,7 +256,7 @@ button {
   overflow: hidden;
 }
 
-.menu-backdrop {
+.app-backdrop {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -516,25 +596,37 @@ button {
   gap: 18px;
   align-items: center;
   width: 100%;
-  padding: 14px 18px;
-  border: 1px solid transparent;
+  padding: 12px 18px;
+  border: 2px solid transparent;
+  border-left-width: 5px;
   border-radius: var(--radius-sm);
-  background: rgba(18, 21, 31, 0.6);
+  background: var(--bg-card);
   text-align: left;
-  transition: background 120ms ease, border-color 120ms ease;
+  transition: background 110ms ease, border-color 110ms ease;
 }
 
 .song-row:hover {
-  background: #1a1f2e;
+  background: rgba(70, 44, 20, 0.97);
+  border-left-color: var(--gh-ochre);
 }
 
 .song-row[data-selected='true'] {
-  border-color: var(--accent);
-  background: #16203a;
+  border-color: var(--gh-bone);
+  background: linear-gradient(90deg, #fdf4dd, var(--gh-bone) 70%, #d9c396);
+  color: var(--gh-ink);
+}
+
+.song-row[data-selected='true'] .song-artist,
+.song-row[data-selected='true'] .song-meta {
+  color: #6b4a22;
 }
 
 .song-name {
-  font-weight: 650;
+  font-family: var(--gh-display);
+  font-size: 17px;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
 }
 
 .song-artist {
@@ -556,7 +648,7 @@ button {
 }
 
 .card {
-  border: 1px solid var(--line);
+  border: 2px solid var(--line);
   border-radius: var(--radius);
   background: var(--bg-card);
   padding: 16px;
@@ -570,6 +662,12 @@ button {
 .card:hover {
   border-color: var(--line-strong);
   transform: translateY(-2px);
+}
+
+.card-name {
+  font-family: var(--gh-display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .card[data-selected='true'] {
@@ -636,7 +734,11 @@ button {
 }
 
 .field-label {
-  font-weight: 650;
+  font-family: var(--gh-display);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gh-ochre);
 }
 
 .field-hint {
@@ -671,6 +773,9 @@ button {
 }
 
 .segmented button {
+  font-family: var(--gh-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   background: transparent;
   border: 0;
   padding: 9px 16px;
@@ -680,8 +785,10 @@ button {
 }
 
 .segmented button[data-active='true'] {
-  background: var(--accent);
-  color: #fff;
+  background: linear-gradient(180deg, #fdf4dd, var(--gh-bone) 58%, #d9c396);
+  color: var(--gh-red);
+  font-weight: 900;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
 .key-binding {
@@ -1042,9 +1149,12 @@ button {
 
 .result-stat b {
   display: block;
-  font-size: 26px;
+  font-family: var(--gh-display);
+  font-size: 30px;
+  font-weight: 900;
+  color: var(--gh-bone);
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
+  letter-spacing: 0.02em;
 }
 
 .result-stat span {
@@ -1061,7 +1171,7 @@ button {
 }
 
 .stars .off {
-  color: #2b3145;
+  color: #4a3a22;
 }
 
 .empty {
@@ -1134,13 +1244,13 @@ button {
 
 .picker-stage {
   position: relative;
-  border: 1px solid var(--line);
+  border: 2px solid var(--line-strong);
   border-radius: var(--radius);
   /* Fundo com um halo atrás do objeto: instrumento preto brilhante precisa
      de algo mais claro por trás para ter silhueta. */
   background:
-    radial-gradient(58% 52% at 50% 42%, rgba(104, 134, 214, 0.3), transparent 72%),
-    linear-gradient(180deg, #151a26, #080a12);
+    radial-gradient(58% 52% at 50% 42%, rgba(224, 168, 74, 0.26), transparent 72%),
+    linear-gradient(180deg, #3a2614, #140c05);
   overflow: hidden;
   min-height: 0;
 }
@@ -1190,8 +1300,12 @@ button {
 
 .picker-caption h2 {
   margin: 0;
-  font-size: clamp(20px, 2.6vw, 30px);
-  letter-spacing: -0.02em;
+  font-family: var(--gh-display);
+  font-size: clamp(22px, 3vw, 34px);
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--gh-bone);
 }
 
 .picker-caption p {
@@ -1226,20 +1340,35 @@ button {
   align-items: center;
   gap: 12px;
   padding: 11px 14px;
-  border: 1px solid transparent;
+  border: 2px solid transparent;
+  border-left-width: 5px;
   border-radius: var(--radius-sm);
-  background: rgba(18, 21, 31, 0.6);
+  background: var(--bg-card);
   text-align: left;
-  transition: background 120ms ease, border-color 120ms ease;
+  transition: background 110ms ease, border-color 110ms ease;
 }
 
 .picker-row:hover:not(:disabled) {
-  background: #1a1f2e;
+  background: rgba(70, 44, 20, 0.97);
+  border-left-color: var(--gh-ochre);
 }
 
+.picker-row strong {
+  font-family: var(--gh-display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Mesma linguagem de seleção do menu e da lista de músicas: fundo de osso,
+   letra escura. */
 .picker-row[data-selected='true'] {
-  border-color: var(--accent);
-  background: #16203a;
+  border-color: var(--gh-bone);
+  background: linear-gradient(90deg, #fdf4dd, var(--gh-bone) 70%, #d9c396);
+  color: var(--gh-ink);
+}
+
+.picker-row[data-selected='true'] span {
+  color: #6b4a22;
 }
 
 .picker-row:disabled {
@@ -1250,8 +1379,9 @@ button {
 .picker-chip {
   width: 30px;
   height: 30px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 2px;
+  border: 2px solid rgba(23, 16, 10, 0.6);
+  box-shadow: 0 0 0 1px rgba(242, 228, 196, 0.35);
   flex: none;
 }
 
@@ -1285,8 +1415,12 @@ button {
 
 .tier-head strong {
   display: block;
-  font-size: 17px;
-  letter-spacing: -0.01em;
+  font-family: var(--gh-display);
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--gh-bone);
 }
 
 .tier-order {
@@ -1341,12 +1475,13 @@ button {
 
 .list-heading {
   margin: 28px 0 10px;
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  font-family: var(--gh-display);
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--text-dim);
-  border-top: 1px solid var(--line);
+  color: var(--gh-ochre);
+  border-top: 2px solid var(--line);
   padding-top: 18px;
 }
 
@@ -1383,4 +1518,246 @@ button {
   .menu {
     gap: 6px;
   }
+}
+
+/* --- folha de setlist -------------------------------------------------
+ *
+ * Carreira e biblioteca são a mesma coisa no original: uma folha de caderno
+ * pautado largada sobre uma mesa de madeira. O papel é desenhado em
+ * gradientes — pauta azul, margem vermelha, grão — e não em imagem.
+ *
+ * O cabeçalho e o rodapé continuam escuros, sobre a madeira: é onde ficam os
+ * controles, e controle não é conteúdo da folha.
+ */
+
+.screen-paper {
+  /* Madeira: tábuas verticais de larguras irregulares, com o veio por cima. */
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(0, 0, 0, 0.22) 0 2px,
+      transparent 2px 118px,
+      rgba(0, 0, 0, 0.16) 118px 119px,
+      transparent 119px 263px
+    ),
+    repeating-linear-gradient(
+      88deg,
+      rgba(92, 52, 24, 0.5) 0 3px,
+      rgba(62, 34, 15, 0.5) 3px 7px
+    ),
+    linear-gradient(180deg, #6b4022, #3e2210);
+}
+
+.screen-paper .screen-head,
+.screen-paper .screen-foot {
+  background: linear-gradient(180deg, rgba(20, 12, 5, 0.92), rgba(20, 12, 5, 0.66));
+}
+
+.screen-paper .screen-body {
+  --pauta: 30px;
+
+  /* Cores do que se escreve numa folha, não do cartaz. Os componentes lá de
+     cima leem estes tokens, então a folha inteira vira clara sem que cada
+     regra precise ser reescrita. */
+  --text: #1f2a44;
+  --text-dim: #4a5a7c;
+  --text-faint: #7286a8;
+  --line: rgba(31, 42, 68, 0.22);
+  --line-strong: rgba(31, 42, 68, 0.4);
+
+  margin: 0 clamp(8px, 3vw, 54px);
+  /* O padding de cima é uma pauta inteira: qualquer outro valor desloca a
+     folha toda em relação às linhas. */
+  padding: var(--pauta) clamp(18px, 4vw, 52px) 40px clamp(56px, 8vw, 104px);
+  color: var(--text);
+
+  background:
+    /* margem vermelha */
+    linear-gradient(
+      90deg,
+      transparent calc(clamp(56px, 8vw, 104px) - 20px),
+      #c8776a calc(clamp(56px, 8vw, 104px) - 20px),
+      #c8776a calc(clamp(56px, 8vw, 104px) - 18px),
+      transparent calc(clamp(56px, 8vw, 104px) - 18px)
+    ),
+    /* pauta */
+    repeating-linear-gradient(180deg, transparent 0 calc(var(--pauta) - 1px), #9fbcd6 calc(var(--pauta) - 1px) var(--pauta)),
+    /* amarelado do papel velho, mais forte nas bordas */
+    radial-gradient(120% 90% at 50% 0%, #fdf8e6 0%, #f4ead0 55%, #e8dbba 100%);
+  /* `local` faz a pauta rolar junto com o texto; `scroll` deixaria as linhas
+     paradas e o texto deslizando por cima delas. */
+  background-attachment: local;
+  box-shadow: 0 0 0 1px rgba(60, 40, 20, 0.35), 0 14px 40px rgba(0, 0, 0, 0.6);
+}
+
+.screen-paper .empty,
+.screen-paper .screen-body code {
+  color: var(--text-dim);
+}
+
+/* --- tier, na folha --- */
+
+.screen-paper .tier-head {
+  border: 0;
+  align-items: center;
+  height: calc(var(--pauta) * 2);
+  padding: 0;
+}
+
+.screen-paper .tier {
+  margin-bottom: var(--pauta);
+}
+
+.screen-paper .tier-head strong {
+  font-family: var(--gh-display);
+  font-size: clamp(19px, 2.2vw, 27px);
+  letter-spacing: 0.02em;
+  color: #9d2b21;
+  text-shadow: none;
+}
+
+.screen-paper .tier-order {
+  color: #9d2b21;
+  border-color: rgba(157, 43, 33, 0.45);
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.screen-paper .list-heading {
+  color: #9d2b21;
+  border-top-color: rgba(31, 42, 68, 0.25);
+}
+
+/* --- a linha --- */
+
+/* Duas pautas por música: o nome na primeira, quem tocou na segunda. */
+.screen-paper .song-row {
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: stretch;
+  position: relative;
+  height: calc(var(--pauta) * 2);
+  padding: 0 10px 0 4px;
+  border: 0;
+  border-radius: 2px;
+  background: none;
+  color: inherit;
+}
+
+.screen-paper .song-list {
+  gap: 0;
+}
+
+.song-row-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.screen-paper .song-name,
+.screen-paper .song-artist,
+.screen-paper .stars,
+.song-score {
+  /* Cada pedaço ocupa uma pauta exata e assenta na linha de baixo dela. */
+  height: var(--pauta);
+  line-height: calc(var(--pauta) + 6px);
+}
+
+.screen-paper .song-name {
+  font-family: var(--gh-hand);
+  font-size: clamp(19px, 2.1vw, 27px);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: #23304e;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.screen-paper .song-artist {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #4a5a7c;
+}
+
+/* O fio pontilhado que liga o nome às estrelas. */
+/* O fio fica na linha de base do nome, não no meio da linha inteira. */
+.song-row-lead {
+  align-self: start;
+  height: calc(var(--pauta) - 6px);
+  border-bottom: 2px dashed rgba(31, 42, 68, 0.28);
+  min-width: 20px;
+}
+
+.song-row-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.screen-paper .stars {
+  font-size: 19px;
+  letter-spacing: 1px;
+  line-height: calc(var(--pauta) + 13px);
+  color: #e8a628;
+  text-shadow: 0 1px 0 rgba(120, 70, 10, 0.5);
+}
+
+.screen-paper .stars .off {
+  color: rgba(31, 42, 68, 0.26);
+  text-shadow: none;
+}
+
+.song-score {
+  font-family: var(--gh-display);
+  font-size: 17px;
+  letter-spacing: 0.03em;
+  font-variant-numeric: tabular-nums;
+  color: #2c4a86;
+}
+
+/* Sob o ponteiro e selecionada.
+   Na folha, seleção não é tinta de cartaz: é o papel ficando mais claro,
+   como o original faz. Pintar de osso aqui apagaria a pauta. */
+.screen-paper .song-row:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.45);
+}
+
+/* A selecionada é a folha clareando debaixo dela, e um marcador na margem
+   — o lugar onde o original põe um adesivo. Mais discreto que isso não
+   sobrevive à pauta atrás. */
+.screen-paper .song-row[data-selected='true'] {
+  background: linear-gradient(90deg, #ffffff 0%, rgba(255, 255, 255, 0.88) 78%, rgba(255, 255, 255, 0.6));
+  box-shadow:
+    inset 4px 0 0 #9d2b21,
+    0 1px 3px rgba(31, 42, 68, 0.25);
+  color: inherit;
+}
+
+.screen-paper .song-row[data-selected='true']::before {
+  content: '►';
+  position: absolute;
+  left: -30px;
+  top: 2px;
+  font-size: 15px;
+  line-height: var(--pauta);
+  color: #9d2b21;
+}
+
+.screen-paper .song-row[data-selected='true'] .song-name {
+  color: #16203a;
+}
+
+.screen-paper .song-row[data-selected='true'] .song-artist {
+  color: #3b4a6b;
+}
+
+.screen-paper .song-row:disabled {
+  opacity: 0.42;
+}
+
+.screen-paper .song-row[data-waiting='true'] .song-name {
+  color: #6b7590;
 }

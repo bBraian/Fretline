@@ -1,0 +1,13 @@
+Patrick Hand, de Patrick Wagesreiter.
+
+Licença: SIL Open Font License 1.1
+https://openfontlicense.org
+https://fonts.google.com/specimen/Patrick+Hand
+
+Os dois arquivos são os subconjuntos latin e latin-ext servidos pelo Google
+Fonts, baixados para cá de propósito: uma folha de estilo carregada de um
+domínio de terceiros faz o jogo depender de rede para desenhar a lista de
+músicas, e ele roda offline.
+
+A OFL permite uso, cópia e redistribuição; exige que este aviso acompanhe os
+arquivos e proíbe vender a fonte sozinha.
