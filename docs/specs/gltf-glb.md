@@ -3,8 +3,10 @@
 Plano para trocar geometria construída em código por modelos importados,
 sem perder o que a construção em código dá de graça.
 
-**Estado em 21/09/2026: a Fase 1 está implementada e funcionando** com oito
-guitarras importadas do Sketchfab. As fases 2 e 3 continuam por fazer.
+**Estado em 21/09/2026: as fases 1 e 3 estão implementadas** — oito
+guitarras e seis integrantes importados do Sketchfab. A fase 2 (peças
+rígidas de personagem) não foi feita, e deixou de ser urgente: importar o
+personagem inteiro cobre o que ela resolveria.
 
 ## O que torna isso diferente de "só carregar um GLB"
 
@@ -164,26 +166,84 @@ funciona sem tocar no rig.
 **Limite:** só peças que não deformam. Uma jaqueta que precisa acompanhar o
 torso dobrando é Fase 3.
 
-## Fase 3 — Personagem com esqueleto de verdade
+## Fase 3 — Personagem com esqueleto — FEITA
 
-É troca de subsistema, e deve ser decidida à parte. O que reduz o susto:
+`src/render/character/characterGlb.ts` carrega um integrante de arquivo e
+cumpre a mesma porta que a marionete construída em código — agora declarada
+em `character/stageCharacter.ts`. Palco e prévia recebem um `StageCharacter`
+e não sabem qual das duas implementações têm em mãos.
 
-`solveTwoBone` recebe `root: THREE.Object3D`, e **`THREE.Bone` herda de
-`Object3D`**. O IK que já existe opera sobre um esqueleto importado sem
-alteração nenhuma.
+### O que tornou isso viável
 
-O trabalho real não é o IK, é o resto:
+`solveTwoBone` recebe `THREE.Object3D`, e **`THREE.Bone` herda de
+`Object3D`**. A conta da cinemática inversa serve para um esqueleto
+importado sem uma linha de diferença.
 
-- rest pose compatível com o que a IK assume (`REST` aponta para `-Y`);
-- mapear nomes de ossos, que variam por ferramenta, para os papéis que o
-  código espera (ombro, cotovelo, mão, cabeça, mandíbula);
-- prender a guitarra a um osso de mão em vez de ao torso;
-- `SkinnedMesh` não é mesclável por `mergeStatic.ts` — vale conferir o
-  custo antes, porque são quatro integrantes em cena;
-- a qualidade "baixa" dos ajustes precisa continuar viável.
+### Três coisas que o plano não previa
 
-**Recomendação:** não começar por aqui. Fase 1 ensina o pipeline
-Blender → GLB num objeto rígido, e o ganho visual já é grande.
+**1. Nomes de osso não têm padrão, e o three ainda os reescreve.**
+
+Apareceram quatro convenções em seis arquivos:
+
+| perfil | ombro → braço → antebraço → mão |
+|---|---|
+| `mixamo` | `LeftShoulder` `LeftArm` `LeftForeArm` `LeftHand` |
+| `maya-shjnt` | `l_Arm_Clavicle` `l_Arm_Shoulder` `l_Arm_Elbow` `l_Arm_Wrist` |
+| `bone-bicep` | `Bone_Collar_L` `Bone_Bicep_L` `Bone_Forearm_L` `Bone_Palm_L` |
+
+E o **GLTFLoader sanitiza os nomes**: o `mixamorig:LeftArm` que está dentro
+do arquivo chega em runtime como `mixamorig_LeftArm`. Um padrão escrito com
+dois-pontos nunca casa. O casamento joga fora tudo que não é letra, o que
+resolve isso e os sufixos numéricos de uma vez.
+
+**2. A IK da marionete não serve para um rig de fora.**
+
+`solveTwoBone` escreve a rotação absoluta do ombro assumindo que o osso
+aponta para −Y em repouso. Isso vale para um esqueleto escrito à mão aqui
+dentro e não vale para nenhum arquivo importado. Aplicada a um rig Mixamo,
+ela levanta os braços acima da cabeça.
+
+`solveRestChain`, no mesmo arquivo, faz a mesma conta e aplica o resultado
+**por cima da pose de repouso**: o que se calcula é o giro que leva o braço
+de onde ele repousa até onde precisa estar. É o que "retargeting" quer
+dizer, e é o que faz a mesma rotina servir para qualquer convenção de eixo.
+
+**3. O alvo precisa estar no espaço do pai da cadeia.**
+
+`solveTwoBone` subtrai `root.position`, que é a posição do osso *dentro do
+pai*. Parar no espaço do mundo deixava a IK resolvendo um triângulo entre
+unidades incompatíveis — os ossos de um rig Mixamo medem dezenas e um alvo
+em unidades de jogo mede frações. `parent.worldToLocal` traz escala e giro
+de uma vez.
+
+### A guitarra pendura no grupo, não num osso
+
+Prendê-la ao osso do peito parecia melhor, porque acompanharia o balanço.
+Mas cada rig orienta o peito do seu jeito, e a guitarra saía atravessada no
+tronco, cada modelo de um jeito. Presa ao grupo do personagem, fica onde se
+espera em todos.
+
+### Materiais brancos
+
+Três dos seis arquivos usavam **`KHR_materials_pbrSpecularGlossiness`**,
+extensão descontinuada do glTF que o three.js não lê mais. O modelo carrega
+sem erro nenhum e aparece **branco**, porque as texturas ficaram dentro da
+extensão ignorada. `npm run optimize-models` agora roda `metalrough` antes
+de comprimir, o que as traz para o metallic-roughness padrão.
+
+### O limite honesto
+
+- **Quatro dos seis têm braços animados.** Os outros dois vieram sem
+  esqueleto: aparecem e ficam parados, com a guitarra pendurada. É o caso
+  que o README sempre descreveu — modelo sem rig é uma estátua.
+- **A pose é de quem segura a guitarra, não de quem toca uma nota
+  específica.** As mãos vão para a região certa; não assentam exatamente
+  sobre a escala. Fechar essa distância exigiria medir os pontos da guitarra
+  por modelo, que é a pendência dos pontos da IK.
+- **Só o guitarrista é importado.** Baixista, vocalista e baterista
+  continuam marionetes, e `setRole` é ignorado num importado: sentar um
+  baterista exigiria saber onde estão as pernas, e isso o esqueleto não diz
+  de forma confiável entre ferramentas.
 
 ## Ferramentas
 

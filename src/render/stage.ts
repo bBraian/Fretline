@@ -11,6 +11,8 @@
 import * as THREE from 'three'
 import { CharacterModel, GUITAR_BODY_OFFSET, GUITAR_TILT, type PerformanceState } from './character/characterModel'
 import { buildGuitar, type GuitarModel } from './guitar/guitarModel'
+import { loadCharacterGlb } from './character/characterGlb'
+import type { StageCharacter } from './character/stageCharacter'
 import { loadGuitarGlb } from './guitar/guitarGlb'
 import { CHARACTERS, characterById, type Character } from '../content/characters'
 import { BASS_PROP, guitarById, type Guitar } from '../content/guitars'
@@ -23,7 +25,7 @@ const CROWD_COUNT = CROWD_ROWS * CROWD_PER_ROW
 export class Stage {
   readonly group = new THREE.Group()
 
-  private guitarist: CharacterModel
+  private guitarist: StageCharacter
   private guitarModel: GuitarModel
   private bandmates: CharacterModel[] = []
   private rig: LightRig
@@ -352,13 +354,53 @@ export class Stage {
     return { crowd, seeds }
   }
 
-  private placeGuitarist(character: Character) {
+  private placeGuitarist(character: Character): StageCharacter {
     const model = new CharacterModel(character)
     model.setRole('guitar')
     model.group.position.set(-2.6, 0, -0.6)
     model.group.rotation.y = 0.3
     this.group.add(model.group)
+    if (character.model) void this.swapInImportedCharacter(character)
     return model
+  }
+
+  /**
+   * Troca o guitarrista provisório pelo de arquivo, quando ele carrega.
+   *
+   * Mesma ideia da guitarra: a marionete construída em código entra na hora
+   * e o importado a substitui, levando junto a guitarra que está pendurada
+   * nela. O `id` é conferido na volta porque o jogador pode ter trocado de
+   * personagem nesse meio-tempo.
+   */
+  private async swapInImportedCharacter(character: Character) {
+    try {
+      const imported = await loadCharacterGlb({
+        url: character.model!,
+        adjust: character.modelAdjust,
+      })
+      if (this.currentCharacterId !== character.id) {
+        imported.dispose()
+        return
+      }
+      const position = this.guitarist.group.position.clone()
+      const rotation = this.guitarist.group.rotation.clone()
+
+      // A guitarra sai do provisório e entra no importado antes do descarte:
+      // ela é do jogador, não do corpo que a segura.
+      this.guitarist.instrumentAnchor.remove(this.guitarModel.group)
+      this.group.remove(this.guitarist.group)
+      this.guitarist.dispose()
+
+      imported.setRole('guitar')
+      imported.group.position.copy(position)
+      imported.group.rotation.copy(rotation)
+      this.group.add(imported.group)
+      imported.instrumentAnchor.add(this.guitarModel.group)
+      this.guitarist = imported
+    } catch (erro) {
+      // Falhar aqui deixa a marionete no palco e a música segue.
+      console.error(`não deu para carregar ${character.model}`, erro)
+    }
   }
 
   private attachGuitar(guitar: Guitar): GuitarModel {
@@ -492,11 +534,13 @@ export class Stage {
     this.group.remove(this.guitarist.group)
     this.guitarist.dispose()
 
-    this.guitarist = new CharacterModel(characterById(characterId))
+    const character = characterById(characterId)
+    this.guitarist = new CharacterModel(character)
     this.guitarist.setRole('guitar')
     this.guitarist.group.position.copy(position)
     this.guitarist.group.rotation.copy(rotation)
     this.group.add(this.guitarist.group)
+    if (character.model) void this.swapInImportedCharacter(character)
 
     // A guitarra está pendurada no personagem, então acompanha a troca.
     this.guitarModel.dispose()

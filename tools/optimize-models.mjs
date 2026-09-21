@@ -15,12 +15,20 @@
  * levaria os arquivos a um quinto disso, mas exige um decodificador
  * WebAssembly no cliente, e o bundle já passa de 900 kB.
  *
+ * Antes de comprimir, roda `metalrough`. Muito arquivo de banco público traz
+ * materiais em `KHR_materials_pbrSpecularGlossiness`, uma extensão
+ * descontinuada do glTF que o three.js não lê mais — o modelo carrega sem
+ * erro nenhum e aparece **branco**, porque as texturas ficaram dentro da
+ * extensão ignorada. A conversão as traz para o metallic-roughness padrão.
+ * Em arquivo que já está no padrão, o passo não faz nada.
+ *
  *   node tools/optimize-models.mjs <pasta-de-origem> [destino]
  *
  * O destino padrão é public/models/guitars/.
  */
 
-import { readdirSync, mkdirSync } from 'node:fs'
+import { readdirSync, mkdirSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join, basename, extname } from 'node:path'
 import { execFileSync } from 'node:child_process'
 
@@ -50,16 +58,22 @@ for (const arquivo of arquivos) {
     .replace(/-$/, '')
 
   const saida = join(destino, `${limpo}.glb`)
+  const intermediario = join(tmpdir(), `fretline-${limpo}.glb`)
+  const gltf = (...args) =>
+    execFileSync('npx', ['--yes', '@gltf-transform/cli@latest', ...args], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+
   try {
-    const log = execFileSync(
-      'npx',
-      ['--yes', '@gltf-transform/cli@latest', 'optimize', join(origem, arquivo), saida,
-       '--texture-size', '512', '--texture-compress', 'webp', '--compress', 'quantize'],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
-    )
+    gltf('metalrough', join(origem, arquivo), intermediario)
+    const log = gltf('optimize', intermediario, saida,
+      '--texture-size', '512', '--texture-compress', 'webp', '--compress', 'quantize')
     const resumo = log.split('\n').find((l) => l.startsWith('info:'))
     console.log(resumo ?? `${arquivo} -> ${saida}`)
   } catch (erro) {
     console.error(`falhou em ${arquivo}:`, erro.message.split('\n')[0])
+  } finally {
+    rmSync(intermediario, { force: true })
   }
 }

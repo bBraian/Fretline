@@ -75,6 +75,23 @@ export interface Character {
   }
   /** Quanto o personagem se mexe tocando, de 0 a 1. */
   energy: number
+  /**
+   * Arquivo glTF/GLB, quando o integrante vem de fora.
+   *
+   * Com este campo, o modelo é carregado do arquivo; sem ele, é montado em
+   * código a partir dos parâmetros acima.
+   */
+  model?: string
+  /**
+   * Falso quando o arquivo veio sem esqueleto.
+   *
+   * Sem ossos não há o que a cinemática inversa mova: o integrante aparece,
+   * mas fica parado. É o caso que o README sempre descreveu — modelo
+   * importado sem rig é uma estátua.
+   */
+  animated?: boolean
+  /** Correções de pose, quando a normalização automática não basta. */
+  modelAdjust?: { turn?: number; scale?: number }
 }
 
 export const CHARACTERS: Character[] = [
@@ -352,6 +369,49 @@ export const CHARACTERS: Character[] = [
     energy: 0.9,
   },
 ]
+
+/**
+ * Integrantes importados de arquivo.
+ *
+ * Os campos de aparência (`build`, `hair`, `top`, `colors`) continuam
+ * preenchidos porque o resto do jogo os lê — a bolinha de cor da lista sai
+ * de `colors.top`, e o texto da loja usa `build`. Eles não afetam o que
+ * aparece na tela quando há `model`.
+ *
+ * `animated: false` marca quem veio sem esqueleto. Esses carregam e
+ * aparecem, mas ficam parados: sem ossos, não há o que a cinemática inversa
+ * mova, e o README sempre avisou que um modelo sem rig é uma estátua.
+ */
+const IMPORTED: Character[] = ([
+  // arquivo, nome, descrição, estrelas, preço, tem esqueleto, giro
+  ['kratos', 'Kairos', 'Barba de cinzas, olhar de quem já viu pior', 0, 0, true, undefined],
+  ['dead_pool', 'Vermelhão', 'Fala demais entre uma música e outra', 8, 5000, true, undefined],
+  ['douxie_tales_of_arcadia', 'Douglas', 'Jaqueta, franja e um alaúde antigo', 18, 9000, true, undefined],
+  ['taylor_swift_band_hero', 'Stella Vaughn', 'Veio do pop e ficou pelo barulho', 28, 14000, true, undefined],
+  ['axel_steel_-_guitar_hero', 'Axel', 'O clássico de jaqueta preta', 40, 20000, false, undefined],
+  ['game_guard__games_manager__fortnite', 'Guardião', 'Ninguém sabe o que tem debaixo do capacete', 60, 28000, false, undefined],
+] as const).map(([file, name, subtitle, unlockAtStars, price, animated, turn]) => ({
+  id: `glb-${file}`,
+  name: name as string,
+  subtitle: subtitle as string,
+  unlockAtStars,
+  price,
+  build: 'regular' as BodyBuild,
+  height: 1,
+  hair: 'buzz' as HairStyle,
+  beard: 0,
+  top: 'tee' as OutfitTop,
+  legs: 'jeans' as OutfitLegs,
+  shoes: 'boots' as Footwear,
+  accessories: { sunglasses: false, wristband: false, beanie: false, belt: false },
+  colors: CHARACTERS[0].colors,
+  energy: CHARACTERS[0].energy,
+  model: `/models/characters/${file}.glb`,
+  animated,
+  modelAdjust: turn ? { turn } : undefined,
+}))
+
+CHARACTERS.push(...IMPORTED)
 
 export function characterById(id: string): Character {
   return CHARACTERS.find((c) => c.id === id) ?? CHARACTERS[0]

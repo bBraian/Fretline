@@ -10,6 +10,8 @@ import { useEffect, useRef } from 'react'
 import { owns, useGame } from '../store'
 import { ShopActions, ShopTag } from './ShopActions'
 import { BUILD_NAMES, CHARACTERS, characterById } from '../../content/characters'
+import { loadCharacterGlb } from '../../render/character/characterGlb'
+import type { StageCharacter } from '../../render/character/stageCharacter'
 import { CharacterModel, GUITAR_BODY_OFFSET, GUITAR_TILT } from '../../render/character/characterModel'
 import { loadGuitarGlb } from '../../render/guitar/guitarGlb'
 import { buildGuitar, type GuitarModel } from '../../render/guitar/guitarModel'
@@ -28,7 +30,7 @@ export function CharactersScreen() {
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const previewRef = useRef<ModelPreview | null>(null)
-  const modelRef = useRef<CharacterModel | null>(null)
+  const modelRef = useRef<StageCharacter | null>(null)
 
   // O visor mostra o selecionado na lista; equipar é um botão à parte.
   const shownId = previewId ?? profile.characterId
@@ -65,7 +67,8 @@ export function CharactersScreen() {
     const preview = previewRef.current
     if (!preview) return
 
-    const model = new CharacterModel(characterById(shownId))
+    const escolhido = characterById(shownId)
+    const model: StageCharacter = new CharacterModel(escolhido)
     model.setState('playing')
     model.setIntensity(0.8)
 
@@ -101,11 +104,34 @@ export function CharactersScreen() {
         .catch((erro) => console.error(`não deu para carregar ${escolhida.model}`, erro))
     }
 
+    // O integrante de arquivo substitui a marionete quando chega, levando a
+    // guitarra junto — ela está pendurada no ponto de instrumento, que cada
+    // um tem o seu.
+    let corpo: StageCharacter = model
+    if (escolhido.model) {
+      void loadCharacterGlb({ url: escolhido.model, adjust: escolhido.modelAdjust })
+        .then((importado) => {
+          if (descartado) {
+            importado.dispose()
+            return
+          }
+          importado.setState('playing')
+          importado.setIntensity(0.8)
+          model.instrumentAnchor.remove(atual.group)
+          importado.instrumentAnchor.add(atual.group)
+          preview.setModel(importado.group, () => importado.dispose())
+          corpo.dispose()
+          corpo = importado
+          modelRef.current = importado
+        })
+        .catch((erro) => console.error(`não deu para carregar ${escolhido.model}`, erro))
+    }
+
     modelRef.current = model
     preview.setModel(model.group, () => {
       descartado = true
       atual.dispose()
-      model.dispose()
+      corpo.dispose()
     })
   }, [shownId, guitarId])
 
