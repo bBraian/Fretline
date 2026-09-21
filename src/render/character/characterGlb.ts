@@ -29,6 +29,9 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import type { TwoBoneChain } from './ik'
+import { loadClip, retarget, type ClipRole } from './animationClips'
+import { attachToBone, WAIST_FRACTION, type BoneAttachment } from './bandMember'
+import { ATTACHMENTS } from './bandRig'
 import {
   GUITAR_BODY_OFFSET,
   GUITAR_NECK_REACH,
@@ -118,7 +121,7 @@ export async function loadCharacterGlb({
 
 export class ImportedCharacter {
   readonly group = new THREE.Group()
-  readonly instrumentAnchor = new THREE.Group()
+  instrumentAnchor = new THREE.Group()
 
   /** Existe para cumprir a porta; um importado não tem mão nomeada. */
   get pickHand() {
@@ -138,7 +141,11 @@ export class ImportedCharacter {
   private fretTarget = new THREE.Vector3()
   private pickTarget = new THREE.Vector3()
   private elbowPole = new THREE.Vector3()
+  private spin = new THREE.Quaternion()
+  private disposed = false
   private baseY = 0
+  private attachment: BoneAttachment | null = null
+  private mixer: THREE.AnimationMixer | null = null
 
   constructor(
     private root: THREE.Object3D,
@@ -150,21 +157,39 @@ export class ImportedCharacter {
     this.rig = findRig(root)
     this.animated = !!(this.rig.fret && this.rig.pick)
 
-    // A guitarra pendura no **grupo do personagem**, não num osso.
-    //
-    // Prendê-la ao osso do peito parecia melhor — acompanharia o balanço do
-    // corpo —, mas cada rig põe o peito numa orientação própria, e a
-    // guitarra saía atravessada no tronco, cada modelo de um jeito. Presa
-    // ao grupo, ela fica onde se espera em todos, e o balanço é aplicado à
-    // mão no `update`.
-    this.group.add(this.instrumentAnchor)
-    this.instrumentAnchor.position.set(0, TARGET_HEIGHT * 0.52, 0.16)
+    // Mesmo ponto de encaixe dos integrantes fixos: no osso, com os eixos
+    // do palco e a escala do mundo. Onde a guitarra fica em relação a ele
+    // sai da tabela de `bandRig.ts`, aplicada pelo palco.
+    this.attachment = attachToBone(root, this.group, ATTACHMENTS.guitar.bone, WAIST_FRACTION)
+    if (this.attachment) {
+      this.instrumentAnchor = this.attachment.group
+    } else {
+      // Sem osso utilizável o instrumento não acompanha a animação, mas ao
+      // menos fica na cintura: pendurado na origem do grupo, ele apareceria
+      // nos pés.
+      this.group.add(this.instrumentAnchor)
+      const box = new THREE.Box3().setFromObject(root)
+      this.instrumentAnchor.position.set(0, box.min.y + (box.max.y - box.min.y) * WAIST_FRACTION, 0)
+    }
   }
 
-  setRole(_role: StageRole) {
-    // Um importado entra como guitarrista. Sentar um baterista exigiria
-    // saber onde ficam as pernas, e isso o esqueleto não diz de forma
-    // confiável entre ferramentas diferentes.
+  /**
+   * Escolhe o papel e, com ele, a animação.
+   *
+   * O clipe chega depois; até lá o integrante fica na pose de repouso com a
+   * cinemática inversa segurando o instrumento. Quando ele chega e casa com
+   * o esqueleto, **a IK sai de cena**: as duas disputando os mesmos ossos
+   * produziriam uma mistura que não é nem uma coisa nem outra.
+   */
+  setRole(role: StageRole) {
+    if (!this.rig.hips && !this.animated) return
+    void loadClip(role as ClipRole).then((clip) => {
+      if (!clip || this.disposed) return
+      const fitted = retarget(clip, this.root)
+      if (!fitted) return
+      this.mixer = new THREE.AnimationMixer(this.root)
+      this.mixer.clipAction(fitted).play()
+    })
   }
 
   setState(state: PerformanceState) {
@@ -177,6 +202,15 @@ export class ImportedCharacter {
 
   update(dt: number, beatPhase: number) {
     this.clock += dt
+
+    // Com clipe tocando, ele manda no esqueleto inteiro e o resto não roda.
+    if (this.mixer) {
+      this.mixer.update(dt)
+      this.attachment?.update()
+      return
+    }
+    this.attachment?.update()
+
     const energy = 0.35 + this.intensity * 0.65
     const beat = Math.sin(beatPhase * Math.PI * 2)
     const idle = Math.sin(this.clock * 1.6)
@@ -203,7 +237,9 @@ export class ImportedCharacter {
       GUITAR_BODY_OFFSET.z + 0.07,
     )
     this.toChainSpace(this.fretTarget, this.rig.fret!)
-    this.elbowPole.set(0.25, -1, -0.55)
+    // Cotovelo para baixo e para trás, em coordenadas do palco.
+    this.elbowPole.set(0.3, -1, -0.45)
+    this.dirToChainSpace(this.elbowPole, this.rig.fret!)
     solveRestChain(this.rig.fret!, this.fretTarget, this.elbowPole)
 
     const stroke = playing ? Math.sin(beatPhase * Math.PI) * 0.075 * energy * boost : 0
@@ -213,7 +249,8 @@ export class ImportedCharacter {
       GUITAR_BODY_OFFSET.z + 0.1,
     )
     this.toChainSpace(this.pickTarget, this.rig.pick!)
-    this.elbowPole.set(-0.9, -0.45, -0.6)
+    this.elbowPole.set(-0.6, -1, -0.45)
+    this.dirToChainSpace(this.elbowPole, this.rig.pick!)
     solveRestChain(this.rig.pick!, this.pickTarget, this.elbowPole)
   }
 
@@ -239,7 +276,29 @@ export class ImportedCharacter {
     parent.worldToLocal(target)
   }
 
+  /**
+   * Leva uma **direção** de mundo para o espaço da cadeia.
+   *
+   * O vetor de polo — que diz para que lado o cotovelo aponta — é uma
+   * direção, não um ponto: não leva translação nem escala, só o giro. E
+   * precisa ser convertido, porque "para baixo" no palco não é "para baixo"
+   * no espaço de um ombro Mixamo, que chega com a orientação da ferramenta
+   * que exportou. Passar o polo em coordenadas de mundo, como este código
+   * fazia, mandava o cotovelo para uma direção arbitrária em cada rig — e
+   * era o que deixava os braços abertos na horizontal.
+   */
+  private dirToChainSpace(dir: THREE.Vector3, chain: TwoBoneChain) {
+    const parent = chain.root.parent
+    if (!parent) return
+    parent.updateWorldMatrix(true, false)
+    parent.getWorldQuaternion(this.spin)
+    dir.applyQuaternion(this.spin.invert()).normalize()
+  }
+
   dispose() {
+    this.disposed = true
+    this.mixer?.stopAllAction()
+    this.mixer = null
     this.root.traverse((node) => {
       const mesh = node as THREE.Mesh
       if (!mesh.isMesh) return
@@ -335,13 +394,29 @@ function findRig(root: THREE.Object3D): Rig {
     const hand = find(fill(profile.hand))
     if (!upper || !lower || !hand) return null
 
-    // Os comprimentos saem da posição local de cada osso: num esqueleto, a
-    // posição de um osso é o deslocamento em relação ao pai, ou seja, o
-    // comprimento do segmento acima dele. Medir no mundo daria o mesmo
-    // número multiplicado pela escala do modelo, e a IK trabalha no espaço
-    // da cadeia.
-    const upperLength = lower.position.length()
-    const lowerLength = hand.position.length()
+    // Os comprimentos precisam estar no **espaço do pai da cadeia**, que é
+    // onde o alvo chega.
+    //
+    // A primeira versão usava `lower.position.length()`, a posição local do
+    // osso. Parece a medida certa — num esqueleto a posição de um osso é o
+    // comprimento do segmento acima dele —, mas essa medida vive no espaço
+    // do *braço*, e o alvo vive no espaço do *ombro*. Quando os dois têm
+    // escalas diferentes, como num rig Mixamo, a IK compara números de
+    // grandezas diferentes: os ossos do Kairos somavam 176 contra um alvo a
+    // 10 de distância, e a mão era empurrada para o limite do alcance.
+    //
+    // Medir em mundo e dividir pela escala do pai dá os dois na mesma régua.
+    upper.updateWorldMatrix(true, false)
+    lower.updateWorldMatrix(true, false)
+    hand.updateWorldMatrix(true, false)
+    const a = new THREE.Vector3().setFromMatrixPosition(upper.matrixWorld)
+    const b = new THREE.Vector3().setFromMatrixPosition(lower.matrixWorld)
+    const c = new THREE.Vector3().setFromMatrixPosition(hand.matrixWorld)
+    const parentScale = upper.parent
+      ? upper.parent.getWorldScale(new THREE.Vector3()).x || 1
+      : 1
+    const upperLength = a.distanceTo(b) / parentScale
+    const lowerLength = b.distanceTo(c) / parentScale
     if (upperLength <= 0 || lowerLength <= 0) return null
 
     // A pose de repouso é lida uma vez, agora: é dela que todo giro é

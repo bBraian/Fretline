@@ -286,6 +286,69 @@ verdade** ao sair. Sem uma marca de descarte no palco, um arquivo que termina
 de carregar depois da saída seria acrescentado a uma cena já descartada, e
 vazaria memória de GPU.
 
+## Animações prontas — FEITO
+
+Cinemática inversa calcula onde a mão deveria estar e resolve um triângulo.
+O que ela não tem é o resto: rotação de pulso, ombro acompanhando, peso do
+corpo. Clipes do Mixamo trazem isso pronto, e `AnimationMixer` os reproduz.
+
+`character/animationClips.ts` carrega um clipe por papel e o adapta ao
+esqueleto do modelo. Quando um clipe casa, **a IK sai de cena** — as duas
+disputando os mesmos ossos dariam uma mistura que não é nem uma coisa nem
+outra.
+
+### Preparar um FBX do Mixamo
+
+```bash
+# 1. FBX -> glTF (o pacote traz o binário para Linux, Mac e Windows)
+npm i --no-save fbx2gltf
+./node_modules/fbx2gltf/bin/Linux/FBX2glTF --binary \
+  --input "Guitar Playing.fbx" --output guitar-playing.glb
+
+# 2. jogar fora a malha do boneco cinza
+#    (script em tools/, usando @gltf-transform/core)
+```
+
+O segundo passo importa: o arquivo convertido tem 2 MB, e **95% disso é a
+malha do boneco** que vem junto da animação e nunca é desenhada. Só o
+esqueleto e as curvas interessam. Depois de limpar, cada clipe fica entre
+120 e 300 KB.
+
+### Duas traduções necessárias
+
+**Nomes das faixas.** Um clipe endereça `mixamorig:Hips`; o GLTFLoader
+sanitiza nomes e o exportador acrescenta sufixos, então no modelo o mesmo
+osso é `mixamorigHips_01`. O casamento usa o nome reduzido a letras, o mesmo
+critério que acha os ossos do rig.
+
+**Faixas de posição são descartadas.** Elas vêm na escala em que o clipe foi
+exportado, e o modelo foi reescalado para caber no palco: aplicá-las
+esticaria o esqueleto ou faria o integrante sair andando. Rotação não tem
+esse problema.
+
+Um clipe só é aplicado se **metade das faixas casar**. Abaixo disso o
+esqueleto é de outra família, e aplicar o pouco que casou produz um boneco
+torto — pior que não animar.
+
+### O ponto do instrumento passou para o quadril
+
+Preso ao grupo do personagem, ele ficava parado enquanto o corpo se inclinava
+— e com um clipe tocando, o corpo se mexe bastante. Preso ao osso cru,
+herdaria a orientação que cada ferramenta dá ao quadril. A saída foi prender
+ao osso e **desfazer a transformação que ele tem em repouso**: o ponto nasce
+onde nasceria no grupo e daí acompanha o corpo.
+
+### O limite
+
+Os clipes são Mixamo e só casam com esqueletos Mixamo. Dos seis modelos
+importados, **dois são** (Kratos, Deadpool) — então guitarrista e baixista
+tocam de verdade, e os papéis restantes caem na marionete ou na IK, que
+continuam valendo como reserva.
+
+Para animar os quatro papéis, o caminho é ter quatro modelos com rig Mixamo:
+o auto-rigger do Mixamo aceita um modelo sem esqueleto e devolve um rigado,
+o que resolveria também os dois que hoje ficam parados.
+
 ## Ferramentas
 
 | | |

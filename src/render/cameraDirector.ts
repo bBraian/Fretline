@@ -234,6 +234,24 @@ export class CameraDirector {
     return SHOTS.map((shot) => shot.id)
   }
 
+  /**
+   * Trava um plano, ou solta a direção quando recebe `null`.
+   *
+   * É o mesmo efeito de `?shot=` na URL, mas em tempo de execução — o painel
+   * de encaixes precisa disso, porque não dá para ajustar a posição de um
+   * instrumento enquanto a câmera corta sozinha a cada poucos compassos.
+   */
+  lockShot(id: string | null) {
+    this.forced = id ? (SHOTS.find((shot) => shot.id === id) ?? null) : null
+    // Força o próximo quadro a reavaliar em vez de terminar o plano atual.
+    this.initialized = false
+  }
+
+  /** Qual plano está travado agora, se algum. */
+  get lockedShot() {
+    return this.forced?.id ?? null
+  }
+
   setMood(mood: ShotMood) {
     this.mood = mood
   }

@@ -24,6 +24,10 @@
  *
  *   node tools/optimize-models.mjs <pasta-de-origem> [destino]
  *
+ * Animações do Mixamo vêm em FBX e precisam de dois passos antes deste:
+ * converter para glTF e jogar fora a malha do boneco cinza, que é 95% do
+ * peso e nunca é desenhada. Ver `docs/specs/gltf-glb.md`.
+ *
  * O destino padrão é public/models/guitars/.
  */
 

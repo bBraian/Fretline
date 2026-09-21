@@ -1282,16 +1282,8 @@ button {
   área escura — sem o véu, o texto some quando o corpo claro da guitarra
   passa por baixo dele.
 */
-.picker-stage::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 40%;
-  background: linear-gradient(180deg, transparent, rgba(6, 8, 14, 0.85) 65%);
-  pointer-events: none;
-}
+/* O rodapé do visor já tem fundo próprio; o véu escuro que havia aqui
+   apagava a metade de baixo do modelo sem precisar. */
 
 .picker-caption,
 .shop-actions {
@@ -1767,4 +1759,19 @@ button {
    diferentes. */
 .picker-hint {
   transition: color 150ms ease;
+}
+
+/* A legenda do visor perdeu o véu escuro que a destacava, então o contraste
+   passa a vir de contorno no próprio texto — que escurece só a letra, e não
+   a metade de baixo do modelo. */
+.picker-caption h2 {
+  text-shadow: 0 2px 4px #140c05, 0 0 12px rgba(20, 12, 5, 0.9);
+}
+
+.picker-caption p {
+  text-shadow: 0 1px 3px #140c05, 0 0 8px rgba(20, 12, 5, 0.95);
+}
+
+.picker-hint {
+  text-shadow: 0 1px 3px rgba(20, 12, 5, 0.9);
 }

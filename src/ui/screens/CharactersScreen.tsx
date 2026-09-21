@@ -12,7 +12,14 @@ import { ShopActions, ShopTag } from './ShopActions'
 import { BUILD_NAMES, CHARACTERS, characterById } from '../../content/characters'
 import { loadCharacterGlb } from '../../render/character/characterGlb'
 import type { StageCharacter } from '../../render/character/stageCharacter'
-import { CharacterModel, GUITAR_BODY_OFFSET, GUITAR_TILT } from '../../render/character/characterModel'
+import { CharacterModel } from '../../render/character/characterModel'
+import { attachmentFor } from '../../render/character/bandRig'
+import {
+  clearAttachments,
+  registerAttachment,
+  rigPanelEnabled,
+  setRigCharacter,
+} from '../../render/character/rigPanel'
 import { loadGuitarGlb } from '../../render/guitar/guitarGlb'
 import { buildGuitar, type GuitarModel } from '../../render/guitar/guitarModel'
 import { guitarById } from '../../content/guitars'
@@ -45,15 +52,32 @@ export function CharactersScreen() {
     // laço da prévia, já que não há música por trás.
     let frame = 0
     let last = performance.now()
+    let congelado = false
     const tick = () => {
       const now = performance.now()
       const dt = Math.min(0.05, (now - last) / 1000)
       last = now
       // 100 BPM de mentirinha, só para a pose ter pulso.
-      modelRef.current?.update(dt, ((now / 600) % 1))
+      modelRef.current?.update(congelado ? 0 : dt, (now / 600) % 1)
       frame = requestAnimationFrame(tick)
     }
     frame = requestAnimationFrame(tick)
+
+    // Os mesmos ganchos que o palco publica, no que faz sentido aqui: o
+    // visor não tem cortes de câmera (quem gira é o ponteiro), mas congelar
+    // a animação é o que permite ajustar sem a pose mudando debaixo do
+    // controle.
+    if (rigPanelEnabled()) {
+      ;(window as unknown as { __rigScene?: unknown }).__rigScene = {
+        shots: [],
+        lockShot: () => {},
+        lockedShot: () => null,
+        setFrozen: (value: boolean) => {
+          congelado = value
+        },
+        isFrozen: () => congelado,
+      }
+    }
 
     return () => {
       cancelAnimationFrame(frame)
@@ -68,71 +92,76 @@ export function CharactersScreen() {
     if (!preview) return
 
     const escolhido = characterById(shownId)
-    const model: StageCharacter = new CharacterModel(escolhido)
-    model.setState('playing')
-    model.setIntensity(0.8)
-
-    // Uma guitarra tem por volta de um metro contra 1,78m de pessoa; o
-    // modelo mede ~2,5 unidades de ponta a ponta, daí a escala.
-    const pendurar = (guitar: GuitarModel) => {
-      guitar.group.scale.setScalar(0.36)
-      guitar.group.rotation.set(-0.1, 0.22, -GUITAR_TILT)
-      guitar.group.position.set(GUITAR_BODY_OFFSET.x, GUITAR_BODY_OFFSET.y, GUITAR_BODY_OFFSET.z)
-      model.instrumentAnchor.add(guitar.group)
-    }
-
-    // Mesma troca do palco: a construída em código entra na hora e a de
-    // arquivo a substitui ao chegar, para o personagem nunca aparecer de
-    // mãos vazias.
     const escolhida = guitarById(guitarId)
-    let atual = buildGuitar(escolhida)
-    pendurar(atual)
 
     let descartado = false
+    // Corpo e guitarra chegam de arquivos diferentes, cada um no seu tempo.
+    // Guardar os dois em variáveis e reconstruir o vínculo a cada chegada
+    // evita a corrida que havia aqui: quando o corpo chegava primeiro, a
+    // guitarra de arquivo era pendurada na marionete já descartada, e o
+    // personagem ficava com a construída em código na mão.
+    let corpo: StageCharacter = new CharacterModel(escolhido)
+    let guitarra: GuitarModel = buildGuitar(escolhida)
+
+    /** Põe a guitarra de agora no corpo de agora, na pose da tabela. */
+    const montar = () => {
+      const a = attachmentFor('guitar', shownId)
+      const aplicar = () => {
+        guitarra.group.scale.setScalar(a.scale)
+        guitarra.group.position.set(...a.position)
+        guitarra.group.rotation.set(...a.rotation)
+      }
+      aplicar()
+      corpo.instrumentAnchor.add(guitarra.group)
+      // Com `?rig`, os controles editam este encaixe — e a chave do bloco
+      // copiado é o personagem que está no visor.
+      setRigCharacter(shownId)
+      registerAttachment('guitar', a, guitarra.group, aplicar, shownId)
+    }
+
+    const mostrar = () => {
+      corpo.setState('playing')
+      corpo.setIntensity(0.8)
+      montar()
+      modelRef.current = corpo
+      preview.setModel(corpo.group, () => {})
+    }
+
+    mostrar()
+
     if (escolhida.model) {
       void loadGuitarGlb(escolhida.model, escolhida, escolhida.modelAdjust)
         .then((importada) => {
-          if (descartado) {
-            importada.dispose()
-            return
-          }
-          model.instrumentAnchor.remove(atual.group)
-          atual.dispose()
-          pendurar(importada)
-          atual = importada
+          if (descartado) return importada.dispose()
+          corpo.instrumentAnchor.remove(guitarra.group)
+          guitarra.dispose()
+          guitarra = importada
+          montar()
         })
         .catch((erro) => console.error(`não deu para carregar ${escolhida.model}`, erro))
     }
 
-    // O integrante de arquivo substitui a marionete quando chega, levando a
-    // guitarra junto — ela está pendurada no ponto de instrumento, que cada
-    // um tem o seu.
-    let corpo: StageCharacter = model
     if (escolhido.model) {
       void loadCharacterGlb({ url: escolhido.model, adjust: escolhido.modelAdjust })
         .then((importado) => {
-          if (descartado) {
-            importado.dispose()
-            return
-          }
-          importado.setState('playing')
-          importado.setIntensity(0.8)
-          model.instrumentAnchor.remove(atual.group)
-          importado.instrumentAnchor.add(atual.group)
-          preview.setModel(importado.group, () => importado.dispose())
-          corpo.dispose()
+          if (descartado) return importado.dispose()
+          corpo.instrumentAnchor.remove(guitarra.group)
+          const antigo = corpo
           corpo = importado
-          modelRef.current = importado
+          corpo.setRole('guitar')
+          antigo.dispose()
+          mostrar()
         })
         .catch((erro) => console.error(`não deu para carregar ${escolhido.model}`, erro))
     }
 
-    modelRef.current = model
-    preview.setModel(model.group, () => {
+    return () => {
       descartado = true
-      atual.dispose()
+      clearAttachments()
+      guitarra.dispose()
       corpo.dispose()
-    })
+      modelRef.current = null
+    }
   }, [shownId, guitarId])
 
   const shown = characterById(shownId)

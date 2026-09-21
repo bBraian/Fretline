@@ -14,6 +14,13 @@ export interface StageCharacter {
   readonly group: THREE.Group
   /** Onde a guitarra pendura. */
   readonly instrumentAnchor: THREE.Group
+  /**
+   * Mão que segura o microfone.
+   *
+   * Está no contrato porque o palco pendura coisa nela, e um integrante
+   * importado precisa oferecer o mesmo ponto que a marionete.
+   */
+  readonly pickHand: THREE.Object3D
   setRole(role: StageRole): void
   setState(state: PerformanceState): void
   setIntensity(value: number): void

@@ -70,6 +70,10 @@ export class GameScene {
   private bloom: UnrealBloomPass | null = null
   private quality: Quality
   private director: CameraDirector
+  /** Painel de encaixes: congela a banda e os cortes de câmera. */
+  private frozen = false
+  /** Instante em que congelou, para o diretor não avançar de plano. */
+  private frozenAt: number | null = null
   private environment: THREE.Texture | null = null
   private camera: THREE.PerspectiveCamera
   private highway: Highway
@@ -153,6 +157,20 @@ export class GameScene {
     this.addHighwayLighting()
 
     this.director = new CameraDirector(16 / 9)
+
+    // Ganchos do painel de encaixes (`?rig`). Ficam no objeto da cena para o
+    // painel não precisar conhecer o caminho até o diretor de câmera.
+    if (new URLSearchParams(location.search).has('rig')) {
+      ;(window as unknown as { __rigScene?: unknown }).__rigScene = {
+        shots: CameraDirector.shotIds(),
+        lockShot: (id: string | null) => this.director.lockShot(id),
+        lockedShot: () => this.director.lockedShot,
+        setFrozen: (value: boolean) => {
+          this.frozen = value
+        },
+        isFrozen: () => this.frozen,
+      }
+    }
     // A câmera do diretor é filha do palco: assim todo plano é escrito em
     // coordenadas do palco, e mover o palco não exige refazer os planos.
     this.stage.group.add(this.director.camera)
@@ -278,14 +296,26 @@ export class GameScene {
     this.highway.setDanger(state.rockMeter < 0.25 ? 1 - state.rockMeter / 0.25 : 0)
     this.highway.update(dt, songTime + this.videoOffset, this.noteSpeed)
 
-    this.effects.update(dt, this.camera.quaternion)
+    this.effects.update(this.frozen ? 0 : dt, this.camera.quaternion)
     this.stage.setPerformance(this.performanceState(), this.excitement(), state.starPowerActive ? 1 : 0)
-    this.stage.update(dt, beatPhase)
+    // Congelado, a banda não avança — é o que permite ajustar a posição de
+    // um instrumento sem ele se mexer debaixo do controle.
+    this.stage.update(this.frozen ? 0 : dt, beatPhase)
 
-    this.updateCamera(dt, beatPhase)
+    this.updateCamera(this.frozen ? 0 : dt, beatPhase)
 
     this.director.setMood(this.mood())
-    this.director.update(dt, songTime, this.beats, beatPhase)
+    // Congelado, o diretor também para no tempo: passar o `songTime` que
+    // continua correndo faria o plano vencer e a câmera cortar mesmo com
+    // `dt` zerado.
+    if (this.frozenAt == null) this.frozenAt = this.frozen ? songTime : null
+    if (!this.frozen) this.frozenAt = null
+    this.director.update(
+      this.frozen ? 0 : dt,
+      this.frozenAt ?? songTime,
+      this.beats,
+      beatPhase,
+    )
 
     if (this.composer && this.bloom) {
       // O brilho aumenta no star power: é o efeito que diz, sem texto, que o

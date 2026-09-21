@@ -9,10 +9,16 @@
  */
 
 import * as THREE from 'three'
-import { CharacterModel, GUITAR_BODY_OFFSET, GUITAR_TILT, type PerformanceState } from './character/characterModel'
+import {
+  CharacterModel,
+  type PerformanceState,
+} from './character/characterModel'
 import { buildGuitar, type GuitarModel } from './guitar/guitarModel'
 import { loadCharacterGlb } from './character/characterGlb'
 import type { StageCharacter } from './character/stageCharacter'
+import { loadBandMember, type BandRole } from './character/bandMember'
+import { ATTACHMENTS } from './character/bandRig'
+import { registerAttachment } from './character/rigPanel'
 import { loadProp, STAGE_PROPS } from './props'
 import { loadGuitarGlb } from './guitar/guitarGlb'
 import { CHARACTERS, characterById, type Character } from '../content/characters'
@@ -28,7 +34,7 @@ export class Stage {
 
   private guitarist: StageCharacter
   private guitarModel: GuitarModel
-  private bandmates: CharacterModel[] = []
+  private bandmates: StageCharacter[] = []
   private rig: LightRig
   private haze: THREE.Mesh[] = []
   private crowdWash: THREE.PointLight[] = []
@@ -435,17 +441,28 @@ export class Stage {
     // arquivo aqui atrasaria o início da música, e um guitarrista de mão
     // vazia no palco é pior que uma guitarra provisória.
     const model = buildGuitar(guitar)
-    this.poseGuitar(model, 0.36)
+    this.poseInstrument(model.group, 'guitar')
     this.guitarist.instrumentAnchor.add(model.group)
     if (guitar.model) void this.swapInImported(guitar)
     return model
   }
 
-  /** Pendura a guitarra na mão do personagem, no ângulo de quem a segura. */
-  private poseGuitar(model: GuitarModel, scale: number) {
-    model.group.scale.setScalar(scale)
-    model.group.rotation.set(-0.1, 0.22, -GUITAR_TILT)
-    model.group.position.set(GUITAR_BODY_OFFSET.x, GUITAR_BODY_OFFSET.y, GUITAR_BODY_OFFSET.z)
+  /**
+   * Põe um instrumento no lugar, lendo a tabela de encaixes.
+   *
+   * Todos os números vêm de `character/bandRig.ts`, e só de lá: é o que
+   * permite ajustá-los com o painel de `?rig` sem caçar valores espalhados
+   * pelo código.
+   */
+  private poseInstrument(group: THREE.Object3D, chave: keyof typeof ATTACHMENTS) {
+    const a = ATTACHMENTS[chave]
+    const aplicar = () => {
+      group.scale.setScalar(a.scale)
+      group.position.set(...a.position)
+      group.rotation.set(...a.rotation)
+    }
+    aplicar()
+    registerAttachment(chave, a, group, aplicar)
   }
 
   /**
@@ -465,7 +482,7 @@ export class Stage {
       }
       this.guitarist.instrumentAnchor.remove(this.guitarModel.group)
       this.guitarModel.dispose()
-      this.poseGuitar(imported, 0.36)
+      this.poseInstrument(imported.group, 'guitar')
       this.guitarist.instrumentAnchor.add(imported.group)
       this.guitarModel = imported
     } catch (erro) {
@@ -475,11 +492,53 @@ export class Stage {
     }
   }
 
+  /**
+   * Troca um integrante de apoio pelo modelo fixo, com animação própria.
+   *
+   * Baixista, cantor e baterista **não são escolha do jogador** — só o
+   * guitarrista é. Cada um vem de um arquivo que já traz corpo, esqueleto e
+   * animação casados, o que dispensa adaptar clipe a esqueleto alheio.
+   *
+   * O que estiver pendurado no integrante provisório — baixo, microfone —
+   * muda de dono junto: pertence ao papel, não ao corpo.
+   */
+  private swapInBandMember(slot: number, role: BandRole, position: THREE.Vector3, turn: number) {
+    void loadBandMember(role)
+      .then((membro) => {
+        const antigo = this.bandmates[slot]
+        if (this.destroyed || !antigo) {
+          membro.dispose()
+          return
+        }
+        membro.group.position.copy(position)
+        membro.group.rotation.y = turn
+
+        for (const filho of [...antigo.instrumentAnchor.children]) {
+          membro.instrumentAnchor.add(filho)
+        }
+        for (const filho of [...antigo.pickHand.children]) {
+          membro.pickHand.add(filho)
+        }
+
+        this.group.remove(antigo.group)
+        antigo.dispose()
+        this.group.add(membro.group)
+        this.bandmates[slot] = membro
+      })
+      .catch((erro) => console.error(`não deu para carregar o ${role}`, erro))
+  }
+
   private buildBandmates() {
     // Baixista, vocalista e baterista saem do elenco, evitando duplicar o
     // guitarrista. Cada um recebe o próprio papel: é o que separa uma banda
     // de quatro guitarristas em posições diferentes.
-    const others = CHARACTERS.filter((c) => c.id !== this.currentCharacterId)
+    // Quem tem modelo de arquivo **e** esqueleto vem primeiro: são os que
+    // podem receber as animações de tocar, e há mais papéis no palco do que
+    // modelos rigados. Os demais continuam marionetes, que já têm animação
+    // própria feita à mão.
+    const others = CHARACTERS.filter((c) => c.id !== this.currentCharacterId).sort(
+      (a, b) => Number(!!b.model && b.animated !== false) - Number(!!a.model && a.animated !== false),
+    )
 
     const bassist = new CharacterModel(others[0] ?? CHARACTERS[1])
     bassist.setRole('bass')
@@ -487,7 +546,7 @@ export class Stage {
     bassist.group.rotation.y = -0.34
     const bass = buildGuitar(BASS_PROP)
     // O baixo é maior que a guitarra e tem o braço mais comprido.
-    this.poseGuitar(bass, 0.42)
+    this.poseInstrument(bass.group, 'bass')
     // Um baixo é uma guitarra, então reaproveita a normalização dela; o
     // `scale` compensa o corpo e o braço maiores.
     void loadGuitarGlb(STAGE_PROPS.bass, BASS_PROP, { scale: 1.15 })
@@ -498,7 +557,7 @@ export class Stage {
         }
         bassist.instrumentAnchor.remove(bass.group)
         bass.dispose()
-        this.poseGuitar(imported, 0.42)
+        this.poseInstrument(imported.group, 'bass')
         bassist.instrumentAnchor.add(imported.group)
         this.disposables.push(imported)
       })
@@ -507,6 +566,7 @@ export class Stage {
     this.group.add(bassist.group)
     this.bandmates.push(bassist)
     this.disposables.push(bass)
+    this.swapInBandMember(0, 'bass', new THREE.Vector3(2.7, 0, -0.9), -0.34)
 
     const singer = new CharacterModel(others[1] ?? CHARACTERS[2])
     singer.setRole('vocals')
@@ -514,17 +574,21 @@ export class Stage {
     singer.group.rotation.y = 0.1
     this.group.add(singer.group)
     this.bandmates.push(singer)
+    this.swapInBandMember(1, 'vocals', new THREE.Vector3(-0.1, 0, 3.4), 0.1)
 
     // Microfone na mão, não num pedestal à parte: assim ele acompanha o
     // gesto do braço em vez de ficar parado enquanto a mão se mexe.
     const micHand = singer.pickHand
-    void loadProp({ url: STAGE_PROPS.mic, size: 0.2, anchor: 'center', rotate: [-0.5, 0, 0] })
+    void loadProp({ url: STAGE_PROPS.mic, size: 1, anchor: 'center' })
       .then((prop) => {
         if (this.destroyed) {
           prop.dispose()
           return
         }
-        prop.group.position.set(0, -0.12, 0.03)
+        // O microfone vai na mão, e a mão é do cantor — que pode ainda ser o
+        // provisório neste instante. O ponto de encaixe segue o integrante
+        // que estiver no lugar, porque a troca leva os filhos junto.
+        this.poseInstrument(prop.group, 'mic')
         micHand.add(prop.group)
         this.disposables.push(prop)
       })
@@ -535,6 +599,8 @@ export class Stage {
     drummer.group.position.set(0, 0.42, -4.1)
     this.group.add(drummer.group)
     this.bandmates.push(drummer)
+    // O baterista senta atrás do kit, que está em z = -3,5.
+    this.swapInBandMember(2, 'drums', new THREE.Vector3(0, 0.42, -4.35), 0)
 
     // Banquinho, para o baterista não ficar sentado no ar.
     const stool = new THREE.Mesh(
