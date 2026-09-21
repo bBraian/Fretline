@@ -245,6 +245,47 @@ de comprimir, o que as traz para o metallic-roughness padrão.
   baterista exigiria saber onde estão as pernas, e isso o esqueleto não diz
   de forma confiável entre ferramentas.
 
+## Adereços de palco — FEITOS
+
+Bateria, microfone e baixo também vêm de arquivo. Diferente de guitarras e
+integrantes, **não são escolha do jogador** — são cenário —, então não têm
+entrada em `content/`: os caminhos ficam em `STAGE_PROPS`, no próprio
+`render/props.ts`, e o palco os carrega direto.
+
+`loadProp` normaliza menos que o carregador de guitarra, porque um adereço
+não precisa de eixo de braço nem de face de frente: basta escala uniforme
+pela maior dimensão e assentar a base em `y=0` (ou centralizar, para o que
+é preso na mão).
+
+O baixo é exceção: um baixo **é** uma guitarra, e passa pelo
+`loadGuitarGlb` com `scale` compensando o corpo e o braço maiores.
+
+### Escolher entre dois arquivos
+
+Vieram dois kits de bateria e dois baixos. Os pesos decidiram:
+
+| | vértices | depois de otimizar |
+|---|---|---|
+| `drum_kit` | 354.826 | 6,75 MB |
+| `drum_set_with_blender_armature` | 62.412 | 0,73 MB |
+
+As texturas dos dois somavam quase nada — a diferença era geometria pura.
+Para uma bateria que fica no fundo do palco, o kit pesado seria mais
+polígonos que o jogo inteiro desenha por quadro. Os arquivos não escolhidos
+foram apagados.
+
+### O kit fica à frente do baterista
+
+A plateia está em `+z` e o baterista senta em `z = -4,1`. O kit importado
+foi para `z = -3,5`: mais ao fundo, ficaria atrás de quem toca.
+
+### Marca de descarte
+
+Adereço chega de forma assíncrona, e a tela de jogo é **desmontada de
+verdade** ao sair. Sem uma marca de descarte no palco, um arquivo que termina
+de carregar depois da saída seria acrescentado a uma cena já descartada, e
+vazaria memória de GPU.
+
 ## Ferramentas
 
 | | |

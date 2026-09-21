@@ -13,6 +13,7 @@ import { CharacterModel, GUITAR_BODY_OFFSET, GUITAR_TILT, type PerformanceState 
 import { buildGuitar, type GuitarModel } from './guitar/guitarModel'
 import { loadCharacterGlb } from './character/characterGlb'
 import type { StageCharacter } from './character/stageCharacter'
+import { loadProp, STAGE_PROPS } from './props'
 import { loadGuitarGlb } from './guitar/guitarGlb'
 import { CHARACTERS, characterById, type Character } from '../content/characters'
 import { BASS_PROP, guitarById, type Guitar } from '../content/guitars'
@@ -35,6 +36,14 @@ export class Stage {
   private crowdSeeds: Float32Array
   private crowdDummy = new THREE.Object3D()
   private disposables: Array<{ dispose(): void }> = []
+  /**
+   * Verdadeiro depois de `dispose`.
+   *
+   * Os adereços chegam de forma assíncrona, e a tela de jogo é desmontada de
+   * verdade ao sair — sem esta marca, um arquivo que termina de carregar
+   * depois da saída seria acrescentado a uma cena já descartada, e vazaria.
+   */
+  private destroyed = false
 
   private clock = 0
   private starPower = 0
@@ -224,6 +233,23 @@ export class Stage {
     }
 
     this.group.add(kit)
+
+    // Kit importado por cima do construído em código, que fica no lugar até
+    // o arquivo chegar — o palco nunca aparece sem bateria.
+    // O kit fica **à frente** do baterista, que senta em z = -4,1: a plateia
+    // está em +z, então um kit mais ao fundo ficaria atrás de quem toca.
+    void loadProp({ url: STAGE_PROPS.drums, size: 2.9, anchor: 'bottom' })
+      .then((prop) => {
+        if (this.destroyed) {
+          prop.dispose()
+          return
+        }
+        this.group.remove(kit)
+        prop.group.position.set(0, 0, -3.5)
+        this.group.add(prop.group)
+        this.disposables.push(prop)
+      })
+      .catch((erro) => console.error(`não deu para carregar ${STAGE_PROPS.drums}`, erro))
   }
 
   private buildAmbientLight() {
@@ -462,6 +488,21 @@ export class Stage {
     const bass = buildGuitar(BASS_PROP)
     // O baixo é maior que a guitarra e tem o braço mais comprido.
     this.poseGuitar(bass, 0.42)
+    // Um baixo é uma guitarra, então reaproveita a normalização dela; o
+    // `scale` compensa o corpo e o braço maiores.
+    void loadGuitarGlb(STAGE_PROPS.bass, BASS_PROP, { scale: 1.15 })
+      .then((imported) => {
+        if (this.destroyed) {
+          imported.dispose()
+          return
+        }
+        bassist.instrumentAnchor.remove(bass.group)
+        bass.dispose()
+        this.poseGuitar(imported, 0.42)
+        bassist.instrumentAnchor.add(imported.group)
+        this.disposables.push(imported)
+      })
+      .catch((erro) => console.error(`não deu para carregar ${STAGE_PROPS.bass}`, erro))
     bassist.instrumentAnchor.add(bass.group)
     this.group.add(bassist.group)
     this.bandmates.push(bassist)
@@ -476,20 +517,18 @@ export class Stage {
 
     // Microfone na mão, não num pedestal à parte: assim ele acompanha o
     // gesto do braço em vez de ficar parado enquanto a mão se mexe.
-    const micBody = new THREE.Mesh(
-      this.track(new THREE.CylinderGeometry(0.018, 0.022, 0.15, 10)),
-      this.track(new THREE.MeshStandardMaterial({ color: 0x1b1d23, roughness: 0.5, metalness: 0.6 })),
-    )
-    micBody.position.set(0, -0.09, 0.02)
-    micBody.rotation.x = -0.5
-    singer.pickHand.add(micBody)
-
-    const micHead = new THREE.Mesh(
-      this.track(new THREE.SphereGeometry(0.033, 12, 10)),
-      this.track(new THREE.MeshStandardMaterial({ color: 0x3a3f4a, roughness: 0.35, metalness: 0.85 })),
-    )
-    micHead.position.set(0, -0.16, 0.055)
-    singer.pickHand.add(micHead)
+    const micHand = singer.pickHand
+    void loadProp({ url: STAGE_PROPS.mic, size: 0.2, anchor: 'center', rotate: [-0.5, 0, 0] })
+      .then((prop) => {
+        if (this.destroyed) {
+          prop.dispose()
+          return
+        }
+        prop.group.position.set(0, -0.12, 0.03)
+        micHand.add(prop.group)
+        this.disposables.push(prop)
+      })
+      .catch((erro) => console.error(`não deu para carregar ${STAGE_PROPS.mic}`, erro))
 
     const drummer = new CharacterModel(others[2] ?? CHARACTERS[3])
     drummer.setRole('drums')
@@ -643,6 +682,7 @@ export class Stage {
   }
 
   dispose() {
+    this.destroyed = true
     this.guitarist.dispose()
     this.guitarModel.dispose()
     for (const mate of this.bandmates) mate.dispose()
