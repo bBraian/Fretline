@@ -67,6 +67,48 @@ export const ATTACHMENTS: Record<string, Attachment> = {
 }
 
 /**
+ * Onde cada um fica no palco.
+ *
+ * Mesma forma dos encaixes, e o painel de `?rig` os edita do mesmo jeito —
+ * mas aqui `position` é o lugar no palco, e não um deslocamento a partir de
+ * um osso. `bone` fica em `palco` para deixar isso claro na tela.
+ *
+ * Eixos: **+X à direita**, **+Y para cima**, **+Z na direção da plateia**. O
+ * guitarrista fica à esquerda, o baixista à direita, o cantor à frente e a
+ * bateria ao fundo.
+ *
+ * `rotation` usa só o eixo Y na prática — é para que lado a pessoa olha.
+ * `scale` multiplica o tamanho do integrante, que por padrão é normalizado
+ * para 1,78m.
+ */
+export const STAGE_PLACEMENT: Record<string, Attachment> = {
+  drummer: {
+    bone: 'palco',
+    position: [-0.04, 0.205, -4.35],
+    rotation: [0.198, -0.362, -0.022],
+    scale: 0.97,
+  },
+  drumKit: {
+    bone: 'palco',
+    position: [0, 0, -3.5],
+    rotation: [0, 0, 0],
+    scale: 2.9,
+  },
+  bassist: {
+    bone: 'palco',
+    position: [2.7, 0, -0.9],
+    rotation: [0, -0.34, 0],
+    scale: 1,
+  },
+  singer: {
+    bone: 'palco',
+    position: [-0.1, 0, 3.4],
+    rotation: [0, 0.1, 0],
+    scale: 1,
+  },
+}
+
+/**
  * Ajustes por personagem, somados aos valores acima.
  *
  * **Varia mesmo?** Varia, e por um motivo só: o giro. A altura já é
@@ -90,9 +132,9 @@ export const CHARACTER_ADJUSTMENTS: Record<string, Partial<Attachment>> = {
     scale: 0.38,
   },
   'glb-dead_pool': {
-    position: [-0.025, 0.05, 0.19],
-    rotation: [-0.142, -0.242, -1.242],
-    scale: 0.4,
+    position: [-0.07, 0.04, 0.175],
+    rotation: [-0.1, -0.302, -1.222],
+    scale: 0.36,
   },
 }
 

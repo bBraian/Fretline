@@ -81,6 +81,7 @@ export interface GlbAdjust {
 const ROSEWOOD = 0x3a2118
 const EBONY = 0x14100e
 const MAHOGANY = 0x6b3f2a
+const GOLD = 0xd4af37
 const CHROME = 0xd4d8de
 const BLACK_HW = 0x2a2a30
 
@@ -138,16 +139,23 @@ const HALF_TURN = Math.PI
  * heurística que acerte sempre.
  */
 const IMPORTED: Guitar[] = ([
-  // arquivo, nome, descrição, silhueta, cor da bolinha, estrelas, preço, ajuste
-  ['electric_guitar', 'Stratos', 'Corte duplo clássico, três captadores', 'super-strat', 0xd8d3c8, 0, 0, undefined],
-  ['white_electric_guitar', 'Alvorada', 'Branca inteira, escudo claro', 'offset', 0xe8e6e1, 5, 3000, undefined],
-  ['electric_guitar-1', 'Vanguarda', 'Tampo trabalhado, ferragem escura', 'double-cut', 0x8c3b2a, 12, 6500, undefined],
-  ['guitar', 'Oficina', 'Madeira à mostra, ferragem cromada', 'single-cut', 0x7a4a24, 20, 9500, { flip: false }],
-  ['electric_guitar_explorer', 'Angular XR', 'Corpo angular, atitude de arena', 'explorer', 0x2f2f33, 30, 14000, { roll: HALF_TURN }],
-  ['electric_guitar_lowpoly_model', 'Prisma', 'Poucas faces, silhueta limpa', 'tele', 0xc2a15a, 42, 18000, { flip: false }],
-  ['flying-v_electric_guitar', 'Flecha', 'O V de sempre, sem meio-termo', 'v', 0x9b1c1c, 55, 24000, { flip: false, roll: HALF_TURN }],
-  ['electric_guitar_dragons_v1.2', 'Dragão', 'Entalhe de dragão no corpo inteiro', 'single-cut', 0x6b2f1e, 70, 32000, undefined],
-] as const).map(([file, name, brandless, shape, body, unlockAtStars, price, modelAdjust]) => ({
+  // Em ordem de conquista, da mais simples à mais desejada.
+  //
+  // `colors.body` é a cor que a lista mostra na bolinha e a que a pista
+  // empresta; `colors.hardware` e `pickguard` completam a leitura de cada
+  // uma. A geometria vem do arquivo — estes campos descrevem o instrumento
+  // para o resto do jogo, não o desenham.
+  //
+  // arquivo, nome, descrição, silhueta, corpo, ferragem, escudo, estrelas, preço, ajuste
+  ['electric_guitar', 'Stratos', 'Corte duplo, sunburst marrom com o miolo claro', 'super-strat', 0x8a4a22, CHROME, 0xf2e6cf, 0, 0, undefined],
+  ['electric_guitar_dragons_v1.2', 'Dragão', 'Corte duplo preto, miolo branco e entalhe no corpo', 'super-strat', 0x15161a, CHROME, 0xf4f4f2, 8, 4000, undefined],
+  ['guitar', 'Oficina', 'Chifres duplos em marrom, escudo claro', 'sg', 0x7a3f1d, CHROME, 0xf0e8da, 16, 8000, { flip: false }],
+  ['flying-v_electric_guitar', 'Flecha', 'O V preto com filete branco', 'v', 0x121214, CHROME, 0xf5f5f5, 26, 13000, { flip: false }],
+  ['electric_guitar_explorer', 'Angular XR', 'Corpo angular preto, escudo branco', 'explorer', 0x141417, CHROME, 0xfafafa, 36, 18000, { roll: HALF_TURN }],
+  ['white_electric_guitar', 'Alvorada', 'Branca inteira, da ponta ao headstock', 'offset', 0xf0efec, CHROME, 0xe8e6e1, 48, 24000, undefined],
+  ['electric_guitar-1', 'Vanguarda', 'Corte simples preto com ferragem dourada', 'single-cut', 0x101013, GOLD, 0xc9a227, 60, 32000, undefined],
+  ['electric_guitar_lowpoly_model', 'Prisma', 'Feita sob medida: preta com nervuras vermelhas', 'super-strat', 0x141416, BLACK_HW, 0xb2231f, 75, 42000, { flip: false }],
+] as const).map(([file, name, brandless, shape, body, hardware, pickguard, unlockAtStars, price, modelAdjust]) => ({
   id: `glb-${file}`,
   name: name as string,
   brandless: brandless as string,
@@ -158,8 +166,8 @@ const IMPORTED: Guitar[] = ([
     body: body as number,
     neck: MAHOGANY,
     fretboard: ROSEWOOD,
-    hardware: CHROME,
-    pickguard: BLACK_HW,
+    hardware,
+    pickguard,
   },
   gloss: 0.9,
   aura: 0.9,

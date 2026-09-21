@@ -31,6 +31,7 @@ import { HitEffects } from './effects'
 import { Stage } from './stage'
 import { DEFAULT_NOTE_SPEED } from './layout'
 import { CameraDirector, type ShotMood } from './cameraDirector'
+import { guitarById } from '../content/guitars'
 import type { PerformanceState } from './character/characterModel'
 
 /**
@@ -79,7 +80,8 @@ export class GameScene {
   private frozenAt: number | null = null
   private environment: THREE.Texture | null = null
   private camera: THREE.PerspectiveCamera
-  private highway: Highway
+  /** Público para conferência do tema da pista com `?debug`. */
+  readonly highway: Highway
   private notes: NoteField
   private effects: HitEffects
   private stage: Stage
@@ -159,7 +161,19 @@ export class GameScene {
     }
     this.addHighwayLighting()
 
+    // A pista veste as cores da guitarra escolhida.
+    this.highway.setGuitarTheme(
+      guitarById(options.guitarId).colors.body,
+      guitarById(options.guitarId).colors.hardware,
+    )
+
     this.director = new CameraDirector(16 / 9)
+
+    // O three inteiro, para conferência: permite lançar raios a partir de um
+    // pixel e perguntar à cena o que está ali.
+    if (new URLSearchParams(location.search).has('debug')) {
+      ;(window as unknown as { __THREE?: unknown }).__THREE = THREE
+    }
 
     // Ganchos do painel de encaixes (`?rig`). Ficam no objeto da cena para o
     // painel não precisar conhecer o caminho até o diretor de câmera.

@@ -13,7 +13,12 @@
  */
 
 import * as THREE from 'three'
-import { ATTACHMENTS, CHARACTER_ADJUSTMENTS, type Attachment } from './bandRig'
+import {
+  ATTACHMENTS,
+  CHARACTER_ADJUSTMENTS,
+  STAGE_PLACEMENT,
+  type Attachment,
+} from './bandRig'
 
 interface Live {
   nome: string
@@ -169,7 +174,9 @@ function render() {
     const nome = document.createElement('h4')
     nome.textContent = editando
       ? `${item.nome} · ${editando}`
-      : `${item.nome} · osso ${item.attachment.bone}`
+      : item.attachment.bone === 'palco'
+        ? `${item.nome} · posição no palco`
+        : `${item.nome} · osso ${item.attachment.bone}`
     bloco.appendChild(nome)
 
     const eixos = ['x', 'y', 'z'] as const
@@ -271,10 +278,20 @@ function snippet() {
     return `export const CHARACTER_ADJUSTMENTS: Record<string, Partial<Attachment>> = {\n${entradas.join('\n')}\n}`
   }
 
-  const corpo = Object.entries(ATTACHMENTS)
-    .map(([chave, a]) => `  ${chave}: {\n${corpoDe(a)}\n  },`)
-    .join('\n')
-  return `export const ATTACHMENTS: Record<string, Attachment> = {\n${corpo}\n}`
+  // No palco há encaixes de instrumento e posições de gente; o bloco sai com
+  // os dois, cada um na sua tabela, para colar direto no `bandRig.ts`.
+  const tabela = (nome: string, entradas: Record<string, Attachment>) => {
+    const vistos = registrados.filter((r) => r.nome in entradas)
+    if (!vistos.length) return ''
+    const corpo = vistos
+      .map((r) => `  ${r.nome}: {\n${corpoDe(r.attachment)}\n  },`)
+      .join('\n')
+    return `export const ${nome}: Record<string, Attachment> = {\n${corpo}\n}`
+  }
+
+  return [tabela('ATTACHMENTS', ATTACHMENTS), tabela('STAGE_PLACEMENT', STAGE_PLACEMENT)]
+    .filter(Boolean)
+    .join('\n\n')
 }
 
 function injectStyle() {

@@ -243,6 +243,42 @@ export class Highway {
     this.pressed = mask
   }
 
+  /**
+   * Veste a pista com as cores da guitarra equipada.
+   *
+   * No original o braço acompanha o instrumento, e é o que faz a escolha da
+   * loja valer também durante a música — antes a pista era sempre a mesma,
+   * e trocar de guitarra só mudava o que a banda segurava ao fundo.
+   *
+   * A cor do corpo entra escurecida: a pista fica atrás das notas o tempo
+   * todo, e um fundo claro apaga os cinco trastes, que é a única coisa que
+   * o jogador precisa enxergar. O que se busca é a família da cor, não o
+   * tom exato.
+   */
+  setGuitarTheme(body: number, hardware: number) {
+    // Escurecer por multiplicação, e não por HSL.
+    //
+    // `setHSL` escreve em espaço linear e o resultado sai bem mais claro do
+    // que o número sugere — uma guitarra branca virava uma pista cinza-clara
+    // que apagava os cinco trastes. Multiplicar mantém a família da cor e é
+    // previsível.
+    const base = new THREE.Color(body).multiplyScalar(0.05)
+    const edge = new THREE.Color(hardware).multiplyScalar(0.12)
+
+    // Piso mínimo: uma guitarra preta não pode produzir uma pista invisível,
+    // onde as linhas de compasso e as divisórias somem.
+    const piso = new THREE.Color(0x101420)
+    base.r = Math.max(base.r, piso.r)
+    base.g = Math.max(base.g, piso.g)
+    base.b = Math.max(base.b, piso.b)
+    edge.r = Math.max(edge.r, piso.r * 1.6)
+    edge.g = Math.max(edge.g, piso.g * 1.6)
+    edge.b = Math.max(edge.b, piso.b * 1.6)
+
+    ;(this.material.uniforms.uBase.value as THREE.Color).copy(base)
+    ;(this.material.uniforms.uEdge.value as THREE.Color).copy(edge)
+  }
+
   setStarPower(mix: number) {
     this.material.uniforms.uStarPowerMix.value = mix
   }
