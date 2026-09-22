@@ -276,13 +276,19 @@ Não aceitável — se aparecer, volte ao passo 2 ou 4:
 - cotovelo invertido, ombro deformado, braço esticado demais;
 - palma virada para fora, ou mão espalmada em cima do braço da guitarra — é o
   sintoma de marco de palma faltando (passo 4);
-- cabeça tombada para trás, ou malha abrindo no colarinho — mede-se a dobra
-  entre cabeça e pescoço: tem de dar o mesmo dos outros. Sair disso costuma
-  ser junta de pescoço a mais no rig, sem homólogo no clipe. Quando nenhuma
-  das contas resolve, há a saída de desistir daquele osso: `RESTING`, em
-  `animationClips.ts`, lista por família o que fica **em repouso** de
-  propósito. O Rigify está lá com pescoço e cabeça, e o Dartes acompanha o
-  tronco de cabeça firme — perde o cabecear e ganha não ter defeito;
+- **parte da cabeça andando e o resto não** — alguns picos do capacete indo
+  para a frente enquanto a face fica parada. Não é conta errada: é o modelo
+  preso a **duas árvores de osso**, e só uma sendo dirigida. É o caso do
+  Rigify, que traz as `DEF-` (deformam) e as `ORG-` (no Blender comandam as
+  primeiras por restrição, que não sobrevive ao glTF). Medido no Dartes: dos
+  300 ossos acima do pescoço, girar a coluna move **um** — o `DEF-spine006`,
+  12,9 cm — e deixa os 299 do rig facial onde estavam.
+
+  Nenhuma conta resolve, porque os dois pedaços respondem a ossos diferentes e
+  só um existe no clipe. A saída é não mexer no tronco desse rig: `ARMS_ONLY`,
+  em `animationClips.ts`, lista as famílias em que só os braços são dirigidos.
+  Antes de pôr uma família nova lá, meça: veja se os ossos acima do pescoço se
+  movem todos juntos. Um Rigify sem rig facial não precisa disso;
 - corpo duro, de pernas juntas e tronco ereto, com só o braço se mexendo
   enquanto os outros abrem a base e se inclinam — é nome de coluna ou de perna
   que não casou (passo 4);
@@ -308,6 +314,8 @@ Três coisas se resolvem de jeitos diferentes, e vale saber qual é qual:
   do repouso. Não dá para mirá-las por direção: **na própria fonte não existe
   o osso seguinte** (o `Head` do clipe não tem filho nenhum), e sem dois
   pontos não se mede direção.
+
+  Numa família em `ARMS_ONLY` nada disto entra: o tronco inteiro fica parado.
 
   No pescoço são **duas** pontas, não uma. Pondo só a cabeça em mundo, ela vai
   para o lugar certo mas pendura num pescoço cuja torção em torno do próprio
