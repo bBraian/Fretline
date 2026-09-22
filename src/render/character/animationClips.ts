@@ -521,7 +521,8 @@ function resolveSlots(target: THREE.Object3D, source: THREE.Object3D) {
   const sourceIndex = indexBones(source)
 
   let best: Partial<Record<Slot, { target: string; source: string }>> = {}
-  for (const skeleton of Object.values(SKELETONS)) {
+  let family = ''
+  for (const [name, skeleton] of Object.entries(SKELETONS)) {
     const found: Partial<Record<Slot, { target: string; source: string }>> = {}
     for (const slot of SLOTS) {
       const targetPattern = skeleton[slot]
@@ -531,10 +532,35 @@ function resolveSlots(target: THREE.Object3D, source: THREE.Object3D) {
       const sourceBone = findBone(sourceIndex, sourcePattern)
       if (targetBone && sourceBone) found[slot] = { target: targetBone, source: sourceBone }
     }
-    if (Object.keys(found).length > Object.keys(best).length) best = found
+    if (Object.keys(found).length > Object.keys(best).length) {
+      best = found
+      family = name
+    }
   }
 
-  return Object.keys(best).length >= MIN_SLOTS ? best : {}
+  const enough = Object.keys(best).length >= MIN_SLOTS
+  return { pairs: enough ? best : {}, family: enough ? family : '' }
+}
+
+/**
+ * Ossos que uma família prefere deixar **em repouso**, mesmo reconhecidos.
+ *
+ * Existe porque nem toda diferença de rig se resolve com conta. O Rigify
+ * parte o pescoço em três juntas onde o clipe tem duas, e a que sobra não tem
+ * homólogo de onde tirar orientação: tentando dirigi-las, o capacete do
+ * Dartes ou tombava para trás ou abria a malha do colarinho, e nenhuma das
+ * duas saídas ficou boa em tela.
+ *
+ * Parados, pescoço e cabeça acompanham o tronco rigidamente. Perde-se o
+ * cabecear — o resto do corpo continua tocando igual, e foi a escolha feita
+ * olhando a imagem.
+ *
+ * Um osso listado aqui continua servindo de **alvo de mira** para o osso
+ * anterior: é o que mantém a coluna sendo dirigida até o peito. O que ele não
+ * recebe é rotação própria.
+ */
+const RESTING: Record<string, readonly Slot[]> = {
+  rigify: ['neck', 'head'],
 }
 
 /**
@@ -551,7 +577,7 @@ export function boneNameMap(
   target: THREE.Object3D,
   source: THREE.Object3D,
 ): Record<string, string> {
-  const slots = resolveSlots(target, source)
+  const { pairs: slots } = resolveSlots(target, source)
   const map: Record<string, string> = {}
   for (const slot of DRIVEN) {
     const pair = slots[slot]
@@ -914,8 +940,9 @@ export function retargetMapped(
   const source = original.clone(true)
   source.updateMatrixWorld(true)
 
-  const slots = resolveSlots(target, source)
+  const { pairs: slots, family } = resolveSlots(target, source)
   if (Object.keys(slots).length < MIN_SLOTS) return null
+  const emRepouso = new Set<Slot>(RESTING[family] ?? [])
 
   const sourceNodes = nodesByName(source)
   const targetNodes = nodesByName(target)
@@ -931,7 +958,14 @@ export function retargetMapped(
   // menos de dois ossos não tem segmento nenhum para mirar.
   const montar = (lista: readonly (readonly Slot[])[]) =>
     lista
-      .map((slotsOfChain) => slotsOfChain.map(pair).filter((p): p is NonNullable<typeof p> => !!p))
+      .map((slotsOfChain) =>
+        slotsOfChain
+          .map((slot) => {
+            const p = pair(slot)
+            return p && { ...p, slot }
+          })
+          .filter((p): p is NonNullable<typeof p> => !!p),
+      )
       .filter((chain) => chain.length >= 2)
 
   const chains = montar(CHAINS)
@@ -1094,6 +1128,9 @@ export function retargetMapped(
    * porque a cabeça é lida a partir dele.
    */
   const bodyTips = bodyChains.flatMap((chain) => {
+    // Osso em repouso não recebe ponta: ele fica onde nasceu.
+    const util = chain.filter((osso) => !emRepouso.has(osso.slot))
+    if (util.length !== chain.length) return []
     const daPonta = tipRelative(chain)
     if (!daPonta) return []
     // Só o tronco tem junta de pescoço; perna acaba no pé ou no dedão.
@@ -1147,7 +1184,10 @@ export function retargetMapped(
   if (hipsPair && hipsRest) registrar(hipsPair.target)
   for (const chain of chains) for (const bone of chain) registrar(bone.target)
   // No tronco e nas pernas só o último de cada fila não recebe mira.
-  for (const chain of bodyChains) for (let i = 0; i < chain.length - 1; i++) registrar(chain[i].target)
+  for (const chain of bodyChains)
+    for (let i = 0; i < chain.length - 1; i++) {
+      if (!emRepouso.has(chain[i].slot)) registrar(chain[i].target)
+    }
   for (const t of bodyTips) registrar(t.tip.target)
   // Só os ossos que de fato recebem mira: o último de cada fila de dedo não
   // tem para onde apontar e fica em repouso.
@@ -1184,6 +1224,9 @@ export function retargetMapped(
     // lugar onde ele não vai estar.
     for (const chain of bodyChains) {
       for (let i = 0; i < chain.length - 1; i++) {
+        // Um osso em repouso não recebe giro, mas continua servindo de alvo
+        // para o anterior — por isso o `continue` é aqui e não no laço todo.
+        if (emRepouso.has(chain[i].slot)) continue
         const want = segmentDir(chain[i].source, chain[i + 1].source)
         if (want.lengthSq() < 1e-12) continue
         want.normalize().applyQuaternion(carry)

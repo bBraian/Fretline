@@ -278,7 +278,11 @@ Não aceitável — se aparecer, volte ao passo 2 ou 4:
   sintoma de marco de palma faltando (passo 4);
 - cabeça tombada para trás, ou malha abrindo no colarinho — mede-se a dobra
   entre cabeça e pescoço: tem de dar o mesmo dos outros. Sair disso costuma
-  ser junta de pescoço a mais no rig, sem homólogo no clipe;
+  ser junta de pescoço a mais no rig, sem homólogo no clipe. Quando nenhuma
+  das contas resolve, há a saída de desistir daquele osso: `RESTING`, em
+  `animationClips.ts`, lista por família o que fica **em repouso** de
+  propósito. O Rigify está lá com pescoço e cabeça, e o Dartes acompanha o
+  tronco de cabeça firme — perde o cabecear e ganha não ter defeito;
 - corpo duro, de pernas juntas e tronco ereto, com só o braço se mexendo
   enquanto os outros abrem a base e se inclinam — é nome de coluna ou de perna
   que não casou (passo 4);
