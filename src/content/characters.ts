@@ -228,11 +228,15 @@ const IMPORTED: Character[] = ([
   //
   // arquivo, nome, descrição, estrelas, preço, tem esqueleto, giro
   ['douxie_tales_of_arcadia', 'Douglas', 'Jaqueta, franja e um alaúde antigo', 0, 0, true, undefined],
+  // Sem esqueleto no arquivo — ver `animated` acima. Fica barato de propósito:
+  // um integrante que não toca não serve de recompensa de fim de carreira.
+  ['steven_rogers_captain_america', 'Estevão Rodrigues', 'Escudo nas costas, pose de estátua', 4, 2500, false, undefined],
   ['fortnite_darth_vader_advanced_rig', 'Dartes Vale', 'Capa preta e um riff que respira', 6, 3500, true, undefined],
   ['dead_pool', 'Vermelhão', 'Fala demais entre uma música e outra', 10, 5000, true, undefined],
   ['kratos', 'Kairos', 'Barba de cinzas, olhar de quem já viu pior', 14, 7000, true, undefined],
-  ['homer_simpson_-_fortnite_skin', 'Homero Pinto', 'Toca melhor depois da terceira', 20, 9500, true, undefined],
+  ['lara_croft_-_shorts_style', 'Lara Cruz', 'Aprendeu os acordes numa tumba', 18, 8500, true, undefined],
   ['spiderman_brand_new_day_from_fortnite', 'Teixeira', 'Sobe na caixa de som todo show', 26, 12500, true, undefined],
+  ['soldier_boy', 'Soldado Bené', 'Toca marcha e chama de rock', 30, 14500, true, undefined],
   ['goku', 'Gokê Ramos', 'Cabelo em pé desde o primeiro acorde', 34, 17000, true, undefined],
 ] as const).map(([file, name, subtitle, unlockAtStars, price, animated, turn]) => ({
   id: `glb-${file}`,

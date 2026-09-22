@@ -18,6 +18,7 @@
     "library": "node scripts/library.mjs",
     "test-song": "node tools/make-test-song.mjs",
     "optimize-models": "node tools/optimize-models.mjs",
+    "attachment": "vite-node tools/derive-attachment.ts",
     "upload-assets": "node tools/upload-assets.mjs"
   },
   "dependencies": {

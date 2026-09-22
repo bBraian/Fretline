@@ -26,6 +26,7 @@ npm run gallery   # cada guitarra e cada personagem
 npm run library   # confere que songs/ é lida e tocada
 npm run test-song # escreve uma música de teste em songs/
 npm run upload-assets # sobe músicas e modelos para o storage da versão hospedada
+npm run attachment    # mede onde a guitarra fica no corpo de cada personagem
 ```
 
 Não há linter nem formatador configurado. O estilo se aprende lendo os
@@ -93,7 +94,14 @@ parâmetros em `src/content/characters.ts`, montado em
 silhueta em `src/render/guitar/shapes.ts` mais cores em
 `src/content/guitars.ts`.
 
-A razão é concreta: os integrantes da banda **não são `SkinnedMesh`** — são
+**Personagem importado é outra história, e tem receita própria.** Os
+integrantes de arquivo `.glb` recebem uma animação de guitarra adaptada ao
+esqueleto deles, e acrescentar um tem uma ordem que economiza uma tarde —
+está em `docs/specs/personagem-novo.md`. O curto: confira o rig **antes** de
+cadastrar, e meça o encaixe da guitarra com `npm run attachment` em vez de
+procurá-lo no painel de `?rig`.
+
+A razão de a marionete existir é concreta: os integrantes da banda **não são `SkinnedMesh`** — são
 marionetes de `Object3D` rígidos aninhados, animadas por cinemática inversa
 de dois ossos (`src/render/character/ik.ts`) que posiciona as mãos sobre o
 instrumento. Um modelo importado inteiro viria sem esse rig e seria uma
@@ -149,6 +157,7 @@ Mudança visual se confere olhando: rode `npm run menus` (ou `shots`,
 |---|---|
 | `docs/design/README.md` | contrato visual das telas de menu |
 | `docs/specs/gltf-glb.md` | importar arte em glTF/GLB: o que já funciona e o que falta |
+| `docs/specs/personagem-novo.md` | receita para pôr um personagem novo tocando guitarra |
 
 ## Som
 

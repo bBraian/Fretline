@@ -42,11 +42,13 @@ describe('vitrine de personagens', () => {
   it('está na ordem combinada, do primeiro ao mais raro', () => {
     expect(SHOP_CHARACTERS.map((c) => c.name)).toEqual([
       'Douglas',
+      'Estevão Rodrigues',
       'Dartes Vale',
       'Vermelhão',
       'Kairos',
-      'Homero Pinto',
+      'Lara Cruz',
       'Teixeira',
+      'Soldado Bené',
       'Gokê Ramos',
     ])
   })
