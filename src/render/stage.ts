@@ -24,10 +24,42 @@ import { loadGuitarGlb } from './guitar/guitarGlb'
 import { CHARACTERS, characterById, type Character } from '../content/characters'
 import { BASS_PROP, guitarById, type Guitar } from '../content/guitars'
 import { LightRig } from './stage/lightRig'
+import {
+  activeStageModel,
+  loadStageModel,
+  type LoadedStageModel,
+  type StageModel,
+} from './stage/stageModel'
+import { refreshStagePanel, type StageControls } from './stage/stagePanel'
 
 const CROWD_ROWS = 7
 const CROWD_PER_ROW = 26
 const CROWD_COUNT = CROWD_ROWS * CROWD_PER_ROW
+
+/**
+ * Meio da banda em z, para o encaixe automático do cenário.
+ *
+ * A banda vai de z = −4,35 (baterista) a z = +3,4 (cantor); é este ponto
+ * que o estrado de um cenário de arquivo precisa ter debaixo.
+ */
+const BAND_CENTER_Z = -0.6
+
+/** Direção do raio que procura o chão. */
+const ABAIXO = new THREE.Vector3(0, -1, 0)
+
+/**
+ * Onde cada integrante pisa, em coordenadas do palco.
+ *
+ * Os mesmos números de `placeGuitarist` e `buildBandmates`, repetidos aqui
+ * porque quem os usa é o ajuste de cenário — que precisa saber onde a banda
+ * está antes de a banda existir, na montagem.
+ */
+const BAND_FEET: Array<[string, number, number]> = [
+  ['guitarrista', -2.6, -0.6],
+  ['baixista', 2.7, -0.9],
+  ['cantor', -0.1, 3.4],
+  ['baterista', 0, -4.35],
+]
 
 export class Stage {
   readonly group = new THREE.Group()
@@ -42,6 +74,29 @@ export class Stage {
   private crowdSeeds: Float32Array
   private crowdDummy = new THREE.Object3D()
   private disposables: Array<{ dispose(): void }> = []
+  /**
+   * As três partes que um cenário de arquivo pode substituir.
+   *
+   * Ficam em grupos próprios, e não soltas no palco, por causa da troca ao
+   * vivo: o painel liga e desliga cada uma enquanto se afina o encaixe, e
+   * sem um nó por parte isso exigiria reconstruir o palco a cada clique.
+   */
+  private floorGroup = new THREE.Group()
+  private backdropGroup = new THREE.Group()
+  private ampsGroup = new THREE.Group()
+
+  /**
+   * O cenário de arquivo em uso, ou `null` quando é o construído em código.
+   *
+   * Não é `readonly` porque o painel de `?rig` troca de cenário sem
+   * recarregar a página.
+   */
+  private stageModel: StageModel | null
+  private scenery: LoadedStageModel | null = null
+  /** Carregamento de cenário em voo, para o painel poder avisar. */
+  private sceneryLoading = false
+  /** Luzes de apoio do cenário atual, para sumirem junto com ele. */
+  private sceneryFill: THREE.PointLight[] = []
   /**
    * Verdadeiro depois de `dispose`.
    *
@@ -110,7 +165,7 @@ export class Stage {
   constructor(
     characterId: string,
     guitarId: string,
-    private options: { effects?: boolean } = {},
+    private options: { effects?: boolean; stageModel?: StageModel | null } = {},
   ) {
     this.currentCharacterId = characterId
     this.currentGuitarId = guitarId
@@ -119,6 +174,14 @@ export class Stage {
     // acima do ponto de fuga da pista, senão fica escondida atrás dela.
     this.group.position.set(0, 1.45, -19.5)
 
+    // O cenário pode vir de arquivo. Quando vem, ele substitui só o que é
+    // lugar — piso, paredes, treliça, amplificadores. Tudo que se mexe na
+    // batida continua sendo construído aqui embaixo.
+    //
+    // As três partes são construídas **sempre**, e o que o arquivo cobre é
+    // apenas escondido: é o que torna a troca ao vivo instantânea e a volta
+    // ao palco de código uma questão de tornar a ver.
+    this.group.add(this.floorGroup, this.backdropGroup, this.ampsGroup)
     this.buildFloor()
     this.buildBackdrop()
     this.buildAmps()
@@ -130,6 +193,11 @@ export class Stage {
       { beams: effects, lights: effects ? 4 : 2, simpleWall: !effects },
     )
     this.group.add(this.rig.group)
+
+    const scenery = options.stageModel === undefined ? activeStageModel() : options.stageModel
+    this.stageModel = scenery
+    if (scenery) this.buildSceneryModel(scenery)
+    this.applyStageModel()
 
     this.buildAmbientLight()
     if (effects) this.buildHaze()
@@ -160,7 +228,7 @@ export class Stage {
     const floor = new THREE.Mesh(geometry, material)
     floor.position.set(0, -0.3, 0)
     floor.receiveShadow = true
-    this.group.add(floor)
+    this.floorGroup.add(floor)
 
     // Borda luminosa: separa o palco da escuridão da plateia.
     const edge = new THREE.Mesh(
@@ -168,7 +236,328 @@ export class Stage {
       this.track(new THREE.MeshBasicMaterial({ color: 0x4b7bff })),
     )
     edge.position.set(0, 0.02, 6)
-    this.group.add(edge)
+    this.floorGroup.add(edge)
+  }
+
+  /**
+   * Põe o cenário de arquivo na cena.
+   *
+   * Entra pela mesma fila de espera dos outros arquivos, então a tela de
+   * carregamento já o conta e a música só começa quando ele chegou. Falhar
+   * aqui não interrompe nada: o palco fica sem o cenário — a banda, as
+   * luzes e a plateia continuam de pé — e a música toca.
+   */
+  private buildSceneryModel(model: StageModel) {
+    this.sceneryLoading = true
+    void this.awaitAsset(
+      'Cenário',
+      loadStageModel(model)
+        .then((scenery) => {
+          // Duas condições, não uma: a tela pode ter saído, e o painel pode
+          // ter pedido outro cenário enquanto este vinha. Nos dois casos o
+          // que chegou é velho e vai embora sem entrar na cena.
+          if (this.destroyed || this.stageModel !== model) {
+            scenery.dispose()
+            return
+          }
+          this.scenery = scenery
+          this.group.add(scenery.group)
+
+          for (const luz of model.fill) {
+            const fill = new THREE.PointLight(luz.color, luz.intensity, luz.distance, 2)
+            fill.position.set(...luz.position)
+            this.group.add(fill)
+            this.sceneryFill.push(fill)
+          }
+          this.applyStageModel()
+        })
+        .catch((erro) => console.error(`não deu para carregar ${model.url}`, erro))
+        .finally(() => {
+          if (this.stageModel !== model) return
+          this.sceneryLoading = false
+          refreshStagePanel()
+        }),
+    )
+  }
+
+  /**
+   * Troca o cenário sem recarregar a página.
+   *
+   * Existe para o painel de `?rig`: afinar a escala de cinco arquivos
+   * recarregando entre cada um é o que este painel veio evitar. Fora do
+   * painel ninguém chama — o cenário do jogo é o da tabela.
+   */
+  async setStageModel(model: StageModel | null) {
+    if (model === this.stageModel) return
+
+    if (this.scenery) {
+      this.group.remove(this.scenery.group)
+      this.scenery.dispose()
+      this.scenery = null
+    }
+    for (const luz of this.sceneryFill) this.group.remove(luz)
+    this.sceneryFill = []
+
+    this.stageModel = model
+    this.sceneryLoading = model !== null
+    this.applyStageModel()
+    if (!model) return
+
+    this.buildSceneryModel(model)
+    await this.ready()
+  }
+
+  /**
+   * Reaplica os números do cenário.
+   *
+   * Um lugar só para isso, chamado tanto na montagem quanto a cada arrasto
+   * de controle do painel: a transformação do arquivo, o que ele esconde do
+   * palco de código, o deslocamento dos refletores e onde a plateia fica.
+   */
+  applyStageModel() {
+    const model = this.stageModel
+    const replaces = model?.replaces ?? {}
+
+    this.floorGroup.visible = !replaces.floor
+    this.backdropGroup.visible = !replaces.backdrop
+    this.ampsGroup.visible = !replaces.amps
+    this.rig.setWallVisible(!replaces.ledWall)
+
+    this.rig.group.position.set(...(model?.rigOffset ?? [0, 0, 0]))
+
+    if (this.scenery && model) {
+      this.scenery.group.scale.setScalar(model.scale)
+      this.scenery.group.position.set(...model.position)
+      this.scenery.group.rotation.set(...model.rotation)
+      this.scenery.setEmissiveCap(model.emissiveCap)
+    }
+  }
+
+  /**
+   * Chuta uma transformação que põe o cenário na vizinhança certa.
+   *
+   * Um arquivo de banco público não traz convenção nenhuma: a origem pode
+   * estar no chão, no centro ou num canto qualquer, e a escala vai de uma
+   * maquete de 90 cm a uma sala de 180 m. Acertar isso arrastando três
+   * controles às cegas é demorado, e enquanto o estrado não cruza y = 0 a
+   * banda fica enterrada ou flutuando — sem nada na tela para mirar.
+   *
+   * O chute são três contas:
+   *
+   * - **escala** pela pegada horizontal, levando a maior das duas dimensões
+   *   aos 22 do piso de código;
+   * - **x e z** centrando a pegada no meio do palco;
+   * - **y** por raio: de bem alto, sobre cada integrante, para baixo, e
+   *   fica com a superfície virada para cima mais alta que ainda esteja na
+   *   metade de baixo do modelo. É o estrado — o que está acima é treliça, e
+   *   o que está abaixo é o fosso.
+   *
+   * É um ponto de partida para o painel, não um resultado: o que vale é o
+   * que sair dos controles depois.
+   */
+  fitStageModel() {
+    const model = this.stageModel
+    if (!model || !this.scenery) return
+
+    const root = this.scenery.group
+
+    // Tudo aqui é medido em coordenadas **do palco**, não do mundo.
+    //
+    // `Box3.setFromObject` e o lançador de raios trabalham em coordenadas de
+    // mundo, e o palco inteiro está deslocado — `group.position` é
+    // (0, 1,45, −19,5). Medir no mundo e escrever em `model.position`, que é
+    // local, soma esse deslocamento ao resultado e joga o cenário a vinte
+    // metros de onde deveria.
+    this.group.updateWorldMatrix(true, false)
+    const paraLocal = this.group.matrixWorld.clone().invert()
+
+    root.scale.setScalar(1)
+    root.position.set(0, 0, 0)
+    root.rotation.set(...model.rotation)
+    root.updateWorldMatrix(true, true)
+
+    const bruta = new THREE.Box3().setFromObject(root).applyMatrix4(paraLocal)
+    const tamanho = bruta.getSize(new THREE.Vector3())
+
+    // Escala pela pegada: a maior das duas dimensões horizontais vai aos 22
+    // do piso construído em código.
+    const escala = 22 / Math.max(tamanho.x, tamanho.z, 0.001)
+    model.scale = escala
+    model.position = [0, 0, 0]
+    root.scale.setScalar(escala)
+    root.position.set(0, 0, 0)
+    root.updateWorldMatrix(true, true)
+
+    const caixa = new THREE.Box3().setFromObject(root).applyMatrix4(paraLocal)
+    const estrado = this.findDeck(root, caixa, paraLocal)
+    if (!estrado) {
+      // Sem nenhuma superfície plana virada para cima: assenta a base em
+      // y = 0 e centra a pegada. É o melhor chute possível.
+      const centro = caixa.getCenter(new THREE.Vector3())
+      model.position = [-centro.x, -caixa.min.y, -centro.z]
+      this.applyStageModel()
+      this.scenery.group.updateWorldMatrix(false, true)
+      return
+    }
+
+    // O estrado vai para debaixo da banda, não para o meio do modelo: o
+    // meio de um clube é o fosso da plateia, e centrar por ele põe a banda
+    // no chão, na frente do palco.
+    model.position = [-estrado.x, -estrado.y, BAND_CENTER_Z - estrado.z]
+    this.applyStageModel()
+    this.scenery.group.updateWorldMatrix(false, true)
+  }
+
+  /**
+   * Acha o estrado: o patamar mais alto que ainda ocupa parte séria da
+   * pegada.
+   *
+   * Um mapa de alturas por amostragem, e não a caixa envolvente de cada
+   * malha, porque um estrado costuma ser uma malha só junto com o piso do
+   * fosso e as paredes — no clube, `Object_4` é as três coisas. O que
+   * distingue o estrado é ser um plano horizontal alto e grande, e é isso
+   * que se mede aqui.
+   *
+   * O limiar de área é o que impede o patamar errado de ganhar: o teto e a
+   * treliça são mais altos, mas ralos; o fosso é maior, mas mais baixo.
+   */
+  private findDeck(root: THREE.Object3D, caixa: THREE.Box3, paraLocal: THREE.Matrix4) {
+    const PASSOS = 24
+    const raio = new THREE.Raycaster()
+    const normal = new THREE.Vector3()
+    const ponto = new THREE.Vector3()
+    const matriz = new THREE.Matrix3()
+
+    // Mesma razão do `footing`: o raio lê `matrixWorld`, e quem acabou de
+    // mexer na escala precisa propagá-la antes de perguntar.
+    root.updateWorldMatrix(false, true)
+
+    const meio = (caixa.min.y + caixa.max.y) / 2
+    const amostras: Array<{ x: number; y: number; z: number }> = []
+
+    for (let i = 0; i < PASSOS; i++) {
+      for (let j = 0; j < PASSOS; j++) {
+        const x = THREE.MathUtils.lerp(caixa.min.x, caixa.max.x, (i + 0.5) / PASSOS)
+        const z = THREE.MathUtils.lerp(caixa.min.z, caixa.max.z, (j + 0.5) / PASSOS)
+        raio.set(this.group.localToWorld(new THREE.Vector3(x, caixa.max.y + 10, z)), ABAIXO)
+
+        let melhor = -Infinity
+        for (const hit of raio.intersectObject(root, true)) {
+          if (!hit.face) continue
+          normal
+            .copy(hit.face.normal)
+            .applyNormalMatrix(matriz.getNormalMatrix(hit.object.matrixWorld))
+          if (normal.y < 0.7) continue
+          const y = ponto.copy(hit.point).applyMatrix4(paraLocal).y
+          if (y > meio) continue
+          if (y > melhor) melhor = y
+        }
+        if (melhor > -Infinity) amostras.push({ x, y: melhor, z })
+      }
+    }
+
+    if (!amostras.length) return null
+
+    // Agrupa por altura com tolerância proporcional ao modelo: um degrau de
+    // cinco centímetros numa sala de trinta metros é a mesma coisa que
+    // nenhum.
+    const tolerancia = Math.max(0.05, (caixa.max.y - caixa.min.y) / 40)
+    const patamares = new Map<number, Array<{ x: number; y: number; z: number }>>()
+    for (const a of amostras) {
+      const chave = Math.round(a.y / tolerancia)
+      const lista = patamares.get(chave)
+      if (lista) lista.push(a)
+      else patamares.set(chave, [a])
+    }
+
+    const minimo = amostras.length * 0.12
+    let escolhido: Array<{ x: number; y: number; z: number }> | null = null
+    for (const lista of patamares.values()) {
+      if (lista.length < minimo) continue
+      // O mais alto entre os que têm área: o fosso é maior, mas mais baixo.
+      if (!escolhido || lista[0].y > escolhido[0].y) escolhido = lista
+    }
+    if (!escolhido) return null
+
+    const media = (valores: number[]) => valores.reduce((a, b) => a + b, 0) / valores.length
+    return {
+      x: media(escolhido.map((a) => a.x)),
+      y: media(escolhido.map((a) => a.y)),
+      z: media(escolhido.map((a) => a.z)),
+    }
+  }
+
+  /**
+   * Quem tem chão debaixo dos pés, e a que altura.
+   *
+   * É a pergunta que uma captura de tela não responde — a câmera do cantor
+   * mira o peito dele e os pés ficam fora do quadro — e é a que decide se o
+   * encaixe está certo: um integrante sem estrado embaixo está flutuando
+   * sobre o fosso, ainda que na tela pareça bem.
+   *
+   * Um raio para baixo em cada par de pés. `null` de resposta quer dizer
+   * que não há nada ali; um número diferente de zero é o degrau entre a
+   * sola e a superfície.
+   */
+  footing(): Array<{ nome: string; chao: number | null }> {
+    if (!this.scenery) return []
+    // O lançador de raios lê `matrixWorld` de cada malha e **não** as
+    // atualiza — o three deixa isso a cargo de quem chama. Sem atualizar a
+    // subárvore inteira, um raio lançado logo depois de mexer na
+    // transformação testa o cenário na posição do quadro anterior, e a
+    // resposta muda conforme o momento em que se pergunta.
+    this.group.updateWorldMatrix(true, false)
+    this.scenery.group.updateWorldMatrix(false, true)
+    const paraLocal = this.group.matrixWorld.clone().invert()
+    const raio = new THREE.Raycaster()
+    const normal = new THREE.Vector3()
+    const ponto = new THREE.Vector3()
+    const matriz = new THREE.Matrix3()
+
+    return BAND_FEET.map(([nome, x, z]) => {
+      raio.set(this.group.localToWorld(new THREE.Vector3(x, 1e4, z)), ABAIXO)
+      let melhor: number | null = null
+      for (const hit of raio.intersectObject(this.scenery!.group, true)) {
+        if (!hit.face) continue
+        normal
+          .copy(hit.face.normal)
+          .applyNormalMatrix(matriz.getNormalMatrix(hit.object.matrixWorld))
+        if (normal.y < 0.7) continue
+        const y = ponto.copy(hit.point).applyMatrix4(paraLocal).y
+        // A superfície mais alta que ainda está no nível dos pés ou abaixo:
+        // o que está acima da cabeça é treliça, não chão.
+        if (y > 1.2) continue
+        if (melhor === null || y > melhor) melhor = y
+      }
+      return { nome, chao: melhor }
+    })
+  }
+
+  /** Os ganchos que o painel de cenário usa. */
+  stageControls(): StageControls {
+    return {
+      setStageModel: (model) => this.setStageModel(model),
+      currentStageModel: () => this.stageModel,
+      applyStageModel: () => this.applyStageModel(),
+      fitStageModel: () => this.fitStageModel(),
+      describeBounds: () => {
+        if (!this.scenery) return null
+        // Em coordenadas do palco, as mesmas dos controles: a medida crua
+        // vem do mundo, onde tudo está vinte metros atrás e 1,45 acima, e
+        // comparar esses números com os do painel confundiria mais do que
+        // ajudaria.
+        this.group.updateWorldMatrix(true, false)
+        const b = this.scenery.measure().applyMatrix4(this.group.matrixWorld.clone().invert())
+        const n = (v: number) => v.toFixed(2)
+        return (
+          `x ${n(b.min.x)} → ${n(b.max.x)}   y ${n(b.min.y)} → ${n(b.max.y)}   ` +
+          `z ${n(b.min.z)} → ${n(b.max.z)}\n` +
+          `a banda pisa em y = 0, de z = −4,95 (bateria) a z = +3,4 (cantor)`
+        )
+      },
+      footing: () => this.footing(),
+      isLoading: () => this.sceneryLoading,
+    }
   }
 
   private buildBackdrop() {
@@ -182,7 +571,7 @@ export class Stage {
       const side = new THREE.Mesh(this.track(new THREE.PlaneGeometry(14, 14)), shell)
       side.position.set(x, 5, 0)
       side.rotation.y = rotation
-      this.group.add(side)
+      this.backdropGroup.add(side)
     }
 
     // Treliça de iluminação.
@@ -193,13 +582,13 @@ export class Stage {
     for (const y of [7.4, 7.9]) {
       const bar = new THREE.Mesh(beam, trussMaterial)
       bar.position.set(0, y, -3)
-      this.group.add(bar)
+      this.backdropGroup.add(bar)
     }
     const strut = this.track(new THREE.BoxGeometry(0.1, 0.62, 0.1))
     for (let i = -9; i <= 9; i += 1.5) {
       const post = new THREE.Mesh(strut, trussMaterial)
       post.position.set(i, 7.65, -3)
-      this.group.add(post)
+      this.backdropGroup.add(post)
     }
   }
 
@@ -217,14 +606,14 @@ export class Stage {
       for (let level = 0; level < 2; level++) {
         const amp = new THREE.Mesh(cabinet, cabinetMaterial)
         amp.position.set(x, 0.85 + level * 1.75, -4)
-        this.group.add(amp)
+        this.ampsGroup.add(amp)
 
         for (const dx of [-0.36, 0.36]) {
           for (const dy of [-0.38, 0.38]) {
             const speaker = new THREE.Mesh(cone, grille)
             speaker.rotation.x = Math.PI / 2
             speaker.position.set(x + dx, 0.85 + level * 1.75 + dy, -3.54)
-            this.group.add(speaker)
+            this.ampsGroup.add(speaker)
           }
         }
       }
@@ -823,8 +1212,11 @@ export class Stage {
         continue
       }
 
-      // A plateia fica no fosso, abaixo do nível do palco.
-      this.crowdDummy.position.set(x, -0.95 + jump, z)
+      // A plateia fica no fosso, abaixo do nível do palco — e qual fosso
+      // depende do cenário: o do código tem o seu, um arquivo tem outro, e
+      // pode ter grade, que é o que o recuo em z evita atravessar.
+      const crowd = this.stageModel?.crowd
+      this.crowdDummy.position.set(x, (crowd?.y ?? -0.95) + jump, z + (crowd?.z ?? 0))
       this.crowdDummy.rotation.set(0, Math.sin(seed + this.clock * 0.4) * 0.3, 0)
       this.crowdDummy.scale.setScalar(0.9 + 0.2 * Math.sin(seed * 3))
       this.crowdDummy.updateMatrix()
@@ -836,6 +1228,7 @@ export class Stage {
 
   dispose() {
     this.destroyed = true
+    this.scenery?.dispose()
     this.guitarist.dispose()
     this.guitarModel.dispose()
     for (const mate of this.bandmates) mate.dispose()

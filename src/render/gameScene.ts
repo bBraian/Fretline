@@ -29,6 +29,12 @@ import { Highway } from './highway'
 import { NoteField } from './notes'
 import { HitEffects } from './effects'
 import { Stage } from './stage'
+import {
+  refreshStagePanel,
+  registerSceneControls,
+  registerStageControls,
+} from './stage/stagePanel'
+import { refreshRigPanel } from './character/rigPanel'
 import { DEFAULT_NOTE_SPEED } from './layout'
 import { CameraDirector, type ShotMood } from './cameraDirector'
 import { guitarById } from '../content/guitars'
@@ -45,6 +51,25 @@ import type { PerformanceState } from './character/characterModel'
  * próprio input.
  */
 export type Quality = 'alta' | 'baixa'
+
+/**
+ * Relógio que sabe parar.
+ *
+ * O engine só conhece `Clock`, que tem `now()` e mais nada — é o que
+ * permite testar o julgamento com um relógio de mentira. Quem toca a música
+ * de verdade (`SongPlayer`) sabe pausar, e é isso que o congelamento do
+ * painel precisa: parar o áudio é parar o tempo, porque **o relógio é o
+ * áudio**. A checagem é estrutural para não obrigar o relógio de teste a
+ * ganhar dois métodos que ele não usa.
+ */
+interface PausableClock extends Clock {
+  pause(): void
+  resume(): Promise<void>
+}
+
+function isPausable(clock: Clock): clock is PausableClock {
+  return typeof (clock as PausableClock).pause === 'function'
+}
 
 export interface GameSceneOptions {
   canvas: HTMLCanvasElement
@@ -75,6 +100,14 @@ export class GameScene {
   private frozen = false
   /** Em encerramento: a pista sai e o palco fica. */
   private outro = false
+  /**
+   * Se o braço aparece.
+   *
+   * Existe por causa do ajuste de cenário: o braço ocupa o meio e a parte
+   * de baixo da tela o tempo todo, que é exatamente onde fica a frente do
+   * palco. Sem poder tirá-lo, metade do que se está ajustando não se vê.
+   */
+  private playVisible = true
   private outroFade = 0
   /** Instante em que congelou, para o diretor não avançar de plano. */
   private frozenAt: number | null = null
@@ -175,6 +208,15 @@ export class GameScene {
       ;(window as unknown as { __THREE?: unknown }).__THREE = THREE
     }
 
+    // Painel de cenário: troca de palco e afina o encaixe dele ao vivo.
+    registerStageControls(this.stage.stageControls())
+    registerSceneControls({
+      setPlayVisible: (v) => this.setPlayVisible(v),
+      isPlayVisible: () => this.playVisible,
+      setFrozen: (v) => this.setFrozen(v),
+      isFrozen: () => this.frozen,
+    })
+
     // Ganchos do painel de encaixes (`?rig`). Ficam no objeto da cena para o
     // painel não precisar conhecer o caminho até o diretor de câmera.
     if (new URLSearchParams(location.search).has('rig')) {
@@ -182,9 +224,7 @@ export class GameScene {
         shots: CameraDirector.shotIds(),
         lockShot: (id: string | null) => this.director.lockShot(id),
         lockedShot: () => this.director.lockedShot,
-        setFrozen: (value: boolean) => {
-          this.frozen = value
-        },
+        setFrozen: (value: boolean) => this.setFrozen(value),
         isFrozen: () => this.frozen,
       }
     }
@@ -258,8 +298,52 @@ export class GameScene {
    */
   setVisible(part: 'stage' | 'play' | 'band' | 'rig' | 'crowd', visible: boolean) {
     if (part === 'stage') this.stage.group.visible = visible
-    else if (part === 'play') this.highway.group.visible = visible
+    else if (part === 'play') this.setPlayVisible(visible)
     else this.stage.setPartVisible(part, visible)
+  }
+
+  /**
+   * Mostra ou esconde o braço, as notas e os efeitos de acerto.
+   *
+   * Os três juntos, e não só o braço: esconder a pista e deixar as notas
+   * voando sozinhas no ar atrapalha mais a conferência do que a pista
+   * atrapalhava.
+   */
+  setPlayVisible(visible: boolean) {
+    this.playVisible = visible
+    this.highway.group.visible = visible
+    this.notes.group.visible = visible
+    this.effects.group.visible = visible
+  }
+
+  isPlayVisible() {
+    return this.playVisible
+  }
+
+  /**
+   * Congela a partida inteira, sem parar de desenhar.
+   *
+   * Diferente da pausa do jogo (`Escape`), que também para o laço de
+   * desenho: aqui o quadro continua saindo, porque o ponto é poder mexer
+   * nos controles e ver o resultado. O que para é o tempo — e parar o tempo
+   * é pausar o áudio, já que é dele que a posição da música sai. Antes só a
+   * animação parava, e a música seguia correndo por baixo: ao descongelar,
+   * a banda saltava para onde a música já tinha chegado.
+   */
+  setFrozen(value: boolean) {
+    if (value === this.frozen) return
+    this.frozen = value
+    // Os dois painéis mostram este estado e qualquer um dos dois o muda;
+    // quem não recebeu o clique precisa saber.
+    refreshRigPanel()
+    refreshStagePanel()
+    if (!isPausable(this.clock)) return
+    if (value) this.clock.pause()
+    else void this.clock.resume()
+  }
+
+  isFrozen() {
+    return this.frozen
   }
 
   /** Estado dos trastes pressionados, vindo do gerenciador de input. */
@@ -340,14 +424,14 @@ export class GameScene {
 
     this.highway.setStarPower(state.starPowerActive ? 1 : state.starPowerAmount * 0.25)
     this.highway.setDanger(state.rockMeter < 0.25 ? 1 - state.rockMeter / 0.25 : 0)
-    this.highway.update(dt, songTime + this.videoOffset, this.noteSpeed)
+    this.highway.update(this.frozen ? 0 : dt, songTime + this.videoOffset, this.noteSpeed)
 
     // A pista se apaga no encerramento, deixando o palco sozinho.
     if (this.outro) {
       this.outroFade = Math.min(1, this.outroFade + dt / 1.1)
       const restante = 1 - this.outroFade
-      this.highway.group.visible = restante > 0.02
-      this.notes.group.visible = restante > 0.02
+      this.highway.group.visible = this.playVisible && restante > 0.02
+      this.notes.group.visible = this.playVisible && restante > 0.02
       this.highway.group.scale.setScalar(Math.max(0.001, restante))
       this.notes.group.scale.setScalar(Math.max(0.001, restante))
     }
@@ -478,6 +562,10 @@ export class GameScene {
 
   dispose() {
     this.stop()
+    // O painel de cenário aponta para este palco; sem esquecê-lo, ele
+    // continua mexendo numa cena já descartada depois de sair da música.
+    registerStageControls(null)
+    registerSceneControls(null)
     window.removeEventListener('resize', this.resize)
     this.highway.dispose()
     this.notes.dispose()

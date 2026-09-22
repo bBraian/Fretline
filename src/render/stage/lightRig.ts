@@ -129,6 +129,8 @@ export class LightRig {
 
   private beams: Beam[] = []
   private wallMaterial: THREE.ShaderMaterial
+  /** Telão e moldura, para poderem sair quando o cenário traz os seus. */
+  private wallParts: THREE.Mesh[] = []
   private disposables: Array<{ dispose(): void }> = []
   private clock = 0
   private warm = new THREE.Color(0xff2f7d)
@@ -158,6 +160,17 @@ export class LightRig {
     this.buildBeams()
   }
 
+  /**
+   * Mostra ou esconde o telão e a moldura dele.
+   *
+   * Um cenário de arquivo costuma trazer o próprio fundo, e dois telões no
+   * mesmo lugar é um por cima do outro. Os refletores continuam: eles são a
+   * parte que se mexe na batida, e nenhum arquivo traz isso.
+   */
+  setWallVisible(visible: boolean) {
+    for (const parte of this.wallParts) parte.visible = visible
+  }
+
   private track<T extends { dispose(): void }>(item: T): T {
     this.disposables.push(item)
     return item
@@ -181,6 +194,7 @@ export class LightRig {
     const wall = new THREE.Mesh(this.track(new THREE.PlaneGeometry(19, 7.5)), material)
     wall.position.set(0, 4.4, -5.6)
     this.group.add(wall)
+    this.wallParts.push(wall)
 
     // Moldura escura em volta, para o painel não flutuar no vazio.
     const frame = new THREE.Mesh(
@@ -189,6 +203,7 @@ export class LightRig {
     )
     frame.position.set(0, 4.4, -5.85)
     this.group.add(frame)
+    this.wallParts.push(frame)
 
     return material
   }

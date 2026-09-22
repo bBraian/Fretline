@@ -42,6 +42,18 @@ export function setRigCharacter(id: string | null) {
   render()
 }
 
+/**
+ * Redesenha o painel.
+ *
+ * Chamado quando algo **fora** dele muda o estado que ele mostra — hoje o
+ * congelamento, que o painel de cenário também liga. Sem isto, o botão daqui
+ * continua dizendo «congelar» com a partida já congelada.
+ */
+export function refreshRigPanel() {
+  if (!rigPanelEnabled() || !painel) return
+  render()
+}
+
 /** Esquece os encaixes de uma tela que saiu do ar. */
 export function clearAttachments() {
   if (!rigPanelEnabled()) return
