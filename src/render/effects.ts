@@ -97,7 +97,7 @@ export class HitEffects {
     const base = new THREE.Color(lane < 0 ? 0xc084fc : FRET_COLORS[lane])
     if (starPower) base.lerp(new THREE.Color(0xdfe9ff), 0.6)
 
-    const count = Math.round(10 + 10 * intensity)
+    const count = Math.round(6 + 6 * intensity)
     for (let i = 0; i < count; i++) {
       const particle = this.particles[this.next]
       this.next = (this.next + 1) % MAX_PARTICLES
@@ -106,13 +106,13 @@ export class HitEffects {
       particle.position.copy(origin)
       particle.position.x += (Math.random() - 0.5) * spread
       particle.velocity.set(
-        (Math.random() - 0.5) * 1.6,
-        0.9 + Math.random() * 2.2 * intensity,
-        (Math.random() - 0.2) * 2.4,
+        (Math.random() - 0.5) * 1.2,
+        0.7 + Math.random() * 1.6 * intensity,
+        (Math.random() - 0.2) * 1.8,
       )
-      particle.maxLife = 0.28 + Math.random() * 0.34
+      particle.maxLife = 0.22 + Math.random() * 0.26
       particle.life = particle.maxLife
-      particle.size = 0.06 + Math.random() * 0.1
+      particle.size = 0.04 + Math.random() * 0.07
       particle.color.copy(base).multiplyScalar(0.8 + Math.random() * 0.6)
       particle.angle = Math.random() * Math.PI
       particle.spin = (Math.random() - 0.5) * 8

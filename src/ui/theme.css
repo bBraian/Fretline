@@ -32,6 +32,10 @@
  * exatamente como estavam: mexer nelas mudaria o que o jogador lê na pista.
  */
 :root {
+  /* O canto inferior direito é do botão de tela cheia, que flutua sobre
+     todas as telas. Quem tem rodapé reserva esta faixa à direita — sem
+     ela, a ação principal da lista de músicas fica debaixo do botão. */
+  --corner-gutter: 152px;
   --bg: #140c05;
   --bg-raised: #241608;
   --bg-card: rgba(32, 20, 9, 0.94);
@@ -170,6 +174,7 @@ button {
   align-items: center;
   flex-wrap: wrap;
   padding: 14px clamp(20px, 5vw, 64px);
+  padding-right: max(clamp(20px, 5vw, 64px), var(--corner-gutter));
   border-top: 2px solid var(--line-strong);
   background: linear-gradient(0deg, rgba(20, 12, 5, 0.94), rgba(20, 12, 5, 0.6));
 }
@@ -418,6 +423,135 @@ button {
   letter-spacing: 0.04em;
   color: #ecdcb4;
   text-shadow: 0 0 8px #140c05, 0 0 4px #140c05, 0 2px 4px rgba(0, 0, 0, 1);
+}
+
+/* --- idioma ---
+
+   Fica abaixo dos itens e fora da navegação por setas: as setas andam entre
+   telas, e o idioma não abre nenhuma — misturar as duas coisas faria a
+   lista ter um item que não leva a lugar nenhum.
+
+   A linguagem de seleção é a mesma do resto do jogo: osso com letra de
+   cartaz no escolhido, ocre sobre escuro no outro. */
+
+.lang-picker {
+  display: inline-flex;
+  margin-top: 14px;
+  border: 2px solid rgba(154, 115, 56, 0.72);
+  border-radius: var(--radius-sm);
+  background: rgba(20, 12, 5, 0.66);
+  overflow: hidden;
+}
+
+.lang-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border: 0;
+  background: transparent;
+  font-family: var(--gh-display);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gh-ochre);
+  text-shadow: 0 0 6px #140c05, 0 2px 3px rgba(0, 0, 0, 0.95);
+}
+
+.lang-option + .lang-option {
+  border-left: 2px solid rgba(154, 115, 56, 0.72);
+}
+
+.lang-option:hover {
+  background: rgba(61, 38, 16, 0.9);
+  color: var(--gh-bone);
+}
+
+.lang-option[data-active='true'] {
+  background: linear-gradient(180deg, #fdf4dd, var(--gh-bone) 58%, #d9c396);
+  color: var(--gh-red);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+/* A bandeira é SVG, e SVG herda a linha de base do texto: sem isto ela
+   desce uns pixels e desalinha com o rótulo. */
+.lang-flag,
+.fullscreen-icon {
+  display: inline-flex;
+  line-height: 0;
+}
+
+/* --- tela cheia ---
+
+   Flutua sobre a tela, fixo no canto, porque não pertence a nenhuma: é o
+   mesmo controle em todas elas. Fora do palco, onde o canto é do HUD. */
+
+.fullscreen-toggle {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 40;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 2px solid rgba(154, 115, 56, 0.72);
+  border-radius: var(--radius-sm);
+  /* Opaco quase por inteiro, e com a sombra dura do resto do jogo: o
+     cartaz tem hachura e moldura no canto, e um fundo translúcido deixava
+     o rótulo brigando com o desenho por baixo. */
+  background: rgba(20, 12, 5, 0.94);
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.55);
+  font-family: var(--gh-display);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gh-ochre);
+  text-shadow: 0 0 6px #140c05, 0 2px 3px rgba(0, 0, 0, 0.95);
+}
+
+.fullscreen-toggle:hover,
+.fullscreen-toggle:focus-visible {
+  background: linear-gradient(180deg, #fdf4dd, var(--gh-bone) 58%, #d9c396);
+  border-color: var(--gh-bone);
+  color: var(--gh-red);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+/* Numa janela pequena sobra o essencial, e o canto não é essencial.
+
+   Ali embaixo o rodapé já quebra os números em três linhas, e o botão
+   caía em cima deles; reservar a faixa à direita espremia a coluna e
+   quebrava em cinco. Quem abre uma janela desse tamanho não está
+   pedindo tela cheia — some o botão, e com ele a reserva. */
+@media (max-width: 760px), (max-height: 520px) {
+  :root {
+    --corner-gutter: 0px;
+  }
+
+  .fullscreen-toggle {
+    display: none;
+  }
+
+  /* O seletor de idioma encolhe em vez de sumir: a escolha continua
+     alcançável, e o que não pode é ele empurrar o logo para fora da
+     tela — ver a armadilha 2. */
+  .lang-picker {
+    margin-top: 8px;
+  }
+
+  .lang-option {
+    gap: 6px;
+    padding: 4px 9px;
+    font-size: 10px;
+  }
+
+  .lang-flag svg {
+    width: 16px;
+    height: 11px;
+  }
 }
 
 /* --- rodapé --- */
@@ -1081,7 +1215,7 @@ button {
 }
 
 .verdict {
-  font-size: 20px;
+  font-size: 15px;
   font-weight: 800;
   letter-spacing: 0.02em;
   text-transform: uppercase;

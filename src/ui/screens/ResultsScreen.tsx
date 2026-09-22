@@ -7,10 +7,12 @@ import { starLabel } from '../../content/progression'
 import { difficultyName } from './MenuScreen'
 import { Backdrop } from '../Backdrop'
 import { mixer } from '../../audio/mixer'
+import { useBackToMenu } from '../useBackKey'
 
 export function ResultsScreen() {
   const { lastPerformance, setScreen, selectedSongId, library, settings } = useGame()
   const entry = library.find((e) => e.song.meta.id === selectedSongId)
+  useBackToMenu()
 
   if (!lastPerformance) {
     setScreen('menu')

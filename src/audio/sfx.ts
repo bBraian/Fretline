@@ -25,6 +25,7 @@ const FILES = {
   cash: 'cash.wav',
   crowdFail: 'crowd_fail_songR.wav',
   highwayRise: 'highway_riseR.wav',
+  crowdSwell: 'medium_crowd_swell_01R.wav',
   notesRipple: 'notes_ripple_up_01.wav',
   scroll: 'scroll.wav',
   crowdCheer: 'sp_cheer1R.wav',

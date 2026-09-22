@@ -9,6 +9,7 @@ import { DIFFICULTIES, FRET_COLORS, FRET_NAMES } from '../../engine/types'
 import { gamepadAxisLabel, gamepadButtonLabel, DEFAULT_GAMEPAD, DEFAULT_KEYBOARD, keyLabel } from '../../input/bindings'
 import { Backdrop } from '../Backdrop'
 import { mixer } from '../../audio/mixer'
+import { useBackKey } from '../useBackKey'
 
 type Listening = { kind: 'fret'; index: number } | { kind: 'starPower' | 'whammy' } | null
 
@@ -25,6 +26,24 @@ export function SettingsScreen() {
   const [padListening, setPadListening] = useState<PadListening>(null)
   const [livePressed, setLivePressed] = useState<number[]>([])
   const [axes, setAxes] = useState<number[]>([])
+
+  /**
+   * Esc aqui tem dois donos, e o de dentro vem primeiro.
+   *
+   * Com uma captura de comando aberta, Esc a cancela — é o que o rótulo
+   * "aperte uma tecla" promete. Só sem captura nenhuma é que ele sai da
+   * tela. A captura de teclado já se defende sozinha, na fase de captura;
+   * a de controle não, e é por ela que a guarda existe.
+   */
+  useBackKey(() => {
+    if (listening || padListening) {
+      setListening(null)
+      setPadListening(null)
+      return
+    }
+    mixer.play('back')
+    setScreen('menu')
+  })
 
   // Captura a próxima tecla apertada e grava no comando escolhido.
   useEffect(() => {

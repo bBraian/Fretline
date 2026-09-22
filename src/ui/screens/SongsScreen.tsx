@@ -22,6 +22,7 @@ import {
 } from '../../songs/library'
 import { SongRow } from './SongRow'
 import { mixer } from '../../audio/mixer'
+import { useBackToMenu } from '../useBackKey'
 import { blockable } from '../blocked'
 import { DifficultyPicker } from './DifficultyPicker'
 import { useListSelection } from '../useListSelection'
@@ -54,6 +55,7 @@ export function SongsScreen() {
   const difficulty = useGame((s) => s.settings.difficulty)
   const refreshLocalLibrary = useGame((s) => s.refreshLocalLibrary)
   const loadingLibrary = useGame((s) => s.loadingLibrary)
+  useBackToMenu()
 
   const inputRef = useRef<HTMLInputElement>(null)
   const [status, setStatus] = useState<string | null>(null)

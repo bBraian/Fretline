@@ -20,6 +20,7 @@ const BY_SIZE = {
   16110: 'notesRipple',
   7110: 'scroll',
   851104: 'crowdCheer',
+  112172: 'crowdSwell',
   30204: 'ui01',
   25900: 'ui05',
   31264: 'ui06',
@@ -614,6 +615,42 @@ console.log('\nGAMEPLAY — vitória (piloto automático toca a música)')
   })
   if (resultado.sfx.includes('crowdFail')) problems.push('tocou o som de derrota numa vitória')
   else console.log('✓ não tocou o som de derrota na vitória')
+
+  await page.close()
+}
+
+// ─── boost: a plateia levanta ─────────────────────────────────────────────
+console.log('\nBOOST')
+{
+  const page = await novaPagina(null, { viewport: { width: 480, height: 270 } })
+  await page.goto(`${BASE}/?debug&lowfx`, { waitUntil: 'domcontentloaded' })
+  await page.getByRole('button', { name: /Tocar/ }).first().click()
+  await page.getByRole('button', { name: /^Tocar em/ }).click()
+  await page.waitForFunction(() => !document.body.innerText.includes('Afinando'), null, {
+    timeout: 60000,
+  })
+  // Passa a contagem regressiva: antes dela o input ainda não vale.
+  await page.waitForTimeout(4000)
+
+  // O medidor é enchido na mão pelo gancho de depuração. O que se confere
+  // aqui é o som da ativação, não quanto tempo leva para juntar star power
+  // tocando — isso o teste de fumaça já percorre.
+  const tocados = await ouvindo(
+    page,
+    () =>
+      page.evaluate(() => {
+        window.__fretline.session.getState().starPowerAmount = 1
+        for (const type of ['keydown', 'keyup']) {
+          window.dispatchEvent(new KeyboardEvent(type, { code: 'Space', bubbles: true }))
+        }
+      }),
+    900,
+  )
+  confere('espaço ativa o boost', tocados, { contem: ['crowdSwell'] })
+
+  const ativo = await page.evaluate(() => window.__fretline.session.getState().starPowerActive)
+  console.log(`${ativo ? '✓' : '✗'} star power ligado depois do espaço`)
+  if (!ativo) problems.push('o espaço não ligou o star power')
 
   await page.close()
 }

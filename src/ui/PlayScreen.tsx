@@ -116,6 +116,11 @@ export function PlayScreen() {
         // diferença nenhuma e passa despercebido.
         playerRef.current?.playMissNoise()
       }
+      if (event.kind === 'starPowerStart') {
+        // O boost é o único gesto do jogo que não resolve uma nota, e sem
+        // som ele passava só como mudança de cor na pista.
+        mixer.playCue('boost')
+      }
       if (event.kind === 'failed') {
         playerRef.current?.pause()
         mixer.playCue('fail')

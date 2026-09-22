@@ -58,6 +58,10 @@ const CUE_SAMPLE: Record<GameCue, SampleName> = {
   cash: 'cash',
   win: 'youRock',
   fail: 'crowdFail',
+  // A plateia levanta junto com o boost. Toca aqui, no contexto da mesa, e
+  // não no da partida: é reação de público, e não pode disputar espaço com
+  // o corte da faixa de guitarra nem morrer com o contexto da música.
+  boost: 'crowdSwell',
 }
 
 type Listener = (volume: number) => void
@@ -361,7 +365,7 @@ class Mixer {
 }
 
 export type MenuSound = 'move' | 'select' | 'back' | 'enter' | 'blocked' | 'tweak'
-export type GameCue = 'cash' | 'fail' | 'win'
+export type GameCue = 'cash' | 'fail' | 'win' | 'boost'
 
 /**
  * O único efeito que continua sintetizado.

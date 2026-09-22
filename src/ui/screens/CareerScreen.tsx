@@ -20,6 +20,7 @@ import { previewOf, useSongPreview } from '../useSongPreview'
 /** O mesmo descanso da lista de músicas; a espera não muda de tela. */
 const PREVIEW_DELAY = 2000
 import { mixer } from '../../audio/mixer'
+import { useBackToMenu } from '../useBackKey'
 
 export function CareerScreen() {
   const {
@@ -31,6 +32,7 @@ export function CareerScreen() {
     settings,
   } = useGame()
   const totalStars = useGame((s) => s.totalStars())
+  useBackToMenu()
 
   // A demo não é etapa de carreira quando existe biblioteca de verdade.
   const library = useMemo(() => catalogue(todas), [todas])

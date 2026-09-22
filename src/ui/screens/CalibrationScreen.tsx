@@ -17,6 +17,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useGame } from '../store'
 import { blockable } from '../blocked'
 import { Backdrop } from '../Backdrop'
+import { useBackKey } from '../useBackKey'
 
 type Mode = 'idle' | 'audio' | 'video'
 
@@ -48,6 +49,20 @@ export function CalibrationScreen() {
   }
 
   useEffect(() => () => stop(), [])
+
+  /**
+   * Esc no meio de uma medição cancela a medição, não a tela.
+   *
+   * É o mesmo "cancelar" do botão que aparece durante o teste. Sair dali
+   * direto para o menu descartaria as batidas já dadas sem dizer nada.
+   */
+  useBackKey(() => {
+    if (mode !== 'idle') {
+      stop()
+      return
+    }
+    setScreen('menu')
+  })
 
   const begin = async (next: 'audio' | 'video') => {
     stop()

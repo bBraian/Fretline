@@ -21,6 +21,7 @@ import { useGame } from '../store'
 import { characterById } from '../../content/characters'
 import { guitarById } from '../../content/guitars'
 import { Backdrop } from '../Backdrop'
+import { LanguagePicker } from './LanguagePicker'
 import { mixer } from '../../audio/mixer'
 import type { Screen } from '../store'
 
@@ -141,6 +142,11 @@ export function MenuScreen() {
           ))}
 
           <p className="menu-hint">{entries[selected].hint}</p>
+
+          {/* Fora da lista dirigida por seleção de propósito: as setas andam
+              entre telas, e o idioma não abre nenhuma. Chega-se nele pelo
+              ponteiro ou pelo Tab, como em qualquer outro ajuste. */}
+          <LanguagePicker />
         </nav>
       </div>
 

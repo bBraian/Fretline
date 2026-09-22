@@ -234,6 +234,45 @@ Os itens têm **tamanhos irregulares** de propósito (`lg`/`md`/`sm`). O
 original não alinha a lista num corpo só, e o ritmo desigual é metade do que
 faz a tela ler como cartaz em vez de formulário.
 
+**`Esc` faz o mesmo que o "← Voltar" da tela**, em todas as telas de menu
+(`ui/useBackKey.ts`). Não é um ouvinte central no roteador porque voltar não
+é a mesma coisa em toda tela: nos ajustes, o Esc *de dentro* — o que cancela
+a captura de um comando — vem primeiro; na calibração, ele cancela a medição
+antes de sair. No palco o Esc pausa, que é outra ação, e o gancho não entra
+lá.
+
+### O seletor de idioma
+
+Fica **abaixo dos itens** e **fora** da navegação por setas: as setas andam
+entre telas, e o idioma não abre nenhuma — um item da lista que não leva a
+lugar nenhum quebraria a promessa da navegação. Chega-se nele pelo ponteiro
+ou pelo Tab, como em qualquer outro ajuste.
+
+Segue a linguagem de seleção da seção 4 — osso com letra de cartaz no
+escolhido, ocre sobre escuro no outro — e as bandeiras são **SVG desenhado**,
+pela mesma regra do fundo: nenhum bitmap na interface. As estrelas das duas
+ficam de fora; num corpo de vinte pixels elas viram mancha cinza.
+
+Por ora o valor só é **gravado** (`settings.language`, padrão `en`). Nada o
+lê para escolher texto, e as telas seguem em português: a tradução é trabalho
+separado, e isto é o lugar onde ela vai encontrar a escolha já feita.
+
+### O canto inferior direito
+
+O botão de tela cheia flutua fixo no canto, por cima de todas as telas menos
+o palco — ali o canto é do HUD, e um controle de janela sobre a pista se
+clica sem querer. Quem manda no ícone é `document.fullscreenElement`, não uma
+variável própria: sair pelo Esc não passa pelo componente.
+
+Como ele não pertence a nenhuma tela, **quem tem rodapé reserva a faixa**:
+`--corner-gutter`, no `padding-right` de `.screen-foot`.
+
+Numa janela pequena o botão **some**, e a reserva vai a zero com ele. Ali o
+rodapé já quebra os números em três linhas; segurar a faixa espremia a coluna
+e quebrava em cinco, e quem abre uma janela de 480×270 não está pedindo tela
+cheia. O seletor de idioma, esse, encolhe em vez de sumir — a escolha
+continua alcançável.
+
 ## 8. Armadilhas já pagas
 
 Estão aqui porque cada uma custou uma ida e volta.
@@ -249,7 +288,12 @@ Estão aqui porque cada uma custou uma ida e volta.
    pedaços leva `aria-label` explícito.
 4. **Moldura em tela que rola.** O SVG é fixo e o conteúdo não: em
    `content` a moldura sai.
-5. **Captura de tela não serve para medir animação.** Um `screenshot()` do
+5. **Faixa reservada no rodapé.** O botão de tela cheia é `fixed`, e
+   elemento fixo não empurra nada: na primeira tentativa ele caiu em cima do
+   "Tocar em…" da lista de músicas, que é a ação principal da tela. Quem
+   flutua sobre o conteúdo precisa de uma reserva no conteúdo —
+   `--corner-gutter`.
+6. **Captura de tela não serve para medir animação.** Um `screenshot()` do
    Playwright leva ~500ms; amostrar 550ms de animação com ele dá dois
    quadros. Animação se mede lendo o estado pelo gancho de depuração.
 

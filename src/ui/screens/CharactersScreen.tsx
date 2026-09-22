@@ -26,6 +26,7 @@ import { guitarById } from '../../content/guitars'
 import { ModelPreview } from '../../render/preview'
 import { Backdrop } from '../Backdrop'
 import { mixer } from '../../audio/mixer'
+import { useBackToMenu } from '../useBackKey'
 
 function hex(color: number) {
   return `#${color.toString(16).padStart(6, '0')}`
@@ -35,6 +36,7 @@ export function CharactersScreen() {
   const { profile, setScreen, chooseCharacter, buyCharacter, previewCharacter } = useGame()
   const totalStars = useGame((s) => s.totalStars())
   const previewId = useGame((s) => s.previewCharacterId)
+  useBackToMenu()
 
   /**
    * O personagem já está na tela?

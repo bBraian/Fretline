@@ -15,6 +15,7 @@ import { buildGuitar } from '../../render/guitar/guitarModel'
 import { ModelPreview } from '../../render/preview'
 import { Backdrop } from '../Backdrop'
 import { mixer } from '../../audio/mixer'
+import { useBackToMenu } from '../useBackKey'
 
 function hex(color: number) {
   return `#${color.toString(16).padStart(6, '0')}`
@@ -24,6 +25,7 @@ export function GuitarsScreen() {
   const { profile, setScreen, chooseGuitar, buyGuitar, previewGuitar } = useGame()
   const totalStars = useGame((s) => s.totalStars())
   const previewId = useGame((s) => s.previewGuitarId)
+  useBackToMenu()
 
   const [loading, setLoading] = useState(false)
   const canvasRef = useRef<HTMLCanvasElement>(null)

@@ -20,6 +20,7 @@ import { SettingsScreen } from './ui/screens/SettingsScreen'
 import { CalibrationScreen } from './ui/screens/CalibrationScreen'
 import { ResultsScreen } from './ui/screens/ResultsScreen'
 import { PlayScreen } from './ui/PlayScreen'
+import { FullscreenButton } from './ui/FullscreenButton'
 
 export function App() {
   const screen = useGame((s) => s.screen)
@@ -109,6 +110,17 @@ export function App() {
     }
   }, [])
 
+  return (
+    <>
+      {renderScreen(screen)}
+      {/* O canto inferior direito do palco é do HUD, e um controle de
+          janela por cima da pista se clica sem querer. */}
+      {screen !== 'play' && <FullscreenButton />}
+    </>
+  )
+}
+
+function renderScreen(screen: Screen) {
   switch (screen) {
     case 'career':
       return <CareerScreen />

@@ -30,6 +30,16 @@ export type Screen =
   | 'play'
   | 'results'
 
+/**
+ * Idioma da interface.
+ *
+ * Por enquanto é só estado: nada lê este valor para escolher texto, e as
+ * telas continuam em português. Ele existe para que a tradução, quando
+ * vier, encontre a escolha já feita, gravada e restaurada entre sessões —
+ * e não precise inventar onde ela mora no meio do trabalho.
+ */
+export type Language = 'en' | 'pt'
+
 export interface Record_ {
   score: number
   stars: number
@@ -38,6 +48,8 @@ export interface Record_ {
 
 export interface Settings {
   difficulty: Difficulty
+  /** Idioma da interface. Inglês é o padrão. Ver `Language`. */
+  language: Language
   noteSpeed: number
   /** Calibração de áudio: desloca o julgamento. */
   audioOffset: number
@@ -109,6 +121,7 @@ const STORAGE_KEY = 'fretline:v1'
 
 const DEFAULT_SETTINGS: Settings = {
   difficulty: 'medium',
+  language: 'en',
   noteSpeed: DEFAULT_NOTE_SPEED,
   audioOffset: 0,
   videoOffset: 0,
