@@ -15,6 +15,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useGame } from '../store'
+import { blockable } from '../blocked'
 import { Backdrop } from '../Backdrop'
 
 type Mode = 'idle' | 'audio' | 'video'
@@ -203,7 +204,7 @@ export function CalibrationScreen() {
             </div>
 
             <div className="field-row" style={{ marginTop: 16 }}>
-              <button className="btn btn-primary" disabled={!enough} onClick={apply}>
+              <button className="btn btn-primary" {...blockable(!enough, apply)}>
                 Aplicar {Math.round(result * 1000)} ms
               </button>
               <button className="btn btn-ghost" onClick={stop}>

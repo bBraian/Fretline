@@ -12,6 +12,8 @@
  * pontuação à direita, ligados ao nome por uma linha pontilhada.
  */
 
+import { blockable } from '../blocked'
+
 interface SongRowProps {
   name: string
   /** Quem tocou, e o ano quando houver. */
@@ -46,8 +48,7 @@ export function SongRow({
       className="song-row"
       data-selected={selected}
       data-waiting={waiting}
-      disabled={disabled}
-      onClick={onClick}
+      {...blockable(disabled ?? false, onClick)}
     >
       <span className="song-row-main">
         <span className="song-name">{name}</span>

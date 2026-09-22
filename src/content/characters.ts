@@ -226,7 +226,7 @@ const IMPORTED: Character[] = ([
   ['kratos', 'Kairos', 'Barba de cinzas, olhar de quem já viu pior', 0, 0, true, undefined],
   ['dead_pool', 'Vermelhão', 'Fala demais entre uma música e outra', 6, 3500, true, undefined],
   ['goku', 'Gokê Ramos', 'Cabelo em pé desde o primeiro acorde', 10, 5000, true, undefined],
-  ['homer_fmv_model_-_the_simpsons_hit__run', 'Homero Pinto', 'Toca melhor depois da terceira', 14, 7000, true, undefined],
+  ['homer_simpson_-_fortnite_skin', 'Homero Pinto', 'Toca melhor depois da terceira', 14, 7000, true, undefined],
   ['douxie_tales_of_arcadia', 'Douglas', 'Jaqueta, franja e um alaúde antigo', 18, 9000, true, undefined],
   ['spiderman_brand_new_day_from_fortnite', 'Teixeira', 'Sobe na caixa de som todo show', 22, 11000, true, undefined],
   ['taylor_swift_band_hero', 'Stella Vaughn', 'Veio do pop e ficou pelo barulho', 28, 14000, true, undefined],

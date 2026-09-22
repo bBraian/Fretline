@@ -1,5 +1,5 @@
 /**
- * Mesa de som dos menus: volume geral, música de fundo e efeitos.
+ * Mesa de som: volume geral, música de fundo dos menus e efeitos sonoros.
  *
  * Existe um lugar só onde o volume mora, e é aqui. A tela de ajustes escreve
  * nele, o tocador da música lê dele, e quem quiser saber quando mudou se
@@ -7,12 +7,17 @@
  * música — mexer no controle durante a partida não tinha efeito nenhum, e
  * nada além da música obedecia.
  *
- * ## Por que o som é sintetizado
+ * ## Sintetizado e gravado, lado a lado
  *
- * O projeto não embarca arquivo de áudio nenhum, e a faixa de demonstração
- * já é gerada em código. Os efeitos de menu e a música de fundo seguem a
- * mesma regra: são alguns osciladores, custam menos de um kilobyte de
- * código e nada de download.
+ * A música de fundo continua sendo osciladores: ela toca em laço por tempo
+ * indeterminado, e um arquivo em laço custa download e memória para dizer a
+ * mesma coisa. Já os efeitos do jogo são amostras de verdade, em
+ * `public/sfx/` — uma plateia gritando e um "you rock" não se fazem com três
+ * osciladores, e tentar produz caricatura. Ver `sfx.ts`.
+ *
+ * Sobrou um sintetizado no meio dos gravados: o `tweak` dos controles
+ * deslizantes. Ele dispara a cada passo do controle, dezenas de vezes por
+ * segundo de arrasto, e uma amostra ali vira serra elétrica.
  *
  * ## Contexto próprio
  *
@@ -22,8 +27,38 @@
  * geral é que liga os dois.
  */
 
+import { MenuPlaylist, type MenuTrack } from './menuPlaylist'
+import { SampleBank, ShuffleBag, type SampleName } from './sfx'
+
 /** Quanto a música de menu toca abaixo do volume geral. */
 const MENU_MUSIC_RATIO = 0.5
+
+/**
+ * Por quanto tempo um "voltar" cala o som de "abrir menu".
+ *
+ * Voltar ao menu é as duas coisas ao mesmo tempo: sai de uma tela e entra em
+ * outra. Sem esta folga, o botão de voltar dispararia o par de sons um em
+ * cima do outro, que é o defeito mais audível que este sistema pode ter.
+ */
+const BACK_MUTES_ENTER = 0.4
+
+/** O efeito gravado de cada som de menu. O que falta aqui é sintetizado. */
+const MENU_SAMPLE: Partial<Record<MenuSound, SampleName>> = {
+  move: 'scroll',
+  back: 'ui09',
+  enter: 'ui01',
+  // Recusar é um parente de voltar: as duas coisas dizem "não foi por aí".
+  // Mas `blocked` não navega, então não cala o som de abrir menu como o
+  // `back` faz.
+  blocked: 'ui09',
+}
+
+/** O efeito gravado de cada aviso de jogo. */
+const CUE_SAMPLE: Record<GameCue, SampleName> = {
+  cash: 'cash',
+  win: 'youRock',
+  fail: 'crowdFail',
+}
 
 type Listener = (volume: number) => void
 
@@ -37,6 +72,26 @@ class Mixer {
   private menuMusicOn = true
   private musicNodes: Array<{ stop(): void }> = []
   private listeners = new Set<Listener>()
+
+  private bank = new SampleBank()
+  /** Instante do último "voltar", para não somar o som de "abrir menu". */
+  private lastBack = -Infinity
+
+  /** Confirmar sai em duas versões, sorteadas sem repetir. */
+  private selectBag = new ShuffleBag<SampleName>(['ui05', 'ui06'])
+
+  /** Trechos das músicas da biblioteca; ver `menuPlaylist.ts`. */
+  private playlist = new MenuPlaylist()
+
+  constructor() {
+    // Nenhuma faixa da biblioteca abriu — codec desconhecido, arquivo
+    // corrompido, URL de blob expirada. O menu não fica em silêncio por
+    // isso: esquece a lista e volta para o laço sintetizado.
+    this.playlist.onGiveUp = () => {
+      this.playlist.setTracks([])
+      this.startMenuMusic()
+    }
+  }
 
   /**
    * O contexto só nasce no primeiro gesto do jogador.
@@ -63,6 +118,10 @@ class Mixer {
     this.sfxGain = this.ctx.createGain()
     this.sfxGain.gain.value = 0.55
     this.sfxGain.connect(this.master)
+
+    // Os bytes já vieram pelo `warm()`; aqui só falta decodificar, o que
+    // custa milissegundos. É o que faz o primeiro efeito sair no tempo.
+    this.bank.preload(this.ctx)
 
     return this.ctx
   }
@@ -91,16 +150,43 @@ class Mixer {
     return () => this.listeners.delete(listener)
   }
 
+  /**
+   * As músicas da biblioteca, para o menu tocar trechos delas.
+   *
+   * Quem passa a lista é a interface, que é quem conhece a biblioteca —
+   * a mesa não importa de `songs/`, senão as duas camadas se enlaçariam.
+   */
+  setMenuTracks(tracks: MenuTrack[]) {
+    const tinha = this.playlist.hasTracks
+    this.playlist.setTracks(tracks)
+
+    // A pasta `songs/` é lida depois que o menu já está no ar, então a
+    // primeira coisa que toca é sempre o laço sintetizado. Quando as
+    // músicas chegam, elas tomam o lugar dele — mas só se ele estiver
+    // tocando de fato: durante a partida a música de menu está parada, e
+    // ressuscitá-la aqui colocaria duas músicas no palco ao mesmo tempo.
+    if (!tinha && this.playlist.hasTracks && this.menuMusicOn && this.musicNodes.length) {
+      this.startMenuMusic()
+    }
+  }
+
   setMenuMusicEnabled(enabled: boolean) {
     this.menuMusicOn = enabled
-    if (this.musicGain && this.ctx) {
-      this.musicGain.gain.setTargetAtTime(
-        enabled ? MENU_MUSIC_RATIO : 0,
-        this.ctx.currentTime,
-        0.15,
-      )
+
+    if (!enabled) {
+      // Desligar é parar de verdade, e não só abaixar o volume: a lista
+      // transmite um arquivo, e deixá-la tocando muda gasta banda à toa.
+      this.stopMenuMusic(0.25)
+      if (this.musicGain && this.ctx) {
+        this.musicGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.15)
+      }
+      return
     }
-    if (enabled) this.startMenuMusic()
+
+    if (this.musicGain && this.ctx) {
+      this.musicGain.gain.setTargetAtTime(MENU_MUSIC_RATIO, this.ctx.currentTime, 0.15)
+    }
+    this.startMenuMusic()
   }
 
   /**
@@ -108,16 +194,37 @@ class Mixer {
    *
    * Chamar de novo não empilha uma segunda instância — é o que evita duas
    * músicas sobrepostas ao andar pelas telas.
+   *
+   * Com a biblioteca carregada, toca trechos das músicas de verdade; sem
+   * ela — antes da varredura da pasta, ou num build estático sem pasta
+   * nenhuma — cai no laço sintetizado.
    */
   startMenuMusic() {
-    if (!this.menuMusicOn || this.musicNodes.length) return
+    if (!this.menuMusicOn) return
     const ctx = this.ensure()
     if (!ctx || !this.musicGain) return
+
+    if (this.playlist.hasTracks) {
+      this.stopLoop()
+      this.playlist.start(ctx, this.musicGain)
+      return
+    }
+
+    if (this.musicNodes.length) return
     this.musicNodes = buildMenuLoop(ctx, this.musicGain)
+  }
+
+  /** Derruba o laço sintetizado na hora, sem fecho. */
+  private stopLoop() {
+    for (const node of this.musicNodes) node.stop()
+    this.musicNodes = []
   }
 
   /** Desliga a música com um fecho suave, para entrar no palco. */
   stopMenuMusic(fade = 0.4) {
+    // A lista tem o próprio controle de ganho e o próprio fecho.
+    this.playlist.stop(fade)
+
     if (!this.musicNodes.length || !this.ctx || !this.musicGain) {
       this.musicNodes = []
       return
@@ -137,54 +244,102 @@ class Mixer {
     }, fade * 1000 + 60)
   }
 
+  /**
+   * Começa a baixar os efeitos.
+   *
+   * Separado do `ensure` de propósito: baixar não precisa de gesto do
+   * jogador, e adiantar isso para a abertura da aba é o que evita o primeiro
+   * clique sair mudo.
+   */
+  warm() {
+    this.bank.prefetch()
+  }
+
   /** Um efeito curto de menu. */
   play(sound: MenuSound) {
     const ctx = this.ensure()
     if (!ctx || !this.sfxGain) return
-    playSound(ctx, this.sfxGain, sound)
+
+    if (sound === 'back') this.lastBack = ctx.currentTime
+    if (sound === 'enter' && ctx.currentTime - this.lastBack < BACK_MUTES_ENTER) return
+
+    if (sound === 'select') {
+      this.bank.play(ctx, this.sfxGain, this.selectBag.next())
+      return
+    }
+
+    const sample = MENU_SAMPLE[sound]
+    if (sample) this.bank.play(ctx, this.sfxGain, sample)
+    else playTweak(ctx, this.sfxGain)
+  }
+
+  /** Um aviso do jogo: compra, derrota, vitória. */
+  playCue(cue: GameCue) {
+    const ctx = this.ensure()
+    if (!ctx || !this.sfxGain) return
+    this.bank.play(ctx, this.sfxGain, CUE_SAMPLE[cue])
+  }
+
+  /**
+   * A abertura de uma música: a pista sobe, as notas passam e a plateia
+   * grita, nessa ordem, emendadas.
+   *
+   * Toca no contexto da mesa, não no da música, e é isso que a mantém viva
+   * enquanto a tela de jogo monta e destrói o contexto dela.
+   *
+   * O grito dura quase dez segundos e a aproximação, três: ele atravessa o
+   * começo da música de propósito — é assim que soa uma plateia de verdade —
+   * mas desce até o silêncio logo depois, para não enterrar o primeiro
+   * compasso.
+   */
+  playSongIntro(leadIn: number) {
+    const ctx = this.ensure()
+    if (!ctx || !this.sfxGain) return
+    void this.bank.playSequence(ctx, this.sfxGain, [
+      { name: 'highwayRise' },
+      { name: 'notesRipple' },
+      { name: 'crowdCheer', fadeFrom: leadIn, fadeFor: 1.5 },
+    ])
   }
 }
 
-export type MenuSound = 'move' | 'select' | 'back' | 'tweak'
+export type MenuSound = 'move' | 'select' | 'back' | 'enter' | 'blocked' | 'tweak'
+export type GameCue = 'cash' | 'fail' | 'win'
 
 /**
- * Os efeitos.
+ * O único efeito que continua sintetizado.
  *
- * Curtos de propósito: navegar por uma lista dispara `move` a cada item, e
- * qualquer coisa com cauda longa vira barulho depois do terceiro toque.
+ * Os controles deslizantes dos ajustes disparam um destes por passo, dezenas
+ * de vezes num arrasto. Uma amostra nessa cadência vira serra elétrica; um
+ * oscilador de 50ms, não.
  */
-function playSound(ctx: AudioContext, out: GainNode, sound: MenuSound) {
+function playTweak(ctx: AudioContext, out: GainNode) {
   const now = ctx.currentTime
   const osc = ctx.createOscillator()
   const gain = ctx.createGain()
   osc.connect(gain)
   gain.connect(out)
 
-  const shape: Record<MenuSound, { type: OscillatorType; from: number; to: number; len: number; peak: number }> = {
-    move: { type: 'triangle', from: 520, to: 660, len: 0.07, peak: 0.28 },
-    select: { type: 'square', from: 330, to: 740, len: 0.14, peak: 0.34 },
-    back: { type: 'triangle', from: 480, to: 240, len: 0.12, peak: 0.3 },
-    tweak: { type: 'sine', from: 720, to: 760, len: 0.05, peak: 0.22 },
-  }
-  const s = shape[sound]
-
-  osc.type = s.type
-  osc.frequency.setValueAtTime(s.from, now)
-  osc.frequency.exponentialRampToValueAtTime(s.to, now + s.len)
+  osc.type = 'sine'
+  osc.frequency.setValueAtTime(720, now)
+  osc.frequency.exponentialRampToValueAtTime(760, now + 0.05)
 
   gain.gain.setValueAtTime(0, now)
-  gain.gain.linearRampToValueAtTime(s.peak, now + 0.008)
-  gain.gain.exponentialRampToValueAtTime(0.001, now + s.len)
+  gain.gain.linearRampToValueAtTime(0.22, now + 0.008)
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05)
 
   osc.start(now)
-  osc.stop(now + s.len + 0.02)
+  osc.stop(now + 0.07)
 }
 
 /**
- * A música de fundo: um laço de baixo e acordes, em menor, lento.
+ * A música de reserva: um laço de baixo e acordes, em menor, lento.
  *
- * Feita para não disputar atenção — sem percussão e sem melodia aguda, que
- * são as duas coisas que cansam quem está lendo uma lista de músicas.
+ * É o que toca enquanto a pasta `songs/` ainda está sendo lida, e o que
+ * sobra quando não há pasta nenhuma — num build estático, ou numa
+ * instalação sem músicas importadas. Feita para não disputar atenção: sem
+ * percussão e sem melodia aguda, que são as duas coisas que cansam quem
+ * está lendo uma lista de músicas.
  */
 function buildMenuLoop(ctx: AudioContext, out: GainNode): Array<{ stop(): void }> {
   const tempo = 84

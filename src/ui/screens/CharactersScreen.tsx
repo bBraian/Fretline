@@ -6,7 +6,7 @@
  * animação que revela se as proporções e as articulações funcionam.
  */
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { owns, useGame } from '../store'
 import { ShopActions, ShopTag } from './ShopActions'
 import { BUILD_NAMES, SHOP_CHARACTERS, characterById } from '../../content/characters'
@@ -35,6 +35,14 @@ export function CharactersScreen() {
   const { profile, setScreen, chooseCharacter, buyCharacter, previewCharacter } = useGame()
   const totalStars = useGame((s) => s.totalStars())
   const previewId = useGame((s) => s.previewCharacterId)
+
+  /**
+   * O personagem já está na tela?
+   *
+   * Vale por personagem mostrado, e não uma vez só: trocar de item na lista
+   * começa um carregamento novo, e o anterior pode chegar depois.
+   */
+  const [carregando, setCarregando] = useState(false)
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const previewRef = useRef<ModelPreview | null>(null)
@@ -126,9 +134,16 @@ export function CharactersScreen() {
       montar()
       modelRef.current = corpo
       preview.setModel(corpo.group, () => {})
+      setCarregando(false)
     }
 
-    mostrar()
+    // A marionete continua sendo construída, porque é nela que a guitarra
+    // pendura enquanto o arquivo não chega — mas ela **não vai para a tela**
+    // quando há um modelo a caminho. Antes ia, e o jogador via um boneco
+    // genérico virar outra pessoa alguns segundos depois: lê como defeito,
+    // não como carregamento.
+    if (escolhido.model) setCarregando(true)
+    else mostrar()
 
     if (escolhida.model) {
       void loadGuitarGlb(escolhida.model, escolhida, escolhida.modelAdjust)
@@ -153,7 +168,12 @@ export function CharactersScreen() {
           antigo.dispose()
           mostrar()
         })
-        .catch((erro) => console.error(`não deu para carregar ${escolhido.model}`, erro))
+        .catch((erro) => {
+          console.error(`não deu para carregar ${escolhido.model}`, erro)
+          // Falhou: mostra a marionete, que é melhor que um palco vazio
+          // com um aviso de carregamento que nunca termina.
+          if (!descartado) mostrar()
+        })
     }
 
     return () => {
@@ -193,7 +213,16 @@ export function CharactersScreen() {
         <div className="picker">
           <div className="picker-stage">
             <canvas ref={canvasRef} />
-            <span className="picker-hint">arraste para girar</span>
+            {carregando ? (
+              <div className="picker-loading">
+                <b>Carregando</b>
+                <div className="loading-bar">
+                  <i />
+                </div>
+              </div>
+            ) : (
+              <span className="picker-hint">arraste para girar</span>
+            )}
             <div className="picker-caption">
               <h2>{shown.name}</h2>
               <p>

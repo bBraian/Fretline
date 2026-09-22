@@ -6,9 +6,10 @@
  * segundo plano é o caminho mais curto para vazar memória de GPU.
  */
 
-import { useEffect } from 'react'
-import { useGame } from './ui/store'
+import { useEffect, useRef } from 'react'
+import { useGame, type Screen } from './ui/store'
 import { mixer } from './audio/mixer'
+import type { MenuTrack } from './audio/menuPlaylist'
 import { MenuScreen } from './ui/screens/MenuScreen'
 import { CareerScreen } from './ui/screens/CareerScreen'
 import { SongsScreen } from './ui/screens/SongsScreen'
@@ -21,6 +22,7 @@ import { PlayScreen } from './ui/PlayScreen'
 
 export function App() {
   const screen = useGame((s) => s.screen)
+  const library = useGame((s) => s.library)
   const refreshLocalLibrary = useGame((s) => s.refreshLocalLibrary)
   const volume = useGame((s) => s.settings.volume)
   const menuMusic = useGame((s) => s.settings.menuMusic)
@@ -30,6 +32,34 @@ export function App() {
   useEffect(() => {
     void refreshLocalLibrary()
   }, [refreshLocalLibrary])
+
+  // Os efeitos começam a baixar com a aba, não com o primeiro clique:
+  // baixar não depende de gesto, e adiantar isso é o que faz o primeiro som
+  // de menu sair no tempo em vez de chegar atrasado.
+  useEffect(() => {
+    mixer.warm()
+  }, [])
+
+  /**
+   * A música de fundo dos menus são as próprias músicas da biblioteca.
+   *
+   * A mesa não conhece `songs/` — se conhecesse, as camadas se enlaçariam —
+   * então é aqui que a biblioteca vira uma lista de endereços.
+   *
+   * De cada música vai uma faixa só. Quando o pacote tem várias, a escolhida
+   * é a `backing`, que na convenção do Clone Hero é o `song.ogg`: a banda
+   * inteira já misturada. Tocar as faixas separadas em sincronia custaria
+   * vários fluxos abertos para um som que é de fundo.
+   */
+  useEffect(() => {
+    const tracks: MenuTrack[] = []
+    for (const entry of library) {
+      if (entry.synthesized) continue
+      const track = entry.tracks.find((t) => t.role === 'backing') ?? entry.tracks[0]
+      if (track) tracks.push({ id: entry.song.meta.id, url: track.url })
+    }
+    mixer.setMenuTracks(tracks)
+  }, [library])
 
   // A mesa de som nasce com o que estava salvo.
   useEffect(() => {
@@ -47,6 +77,27 @@ export function App() {
   useEffect(() => {
     if (screen === 'play') mixer.stopMenuMusic()
     else mixer.startMenuMusic()
+  }, [screen])
+
+  /**
+   * O som de abrir um menu, num lugar só.
+   *
+   * Toda navegação passa por `setScreen`, então este efeito cobre botão,
+   * teclado e o que vier depois sem que nenhuma tela precise lembrar de
+   * tocar nada — e sem risco de duas telas tocarem o mesmo som.
+   *
+   * Três silêncios de propósito: a primeira tela não *abriu*, ela já estava
+   * lá; o palco tem a própria abertura; e sair do palco já é anunciado pelo
+   * fim da música, ganhou ou perdeu. O quarto caso, o de voltar, é a própria
+   * mesa que resolve — `play('back')` cala o `enter` seguinte.
+   */
+  const previousScreen = useRef<Screen | null>(null)
+  useEffect(() => {
+    const anterior = previousScreen.current
+    previousScreen.current = screen
+    if (anterior === null || anterior === screen) return
+    if (screen === 'play' || anterior === 'play') return
+    mixer.play('enter')
   }, [screen])
 
   // O navegador só deixa tocar som depois de um gesto. O primeiro clique ou

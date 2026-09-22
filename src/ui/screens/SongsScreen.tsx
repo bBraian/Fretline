@@ -21,6 +21,7 @@ import {
 } from '../../songs/library'
 import { SongRow } from './SongRow'
 import { mixer } from '../../audio/mixer'
+import { blockable } from '../blocked'
 
 function formatDuration(seconds: number) {
   if (!Number.isFinite(seconds) || seconds <= 0) return '—'
@@ -211,11 +212,7 @@ export function SongsScreen() {
 
         <span style={{ flex: 1 }} />
 
-        <button
-          className="btn btn-primary btn-lg"
-          disabled={!playable}
-          onClick={() => setScreen('play')}
-        >
+        <button className="btn btn-primary btn-lg" {...blockable(!playable, () => setScreen('play'))}>
           Tocar em {difficultyName(difficulty)}
         </button>
       </footer>

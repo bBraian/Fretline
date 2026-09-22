@@ -128,6 +128,17 @@ interface Persisted {
   profile: Profile
 }
 
+/**
+ * Recusa audível: a ação não aconteceu, e quem pediu fica sabendo.
+ *
+ * Devolve o pedaço de estado vazio que o zustand espera de uma ação que não
+ * muda nada, para a recusa caber numa linha em cada guarda.
+ */
+function blocked() {
+  mixer.play('blocked')
+  return {}
+}
+
 /** Curinga de desenvolvimento: `['*']` significa tudo liberado. */
 function ownsAll(list: string[]) {
   return list.includes('*')
@@ -176,10 +187,27 @@ export const useGame = create<State>((set, get) => ({
 
   setScreen: (screen) => set({ screen }),
 
-  previewCharacter: (id) => set({ previewCharacterId: id }),
-  previewGuitar: (id) => set({ previewGuitarId: id }),
+  // Trocar o item em exibição é navegar por um menu, e soa como tal. O som
+  // mora aqui, e não nas telas, porque personagens, guitarras e músicas são
+  // três listas com o mesmo gesto — repetir a chamada em cada uma é o
+  // caminho curto para uma delas ficar muda numa refatoração.
+  previewCharacter: (id) =>
+    set((state) => {
+      if (state.previewCharacterId !== id) mixer.play('move')
+      return { previewCharacterId: id }
+    }),
 
-  selectSong: (id) => set({ selectedSongId: id }),
+  previewGuitar: (id) =>
+    set((state) => {
+      if (state.previewGuitarId !== id) mixer.play('move')
+      return { previewGuitarId: id }
+    }),
+
+  selectSong: (id) =>
+    set((state) => {
+      if (state.selectedSongId !== id) mixer.play('move')
+      return { selectedSongId: id }
+    }),
 
   addSongs: (entries) =>
     set((state) => {
@@ -246,8 +274,14 @@ export const useGame = create<State>((set, get) => ({
     set((state) => {
       const character = CHARACTERS.find((c) => c.id === id)
       if (!character) return {}
-      if (owns(state.profile.ownedCharacters, id)) return {}
-      if (state.profile.money < character.price) return {}
+      // A recusa tem som próprio. É aqui, e não no botão, porque é aqui que
+      // a regra mora: quem decide se a compra acontece decide o que se ouve.
+      if (owns(state.profile.ownedCharacters, id)) return blocked()
+      if (state.profile.money < character.price) return blocked()
+
+      // Depois das guardas, nunca antes: a compra que não acontece — sem
+      // saldo, ou de algo que já é seu — não pode soar como caixa registrando.
+      mixer.playCue('cash')
 
       // Comprar não equipa. São duas decisões, e juntá-las tira do jogador a
       // possibilidade de comprar algo para depois.
@@ -264,8 +298,10 @@ export const useGame = create<State>((set, get) => ({
     set((state) => {
       const guitar = GUITARS.find((g) => g.id === id)
       if (!guitar) return {}
-      if (owns(state.profile.ownedGuitars, id)) return {}
-      if (state.profile.money < guitar.price) return {}
+      if (owns(state.profile.ownedGuitars, id)) return blocked()
+      if (state.profile.money < guitar.price) return blocked()
+
+      mixer.playCue('cash')
 
       const profile: Profile = {
         ...state.profile,
@@ -278,7 +314,9 @@ export const useGame = create<State>((set, get) => ({
 
   chooseCharacter: (id) =>
     set((state) => {
-      if (!owns(state.profile.ownedCharacters, id)) return {}
+      if (!owns(state.profile.ownedCharacters, id)) return blocked()
+      // Equipar é a confirmação de uma escolha, e usa o som de confirmar.
+      mixer.play('select')
       const profile = { ...state.profile, characterId: id }
       save({ settings: state.settings, profile })
       return { profile }
@@ -286,7 +324,8 @@ export const useGame = create<State>((set, get) => ({
 
   chooseGuitar: (id) =>
     set((state) => {
-      if (!owns(state.profile.ownedGuitars, id)) return {}
+      if (!owns(state.profile.ownedGuitars, id)) return blocked()
+      mixer.play('select')
       const profile = { ...state.profile, guitarId: id }
       save({ settings: state.settings, profile })
       return { profile }

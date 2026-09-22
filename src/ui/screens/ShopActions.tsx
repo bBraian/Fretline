@@ -8,6 +8,8 @@
  * guitarra divirjam com o tempo.
  */
 
+import { blockable } from '../blocked'
+
 export interface ShopItemState {
   owned: boolean
   equipped: boolean
@@ -54,7 +56,9 @@ export function ShopActions({
   if (!unlocked) {
     return (
       <div className="shop-actions">
-        <button className="btn btn-lg" disabled>
+        {/* Bloqueio de estrelas é coisa que só a interface sabe — a loja
+            nem chega a ser consultada. Então é aqui que a recusa soa. */}
+        <button className="btn btn-lg" {...blockable(true, () => {})}>
           Bloqueado
         </button>
         <span className="shop-note">Abre com {unlockAtStars} estrelas na carreira.</span>
@@ -65,7 +69,9 @@ export function ShopActions({
   const affordable = money >= price
   return (
     <div className="shop-actions">
-      <button className="btn btn-primary btn-lg" disabled={!affordable} onClick={onBuy}>
+      {/* Sem saldo o clique passa mesmo assim: quem recusa é a loja, que é
+          quem conhece o preço e o bolso — e é ela que toca a recusa. */}
+      <button className="btn btn-primary btn-lg" aria-disabled={!affordable || undefined} onClick={onBuy}>
         Comprar por ${price.toLocaleString('pt-BR')}
       </button>
       {!affordable && (

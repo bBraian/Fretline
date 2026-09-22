@@ -136,6 +136,14 @@ export const CHARACTER_ADJUSTMENTS: Record<string, Partial<Attachment>> = {
     rotation: [-0.1, -0.302, -1.222],
     scale: 0.36,
   },
+  // O Homero é o corpo mais largo do elenco, e a barriga dele avança muito
+  // além da cintura de onde o encaixe pendura — com os valores base a
+  // guitarra fica enterrada no abdômen. Sai para a frente e sobe um pouco.
+  'glb-homer_simpson_-_fortnite_skin': {
+    position: [0.04, 0.06, 0.4],
+    rotation: [-0.1, 0.22, -1.02],
+    scale: 0.36,
+  },
 }
 
 /**

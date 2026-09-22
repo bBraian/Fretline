@@ -112,9 +112,16 @@ export function PlayScreen() {
       }
       if (event.kind === 'failed') {
         playerRef.current?.pause()
+        mixer.playCue('fail')
         setPhase('failed')
       }
-      if (event.kind === 'finished') finish()
+      if (event.kind === 'finished') {
+        // A vitória é anunciada aqui, e não no `finish`, porque `finish`
+        // também é o caminho do botão "ver o resultado" de quem falhou — e
+        // quem falhou não venceu.
+        mixer.playCue('win')
+        finish()
+      }
     }
 
     const boot = async () => {
@@ -197,6 +204,12 @@ export function PlayScreen() {
       window.clearInterval(relatorio)
       setAssets(scene.loadingProgress)
       if (cancelled) return
+
+      // A abertura: a pista sobe, o arpejo das notas sobe atrás, a plateia
+      // grita — e a música entra por cima do fim do grito. Cabe na
+      // aproximação de três segundos, e toca no contexto da mesa, que
+      // sobrevive à montagem e ao descarte desta tela.
+      mixer.playSongIntro(LEAD_IN)
 
       scene.start()
       await player.start()
