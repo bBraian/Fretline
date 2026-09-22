@@ -276,6 +276,9 @@ Não aceitável — se aparecer, volte ao passo 2 ou 4:
 - cotovelo invertido, ombro deformado, braço esticado demais;
 - palma virada para fora, ou mão espalmada em cima do braço da guitarra — é o
   sintoma de marco de palma faltando (passo 4);
+- cabeça tombada para trás, ou malha abrindo no colarinho — mede-se a dobra
+  entre cabeça e pescoço: tem de dar o mesmo dos outros. Sair disso costuma
+  ser junta de pescoço a mais no rig, sem homólogo no clipe;
 - corpo duro, de pernas juntas e tronco ereto, com só o braço se mexendo
   enquanto os outros abrem a base e se inclinam — é nome de coluna ou de perna
   que não casou (passo 4);
@@ -296,11 +299,19 @@ Três coisas se resolvem de jeitos diferentes, e vale saber qual é qual:
 
 - **os elos com osso seguinte** — braço, coluna, perna, dedo — são **mirados
   por direção**. É o caminho bom, e não depende de pose de repouso.
-- **as pontas** — cabeça, pé sem dedão, última junta de dedo — recebem a
-  rotação relativa a quem vem antes. Não há escolha: **na própria fonte não
-  existe o osso seguinte** (o `Head` do clipe não tem filho nenhum), e sem
-  dois pontos não se mede direção. Aqui a conta relativa é boa, porque cabeça
-  e dedo repousam alinhados com quem os carrega em qualquer rig.
+- **as pontas** — pescoço e cabeça, pé sem dedão, última junta de dedo — são
+  postas **em mundo**, na orientação que a ponta da fonte tem, medida a partir
+  do repouso. Não dá para mirá-las por direção: **na própria fonte não existe
+  o osso seguinte** (o `Head` do clipe não tem filho nenhum), e sem dois
+  pontos não se mede direção.
+
+  No pescoço são **duas** pontas, não uma. Pondo só a cabeça em mundo, ela vai
+  para o lugar certo mas pendura num pescoço cuja torção em torno do próprio
+  eixo saiu da rotação mínima do `aimBone` — um valor arbitrário —, e a
+  diferença toda sobra na junta, que abre. Medido: 45,6 graus de dobra no
+  Dartes contra os 30,9 da referência. Com pescoço e cabeça em mundo, o
+  arbitrário cancela entre um e outro e **os sete personagens dão exatamente
+  30,9**.
 - **o quadril** recebe o quanto o tronco girou desde o repouso. Nunca a
   orientação absoluta do quadril Mixamo — foi isso que um dia deitou um modelo
   no chão.

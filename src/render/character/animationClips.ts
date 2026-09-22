@@ -313,6 +313,12 @@ const SKELETONS: Record<string, Partial<Record<Slot, string>>> = {
   // carregam peso são todas DEF. Animar os ORG não move um pixel.
   rigify: {
     hips: 'DEF-spine', spine: 'DEF-spine.001', spine1: 'DEF-spine.002',
+    // O Rigify parte o pescoço em três juntas (`.004`, `.005`, `.006`) onde o
+    // Mixamo tem duas. Pelos comprimentos, o homólogo do pescoço do clipe é o
+    // `.004` — o vão coluna→pescoço mede 0,169 lá e 0,168 aqui. Mas medido em
+    // tela o `.005` sai melhor: com o `.004` a dobra da junta ia a 52 graus
+    // contra 46. A junta que sobra sempre guarda uma diferença, e é menor
+    // deixando-a **acima** do osso dirigido do que abaixo.
     spine2: 'DEF-spine.003', neck: 'DEF-spine.005', head: 'DEF-spine.006',
     leftShoulder: 'DEF-shoulder.L', leftArm: 'DEF-upper_arm.L',
     leftForeArm: 'DEF-forearm.L', leftHand: 'DEF-hand.L',
@@ -826,16 +832,48 @@ function fingerChain(root: THREE.Object3D, allowed: Set<string> | null, limit = 
  */
 function tipRelative(chain: Array<{ target: THREE.Object3D; source: THREE.Object3D }>) {
   if (chain.length < 2) return null
-  const parent = chain[chain.length - 2]
   const tip = chain[chain.length - 1]
-  const naFonte = relativeTo(parent.source, tip.source)
-  const noAlvo = relativeTo(parent.target, tip.target)
-  return { parent, tip, fix: naFonte.invert().multiply(noAlvo) }
+  return {
+    tip,
+    // Os dois repousos, lidos agora, antes de qualquer pose.
+    naFonte: tip.source.getWorldQuaternion(new THREE.Quaternion()),
+    noAlvo: tip.target.getWorldQuaternion(new THREE.Quaternion()),
+  }
 }
 
-function applyTip(t: NonNullable<ReturnType<typeof tipRelative>>) {
-  const desejado = relativeTo(t.parent.source, t.tip.source).multiply(t.fix)
-  const world = t.parent.target.getWorldQuaternion(new THREE.Quaternion()).multiply(desejado)
+/**
+ * Põe a ponta na orientação que a da fonte tem, medida a partir do repouso.
+ *
+ * O giro é montado **em mundo** e só então convertido para o espaço do pai. É
+ * essa ordem que importa, e foi ela que consertou a cabeça: pendurar a ponta
+ * na orientação **relativa ao pai** faz ela herdar a torção do pai em torno do
+ * próprio eixo — e essa torção sai do `setFromUnitVectors` do `aimBone`, que
+ * dá a rotação mínima, um valor sem significado anatômico.
+ *
+ * Medido, com a conta relativa: a cabeça do Vermelhão, que recebe o clipe osso
+ * a osso, girava 23,8°; a do Teixeira 39,8°, a do Bené 46,0° e a do Dartes
+ * 57,9°, esta quase toda em torno do eixo dos ombros — cabeceando para trás.
+ * Montada em mundo, a torção do pai deixa de entrar e as quatro convergem.
+ *
+ * `transport` leva o giro do espaço da fonte para o do alvo: o do corpo para
+ * cabeça e pé, o da mão para ponta de dedo.
+ */
+function applyTip(
+  t: NonNullable<ReturnType<typeof tipRelative>>,
+  transport: THREE.Quaternion,
+) {
+  // O quanto a ponta da fonte girou desde o repouso dela.
+  const giro = t.tip.source
+    .getWorldQuaternion(new THREE.Quaternion())
+    .multiply(t.naFonte.clone().invert())
+
+  // O mesmo giro, visto do lado do alvo, sobre o repouso dele.
+  const world = transport
+    .clone()
+    .multiply(giro)
+    .multiply(transport.clone().invert())
+    .multiply(t.noAlvo)
+
   const pai = t.tip.target.parent
   t.tip.target.quaternion.copy(
     pai ? pai.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(world) : world,
@@ -1041,8 +1079,27 @@ export function retargetMapped(
     return { modo: 'antebraco' as const, fore, hand, fix: naFonte.invert().multiply(doAlvo) }
   })
 
-  // As pontas do tronco e das pernas: cabeça, e pé ou dedão.
-  const bodyTips = bodyChains.map(tipRelative).filter((t): t is NonNullable<typeof t> => !!t)
+  /**
+   * As pontas do tronco e das pernas, resolvidas em mundo.
+   *
+   * No tronco são **duas**, pescoço e cabeça, e não só a cabeça. O motivo é a
+   * junta entre elas: pondo só a cabeça em mundo, ela vai para o lugar certo
+   * mas pendura num pescoço cuja torção em torno do próprio eixo saiu da
+   * rotação mínima do `aimBone` — um valor arbitrário. A diferença toda sobra
+   * na junta, que abre: medido, 45,6 graus de dobra no Dartes contra os 30,9
+   * da referência, e a malha do colarinho separando.
+   *
+   * Com os dois em mundo, a dobra passa a ser a da fonte por construção — o
+   * arbitrário cancela entre um e outro. A ordem importa: o pescoço primeiro,
+   * porque a cabeça é lida a partir dele.
+   */
+  const bodyTips = bodyChains.flatMap((chain) => {
+    const daPonta = tipRelative(chain)
+    if (!daPonta) return []
+    // Só o tronco tem junta de pescoço; perna acaba no pé ou no dedão.
+    const pescoco = chain.length >= 3 && chain === bodyChains[0] ? tipRelative(chain.slice(0, -1)) : null
+    return pescoco ? [pescoco, daPonta] : [daPonta]
+  })
 
   /**
    * As cadeias de dedo, um par por dedo e por lado.
@@ -1133,7 +1190,7 @@ export function retargetMapped(
         aimBone(chain[i].target, chain[i + 1].target, want)
       }
     }
-    for (const t of bodyTips) applyTip(t)
+    for (const t of bodyTips) applyTip(t, carry)
 
     for (let c = 0; c < chains.length; c++) {
       const chain = chains[c]
@@ -1210,7 +1267,7 @@ export function retargetMapped(
             const ponta = tipRelative(
               fila.target.map((target, i) => ({ target, source: fila.source[i] })),
             )
-            if (ponta) applyTip(ponta)
+            if (ponta) applyTip(ponta, daMao)
           }
         }
       }
