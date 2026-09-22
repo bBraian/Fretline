@@ -192,6 +192,13 @@ a média das duas mãos, e a posição sai daí mais o braço até a origem da
 guitarra; a rotação sai de um referencial de três eixos, o braço da guitarra
 entre as mãos e o para-frente do corpo.
 
+**Rode este passo depois de mexer no retargeting, não só ao entrar um
+personagem novo.** Os números dependem de onde as mãos caem, e o que move as
+mãos move todos eles. Quando o quadril passou a receber a inclinação do clipe
+— **18 graus, quase constantes: é postura, não balanço** — o elenco inteiro
+saiu 19,5° fora e as mãos escorregaram da guitarra. A conta avisou; a tabela,
+não.
+
 **A linha de conferência é o que importa ler.** Ela compara o medido com o
 que está na tabela:
 
@@ -269,24 +276,34 @@ Não aceitável — se aparecer, volte ao passo 2 ou 4:
 - cotovelo invertido, ombro deformado, braço esticado demais;
 - palma virada para fora, ou mão espalmada em cima do braço da guitarra — é o
   sintoma de marco de palma faltando (passo 4);
-- corpo duro, de pernas juntas, com só o braço se mexendo enquanto os outros
-  abrem a base — é nome de coluna ou de perna que não casou (passo 4);
+- corpo duro, de pernas juntas e tronco ereto, com só o braço se mexendo
+  enquanto os outros abrem a base e se inclinam — é nome de coluna ou de perna
+  que não casou (passo 4);
 - personagem que claramente não está segurando nada.
 
-O corpo inteiro é dirigido, não só os braços: coluna, pescoço, pernas e
-dedos. É o que separa um personagem que **toca** de um que fica duro mexendo
-o braço. O que continua em repouso, de propósito ou por limite:
+**O clipe chega inteiro.** São 52 ossos — quadril, coluna, pescoço, cabeça,
+pernas, pés, dedões, braços e as três juntas de cada dedo — e um rig completo
+recebe os 52, exatamente como o Vermelhão e o Kairos, que são da família do
+clipe e nem passam pelo retargeting.
 
-- **o quadril**, de propósito. É o pai da coluna e das duas pernas, e as três
-  cadeias discordariam sobre para onde girá-lo. Ele é a referência de aprumo,
-  e o personagem fica plantado — que é como um guitarrista diante do microfone
-  se comporta.
-- **a ponta de cada fila** — cabeça, pés, última junta de dedo. Não têm elo
-  seguinte para mirar, então acompanham rigidamente quem vem antes.
+Conte as faixas do clipe adaptado: **52 é o alvo.** Menos que isso só se
+justifica por osso que o rig não tem. Medido no elenco: o Bené fica em 50
+porque o esqueleto dele não traz dedão do pé; o Gokê em 32 porque o dele só
+tem dois dedos por mão. Qualquer outro número é nome não casado (passo 4), não
+limite do modelo.
 
-Para conferir quanto de fato chega em cada um, conte as faixas do clipe
-adaptado por parte do corpo. Um rig completo fica em torno de 36; bem menos
-que isso é sintoma de nome não casado, não de limite do modelo.
+Três coisas se resolvem de jeitos diferentes, e vale saber qual é qual:
+
+- **os elos com osso seguinte** — braço, coluna, perna, dedo — são **mirados
+  por direção**. É o caminho bom, e não depende de pose de repouso.
+- **as pontas** — cabeça, pé sem dedão, última junta de dedo — recebem a
+  rotação relativa a quem vem antes. Não há escolha: **na própria fonte não
+  existe o osso seguinte** (o `Head` do clipe não tem filho nenhum), e sem
+  dois pontos não se mede direção. Aqui a conta relativa é boa, porque cabeça
+  e dedo repousam alinhados com quem os carrega em qualquer rig.
+- **o quadril** recebe o quanto o tronco girou desde o repouso. Nunca a
+  orientação absoluta do quadril Mixamo — foi isso que um dia deitou um modelo
+  no chão.
 
 ---
 

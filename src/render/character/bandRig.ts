@@ -157,31 +157,31 @@ export const CHARACTER_ADJUSTMENTS: Record<string, Partial<Attachment>> = {
    * É a margem em que dois ajustes bons discordam.
    */
   'glb-douxie_tales_of_arcadia': {
-    position: [0.007, -0.089, 0.171],
-    rotation: [-0.043, -0.217, -1.137],
+    position: [-0.073, -0.097, 0.137],
+    rotation: [-0.051, -0.542, -1.244],
     scale: 0.36,
   },
   'glb-fortnite_darth_vader_advanced_rig': {
-    position: [0.007, -0.117, 0.125],
-    rotation: [0.057, -0.206, -1.143],
+    position: [-0.093, -0.132, 0.103],
+    rotation: [0.062, -0.34, -1.19],
     scale: 0.36,
   },
   'glb-spiderman_brand_new_day_from_fortnite': {
-    position: [-0.001, -0.055, 0.183],
-    rotation: [-0.072, -0.205, -1.179],
+    position: [-0.09, -0.065, 0.146],
+    rotation: [-0.062, -0.528, -1.291],
     scale: 0.36,
   },
   // Rig do esqueleto do Unreal, o mesmo do Teixeira — e os números saem
   // parecidos, o que é o sinal de que a família foi reconhecida certo.
   'glb-lara_croft_-_shorts_style': {
-    position: [0.008, -0.022, 0.236],
-    rotation: [-0.085, -0.184, -1.151],
+    position: [-0.083, -0.035, 0.194],
+    rotation: [-0.102, -0.513, -1.255],
     scale: 0.36,
   },
   // Biped da Valve, o do Source: é o primeiro do elenco nessa família.
   'glb-soldier_boy': {
-    position: [-0.005, -0.007, 0.077],
-    rotation: [-0.082, -0.198, -1.184],
+    position: [-0.086, -0.017, 0.054],
+    rotation: [-0.055, -0.519, -1.294],
     scale: 0.36,
   },
   // O Gokê é o único rig Biped do 3ds Max do elenco. Estes números são bem
@@ -190,8 +190,8 @@ export const CHARACTER_ADJUSTMENTS: Record<string, Partial<Attachment>> = {
   // clavícula, a derivação pedia um giro de 35 graus fora do resto, porque
   // era o úmero inteiro sendo dirigido como antebraço.
   'glb-goku': {
-    position: [-0.038, -0.135, 0.061],
-    rotation: [0.134, -0.326, -1.194],
+    position: [-0.116, -0.128, 0.022],
+    rotation: [0.156, -0.628, -1.328],
     scale: 0.36,
   },
 }

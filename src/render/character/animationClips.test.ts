@@ -407,43 +407,46 @@ describe('retargeting para esqueleto de outra convenção', () => {
   })
 
   /**
-   * O quadril da fonte não pode vazar para o braço do alvo.
+   * O quadril **acompanha**, mas só o quanto o tronco balançou.
    *
-   * O personagem fica **plantado**: o quadril dele não é dirigido, e a
-   * guitarra pendura nele. O clipe do Mixamo, por outro lado, balança o
-   * quadril. Medir a direção do braço no mundo da fonte carregaria esse
-   * balanço para dentro do braço do alvo, e as mãos iriam saindo de cima da
-   * guitarra ao longo da música.
+   * Durante muito tempo ele ficava parado, e havia motivo: o método antigo
+   * escrevia nele a orientação de **mundo** do quadril do rig Mixamo, o que
+   * deitou um modelo no chão. Mas deixá-lo parado custava o resto — a
+   * guitarra pendura no quadril, então ela ficava imóvel enquanto o Vermelhão,
+   * que recebe o clipe osso a osso, balançava com ela.
    *
-   * É por isso que o referencial da fonte é relido a cada quadro: a direção
-   * passa a ser medida em relação ao tronco dela, e o balanço sai da conta.
+   * O que entra agora é o **balanço relativo ao repouso**: o quanto o tronco
+   * da fonte girou desde onde começou. É por isso que o corpo do alvo, virado
+   * para outro lado, continua virado para o outro lado — ele gira o mesmo
+   * tanto, a partir de onde estava.
    */
-  it('ignora a rotação de quadril do clipe, que o alvo não acompanha', () => {
+  it('dá ao quadril o balanço do tronco, e não a orientação absoluta da fonte', () => {
     const fonte = buildBody(MIXAMO_BODY, { axis: new THREE.Vector3(0, 1, 0), length: 20 })
     const alvo = buildBody(UNREAL_BODY, { axis: new THREE.Vector3(1, 0, 0), length: 0.4 })
+
+    // O alvo nasce virado um quarto de volta. É o que separa "girou o mesmo
+    // tanto" de "foi parar na mesma orientação".
+    const viradaDoCorpo = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2)
+    alvo.hips.quaternion.copy(viradaDoCorpo)
+    alvo.hips.updateMatrixWorld(true)
+
     const { scene, mesh } = asTarget(alvo)
 
-    const doBraco = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -Math.PI / 4)
-    // Um balanço de quadril bem maior que o do clipe de verdade, para o teste
-    // falhar se ele vazar.
-    const doQuadril = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 5)
-
-    const clip = new THREE.AnimationClip('tocar', 1, [
-      faixa(MIXAMO_BODY.hips, doQuadril),
-      faixa(MIXAMO_BODY.left.arm, doBraco),
-    ])
+    const balanco = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 9)
+    const clip = new THREE.AnimationClip('tocar', 1, [faixa(MIXAMO_BODY.hips, balanco)])
 
     const pronto = retargetMapped(clip, fonte.hips, mesh)
     expect(pronto).not.toBeNull()
 
-    // O esperado é o braço **com o quadril parado**: é assim que o alvo está.
-    fonte.lados.left[1].quaternion.copy(doBraco)
-    fonte.hips.updateMatrixWorld(true)
-    const esperado = dirNoCorpo(fonte, fonte.lados.left[1], fonte.lados.left[2])
-
     tocar(scene, pronto!)
-    const obtido = dirNoCorpo(alvo, alvo.lados.left[1], alvo.lados.left[2])
+    const obtido = alvo.hips.getWorldQuaternion(new THREE.Quaternion())
 
-    expect(obtido.distanceTo(esperado)).toBeLessThan(0.03)
+    // Onde estava, mais o balanço.
+    const esperado = viradaDoCorpo.clone().multiply(balanco)
+    expect(Math.abs(obtido.dot(esperado))).toBeCloseTo(1, 3)
+
+    // E **não** a orientação absoluta do quadril da fonte: se fosse essa, o
+    // alvo teria perdido a própria virada, que é o defeito antigo.
+    expect(Math.abs(obtido.dot(balanco))).toBeLessThan(0.99)
   })
 })
