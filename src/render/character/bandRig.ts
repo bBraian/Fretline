@@ -136,12 +136,84 @@ export const CHARACTER_ADJUSTMENTS: Record<string, Partial<Attachment>> = {
     rotation: [-0.1, -0.302, -1.222],
     scale: 0.36,
   },
-  // O Homero é o corpo mais largo do elenco, e a barriga dele avança muito
-  // além da cintura de onde o encaixe pendura — com os valores base a
-  // guitarra fica enterrada no abdômen. Sai para a frente e sobe um pouco.
+  /**
+   * O Homero é o corpo mais largo do elenco, e a barriga dele avança muito
+   * além da cintura de onde o encaixe pendura.
+   *
+   * Os valores antigos empurravam a guitarra 40 cm para a frente para ela
+   * não ficar enterrada no abdômen — mas tinham sido achados **com a
+   * animação quebrada**, e por isso saíram de baixo das mãos quando ela foi
+   * consertada.
+   *
+   * Aqui a medida dos outros não serve inteira, e é o único lugar do elenco
+   * onde isso acontece: a barriga dele avança **além das próprias mãos**, de
+   * modo que a guitarra não pode estar ao mesmo tempo debaixo das mãos e
+   * fora do abdômen. O `z` medido dava 0,184 e enterrava o corpo da
+   * guitarra; 0,26 é o meio que sobra, achado olhando a imagem. Os outros
+   * dois eixos e o giro são os medidos.
+   *
+   * É o "ajuste fino por proporção" do qual os vizinhos não precisam.
+   */
   'glb-homer_simpson_-_fortnite_skin': {
-    position: [0.04, 0.06, 0.4],
-    rotation: [-0.1, 0.22, -1.02],
+    position: [-0.014, -0.163, 0.26],
+    rotation: [-0.072, -0.205, -1.179],
+    scale: 0.36,
+  },
+
+  /**
+   * ## Os quatro abaixo não foram achados no painel: foram medidos
+   *
+   * Depois que a animação passou a pôr as mãos no mesmo lugar em todos os
+   * corpos (ver `render/character/animationClips.ts`), dava para parar de
+   * procurar estes números arrastando controle: eles saem de onde as mãos
+   * caem.
+   *
+   * A conta, com o Vermelhão de calibração — ele é um dos dois que já
+   * estavam certos:
+   *
+   * 1. tocar o clipe e tirar a **média das duas mãos** ao longo dele, no
+   *    referencial do encaixe;
+   * 2. a `position` é esse meio das mãos, mais o braço que vai dali até a
+   *    origem da guitarra. Esse braço é constante **no espaço da guitarra**,
+   *    não no do encaixe: a origem dela não fica nas cordas, e o braço gira
+   *    junto quando a guitarra gira;
+   * 3. a `rotation` sai de um referencial de três eixos — o braço da
+   *    guitarra corre entre as duas mãos, e o para-frente do corpo resolve o
+   *    giro em torno dele. Só a linha das mãos não basta: ela fixa dois graus
+   *    de liberdade, e o terceiro escolhido ao acaso virava a guitarra de
+   *    costas num corpo virado meia volta.
+   *
+   * A conta foi conferida contra o Kairos, cujos valores já tinham sido
+   * achados à mão: ela chega a 16 graus e 11 cm deles sem nunca tê-los
+   * visto. É a margem em que dois ajustes bons discordam, e é o que dá para
+   * confiar nos quatro daqui.
+   *
+   * **Para um personagem novo**, o caminho é o mesmo, e o painel de `?rig`
+   * continua valendo para o acabamento.
+   */
+  'glb-douxie_tales_of_arcadia': {
+    position: [0.007, -0.089, 0.171],
+    rotation: [-0.043, -0.217, -1.137],
+    scale: 0.36,
+  },
+  'glb-fortnite_darth_vader_advanced_rig': {
+    position: [0.007, -0.117, 0.125],
+    rotation: [0.057, -0.206, -1.143],
+    scale: 0.36,
+  },
+  'glb-spiderman_brand_new_day_from_fortnite': {
+    position: [-0.001, -0.055, 0.183],
+    rotation: [-0.072, -0.205, -1.179],
+    scale: 0.36,
+  },
+  // O Gokê é o único rig Biped do 3ds Max do elenco. Estes números são bem
+  // parecidos com os dos vizinhos, e isso é o sinal de que o braço dele foi
+  // mapeado certo — antes de `SKELETONS` aprender que o `Arm` do Biped é
+  // clavícula, a derivação pedia um giro de 35 graus fora do resto, porque
+  // era o úmero inteiro sendo dirigido como antebraço.
+  'glb-goku': {
+    position: [-0.038, -0.135, 0.061],
+    rotation: [0.134, -0.326, -1.194],
     scale: 0.36,
   },
 }

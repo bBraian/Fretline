@@ -23,7 +23,6 @@
 
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
-import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js'
 
 const loader = new GLTFLoader()
 
@@ -129,12 +128,58 @@ export function retarget(clip: THREE.AnimationClip, root: THREE.Object3D): THREE
  * dois dos modelos importados ficavam parados: o clipe existia, mas aplicá-lo
  * cru teria sido pior que não animar.
  *
- * `SkeletonUtils.retargetClip` resolve isso do jeito certo: reproduz o clipe
- * na fonte quadro a quadro, lê a orientação de **mundo** de cada osso, e
- * resolve que rotação local o osso correspondente do alvo precisa ter para
- * chegar na mesma orientação — descontando a diferença entre as duas poses
- * de repouso. O que ele não faz é adivinhar quem corresponde a quem, e é o
- * que esta parte do arquivo acrescenta.
+ * ## Por que não dá para copiar a orientação de mundo
+ *
+ * A saída óbvia — e o que o `SkeletonUtils.retargetClip` do three faz — é
+ * pôr cada osso do alvo na orientação de **mundo** do osso correspondente da
+ * fonte. Está no `retarget` de lá, e é literalmente isto:
+ *
+ * ```js
+ * globalMatrix.makeRotationFromQuaternion(quat.setFromRotationMatrix(relativeMatrix))
+ * bone.matrix.copy(bone.parent.matrixWorld).invert().multiply(globalMatrix)
+ * ```
+ *
+ * Não há desconto de pose de repouso em lugar nenhum: a orientação de mundo
+ * é copiada crua. E orientação de mundo de um osso **não** é a direção do
+ * osso — é a base local dele, que cada ferramenta escolhe como quer. O
+ * Mixamo faz o úmero correr no +Y do osso; o esqueleto do Unreal faz correr
+ * no +X; o do Maya, em outro. Forçar as duas bases a coincidir alinha eixos
+ * que não são homólogos, e o braço aponta para um lado arbitrário — medido:
+ * a mão direita do Douglas e a do Teixeira atravessavam para o lado esquerdo
+ * do corpo.
+ *
+ * ## Nem dá para somar o gesto ao repouso
+ *
+ * A correção clássica seria aplicar só a **variação** desde o repouso
+ * (`Rs(t)·Rs_repouso⁻¹` sobre o repouso do alvo). Aqui isso também está
+ * errado, e a medida diz por quê: o esqueleto do clipe está em **T** (braços
+ * na horizontal, 0°) e os modelos do elenco repousam todos em **A** (de -42°
+ * a -48°). Somar ao repouso do alvo o gesto que sai de uma T-pose baixaria o
+ * braço 45 graus além da conta.
+ *
+ * E não é isso que os modelos que funcionam fazem. Vermelhão e Kairos são
+ * rigs Mixamo, passam pelo `retarget` acima — cópia direta da rotação
+ * **local** — e com isso a pose de repouso deles é simplesmente
+ * **substituída** pela do clipe. Medido: a direção dos braços deles bate com
+ * a do clipe a menos de 0,03. A semântica correta, portanto, é
+ * *substituição*, não soma.
+ *
+ * ## O que este arquivo faz
+ *
+ * Reproduz a **geometria** do membro, e não a base dos ossos: para cada
+ * segmento do braço, gira o osso do alvo até ele apontar na mesma direção
+ * que o segmento correspondente da fonte, medida no referencial do corpo de
+ * cada um. Direção é homóloga entre rigs; base local não é.
+ *
+ * O referencial do corpo sai da anatomia, não de nome de osso: o eixo dos
+ * ombros e a vertical do mundo. É o que torna a conta independente de
+ * ferramenta, e o que substituiu o antigo alinhamento pelo quadril — que
+ * mantinha o corpo de pé mas não dizia nada sobre os eixos dos braços.
+ *
+ * Para a mão não há segmento seguinte que sirva de mira, então ela recebe a
+ * orientação que tem **em relação ao antebraço** na fonte, corrigida pela
+ * diferença entre os dois repousos. É a única parte em que a base local
+ * entra, e entra onde é legítima: o pulso repousa neutro nos dois rigs.
  */
 
 
@@ -152,33 +197,39 @@ type Slot = (typeof SLOTS)[number]
 /**
  * Os ossos que a animação de fato dirige: os dois braços, e nada mais.
  *
- * O recorte saiu de tentativa em tela, não de teoria. O `retargetClip`
- * escreve em cada osso a orientação de **mundo** do osso correspondente da
- * fonte, e isso é exato demais para um corpo que não é o mesmo corpo:
+ * Estão em **cadeia, da raiz para a ponta**, e a ordem é parte da conta: o
+ * ombro é mirado primeiro porque girá-lo move o braço, e mirar o braço antes
+ * disso seria mirar de um lugar onde ele não vai ficar. Um papel que o
+ * esqueleto não tem sai da cadeia — o Biped do 3ds Max, por exemplo, tem os
+ * quatro, mas um rig sem clavícula começa no úmero.
  *
- * - **quadril** — é a raiz de tudo. Dirigi-lo escreve nele a posição e o
- *   aprumo do quadril do rig Mixamo, e o corpo inteiro pendura daí. Em tela
- *   isso deitou um modelo no chão e dobrou o outro no ar.
+ * O recorte saiu de tentativa em tela, não de teoria. O resto do corpo fica
+ * de fora porque a diferença entre dois esqueletos sobra justamente nele:
+ *
+ * - **quadril** — é a raiz de tudo, e o corpo inteiro pendura daí. Dirigi-lo
+ *   deitou um modelo no chão e dobrou o outro no ar.
  * - **pernas** — mesmo problema, com o agravante de que cada ferramenta
  *   orienta a coxa de um jeito. Rendeu um chute alto no meio da música.
  * - **coluna, pescoço e cabeça** — o corpo fica de pé, mas curvado para a
- *   frente com a cabeça baixa: a rotação do quadril da fonte, que o alvo
- *   não acompanha, sobra toda na coluna.
+ *   frente com a cabeça baixa: a rotação de quadril da fonte, que o alvo não
+ *   acompanha, sobra toda na coluna.
  *
  * O que fica é o que "tocar guitarra" quer dizer, e é o que sobrevive à
  * diferença entre os esqueletos: os braços. O personagem fica **plantado**
  * na pose de repouso e toca — que é como um guitarrista de pé diante do
  * microfone se comporta de qualquer forma.
  *
- * O quadril continua no mapa acima mesmo sem ser dirigido, porque é a
- * **referência de aprumo**: é dele que sai o giro que alinha os dois corpos
- * (ver `alignRestPose`). Nos dois modelos medidos esse giro é de 90 graus —
- * sem ele nada disto fica de pé.
+ * O quadril continua no mapa de papéis mesmo sem ser dirigido, porque é a
+ * **referência de aprumo**: é dele que sai o para-cima do tronco com que os
+ * dois corpos são comparados (ver `bodyBasis`).
  */
-const DRIVEN: readonly Slot[] = [
-  'leftShoulder', 'leftArm', 'leftForeArm', 'leftHand',
-  'rightShoulder', 'rightArm', 'rightForeArm', 'rightHand',
+const CHAINS: readonly (readonly Slot[])[] = [
+  ['leftShoulder', 'leftArm', 'leftForeArm', 'leftHand'],
+  ['rightShoulder', 'rightArm', 'rightForeArm', 'rightHand'],
 ]
+
+/** Os mesmos ossos, soltos — é a forma que o mapa de nomes quer. */
+const DRIVEN: readonly Slot[] = CHAINS.flat()
 
 /**
  * Onde cada papel mora, em cada convenção de esqueleto.
@@ -225,13 +276,33 @@ const SKELETONS: Record<string, Partial<Record<Slot, string>>> = {
     leftUpLeg: 'DEF-thigh.L', leftLeg: 'DEF-shin.L', leftFoot: 'DEF-foot.L',
     rightUpLeg: 'DEF-thigh.R', rightLeg: 'DEF-shin.R', rightFoot: 'DEF-foot.R',
   },
-  // Biped do 3ds Max. O braço não se chama "UpperArm": é `Arm`, `Arm1` e
-  // `Arm2`, e nenhuma busca por "upper" ou "fore" acharia.
+  /**
+   * Biped do 3ds Max. O braço não se chama "UpperArm": é `Arm`, `Arm1` e
+   * `Arm2`, e nenhuma busca por "upper" ou "fore" acharia.
+   *
+   * **São quatro ossos, e o primeiro é a clavícula.** Contá-los como três —
+   * `Arm` de úmero, `Arm1` de antebraço — desloca a cadeia inteira em um, e
+   * deixa `Arm2`, que é o antebraço de verdade, sem receber nada. Medido no
+   * Gokê, contra o rig Mixamo do Vermelhão, os comprimentos não deixam
+   * dúvida:
+   *
+   * | Biped | | Mixamo | |
+   * |---|---|---|---|
+   * | `Arm` → `Arm1` | 0,102 m | `Shoulder` → `Arm` | 0,132 m |
+   * | `Arm1` → `Arm2` | 0,236 m | `Arm` → `ForeArm` | 0,229 m |
+   * | `Arm2` → `Hand` | 0,219 m | `ForeArm` → `Hand` | 0,234 m |
+   *
+   * O `Arm` do Biped pendura no **pescoço** e mede 10 cm: é clavícula, não
+   * braço. Com o deslocamento, o Gokê tocava com os dois punhos a meio metro
+   * um do outro, porque o que se dirigia como antebraço era o úmero inteiro.
+   */
   'max-biped': {
     hips: 'Bip01 Pelvis', spine: 'Bip01 Spine', spine1: 'Bip01 Spine1',
     spine2: 'Bip01 Spine2', neck: 'Bip01 Neck', head: 'Bip01 Head',
-    leftArm: 'Bip01 L Arm', leftForeArm: 'Bip01 L Arm1', leftHand: 'Bip01 L Hand',
-    rightArm: 'Bip01 R Arm', rightForeArm: 'Bip01 R Arm1', rightHand: 'Bip01 R Hand',
+    leftShoulder: 'Bip01 L Arm', leftArm: 'Bip01 L Arm1',
+    leftForeArm: 'Bip01 L Arm2', leftHand: 'Bip01 L Hand',
+    rightShoulder: 'Bip01 R Arm', rightArm: 'Bip01 R Arm1',
+    rightForeArm: 'Bip01 R Arm2', rightHand: 'Bip01 R Hand',
     leftUpLeg: 'Bip01 L Thigh', leftLeg: 'Bip01 L Calf', leftFoot: 'Bip01 L Foot',
     rightUpLeg: 'Bip01 R Thigh', rightLeg: 'Bip01 R Calf', rightFoot: 'Bip01 R Foot',
   },
@@ -345,8 +416,14 @@ function findBone(index: Map<string, string>, pattern: string): string | null {
 /**
  * Liga os ossos do alvo aos do clipe, pelo papel de cada um no corpo.
  *
- * Devolve `{ osso do alvo: osso da fonte }`, que é o sentido que o `names`
- * do `SkeletonUtils` espera. Vazio quando nenhuma família é reconhecida.
+ * Devolve `{ papel: { alvo, fonte } }`, com o nome de osso de cada lado.
+ * Vazio quando nenhuma família é reconhecida — e é de propósito: meia dúzia
+ * de ossos casados de um esqueleto de outra convenção produz um boneco
+ * torto, que é pior do que não animar.
+ *
+ * A família é escolhida por **maioria**: tenta-se cada convenção conhecida e
+ * fica a que casar mais papéis. Não há como perguntar ao arquivo de que
+ * ferramenta ele saiu.
  */
 function resolveSlots(target: THREE.Object3D, source: THREE.Object3D) {
   const targetIndex = indexBones(target)
@@ -370,11 +447,14 @@ function resolveSlots(target: THREE.Object3D, source: THREE.Object3D) {
 }
 
 /**
- * Liga os ossos do alvo aos do clipe, pelo papel de cada um no corpo.
+ * O mesmo, achatado: `{ osso do alvo: osso da fonte }`.
  *
- * Devolve `{ osso do alvo: osso da fonte }`, que é o sentido que o `names`
- * do `SkeletonUtils` espera, e só para os ossos que a animação dirige —
- * ver `DRIVEN`. Vazio quando nenhuma família é reconhecida.
+ * Só para os ossos que a animação dirige — ver `CHAINS`. Vazio quando
+ * nenhuma família é reconhecida.
+ *
+ * O `retargetMapped` não usa este mapa: ele precisa dos nós, e em cadeia.
+ * Isto aqui é a forma legível do casamento, e é por ela que os testes
+ * verificam que cada convenção de nome foi reconhecida.
  */
 export function boneNameMap(
   target: THREE.Object3D,
@@ -389,133 +469,333 @@ export function boneNameMap(
   return map
 }
 
+/** Os ossos de um objeto, indexados pelo nome exato. */
+function nodesByName(root: THREE.Object3D) {
+  const byName = new Map<string, THREE.Object3D>()
+  for (const node of bonesOf(root)) if (node.name) byName.set(node.name, node)
+  return byName
+}
+
+const _up = new THREE.Vector3(0, 1, 0)
+
 /**
- * Gira a fonte até o corpo dela apontar para onde o corpo do alvo aponta.
+ * Os pares de ossos que servem de eixo esquerda-direita, em ordem de
+ * preferência.
  *
- * O `retargetClip` põe cada osso do alvo na orientação de **mundo** do osso
- * correspondente da fonte. Isso só dá o gesto certo se os dois corpos
- * estiverem virados para o mesmo lado em repouso — e nunca estão: o
- * esqueleto do clipe fica na orientação que o Mixamo exporta, e o modelo do
- * jogo já passou pelo giro e pela escala que o carregador aplica para ele
- * caber no palco.
- *
- * Sem este alinhamento o personagem não fica torto: ele **deita no chão**,
- * porque a diferença entre os dois repousos é aplicada ao quadril e daí
- * desce para o corpo inteiro.
- *
- * Só a rotação importa. A posição é descartada das faixas depois, e a
- * escala o próprio `retargetClip` já ignora ao extrair a rotação.
+ * O primeiro é o melhor porque é o mais perto dos ossos que se vai dirigir:
+ * a raiz dos dois braços. Os outros entram quando o esqueleto não nomeia
+ * clavícula, ou quando o rig só traz as pernas com nome reconhecível.
  */
-function alignRestPose(source: THREE.Object3D, target: THREE.Object3D) {
-  // O quadril é a referência de aprumo, mesmo não sendo dirigido: é dele
-  // que o corpo inteiro pendura, nos dois esqueletos.
-  const par = resolveSlots(target, source).hips
-  if (!par) return
+const SIDE_PAIRS: ReadonlyArray<readonly [Slot, Slot]> = [
+  ['leftArm', 'rightArm'],
+  ['leftShoulder', 'rightShoulder'],
+  ['leftUpLeg', 'rightUpLeg'],
+]
 
-  const sourceHips = bonesOf(source).find((b) => b.name === par.source)
-  const targetHips = bonesOf(target).find((b) => b.name === par.target)
-  if (!sourceHips || !targetHips) return
+/**
+ * O referencial do corpo, tirado da anatomia.
+ *
+ * Duas medidas, e nenhuma delas depende de como a ferramenta nomeia ou
+ * orienta osso:
+ *
+ * - **o eixo esquerda-direita**, entre dois ossos simétricos;
+ * - **o para-cima do tronco**, do quadril até o meio desse par.
+ *
+ * O para-cima sai do tronco, e não do +Y do mundo, porque o mundo não sabe
+ * que o tronco se inclinou. Um clipe que curva o corpo para a frente gira o
+ * quadril em torno do eixo lateral — e uma rotação em torno do eixo lateral
+ * **não mexe no eixo lateral**. Medido com a vertical do mundo, o corpo
+ * parecia parado enquanto se curvava, e a inclinação vazava toda para dentro
+ * do braço do alvo, que fica plantado. Com o tronco de referência, ela é
+ * descontada.
+ *
+ * Sem quadril reconhecível cai na vertical do mundo, que é a hipótese certa
+ * para um modelo de pé — e o carregador põe todos de pé (ver `normalize` em
+ * `characterGlb.ts`).
+ *
+ * Devolve o quaternion que leva coordenadas **do corpo para o mundo**. É com
+ * ele que uma direção medida na fonte é transportada para o alvo: tira-se do
+ * mundo da fonte para o corpo dela, e põe-se do corpo do alvo para o mundo
+ * dele. Sem isso o gesto sairia girado pela diferença de para onde cada
+ * modelo olha — e eles olham para lados diferentes: o Kairos nasce virado
+ * meia volta em relação ao Vermelhão.
+ */
+function bodyBasis(pick: (slot: Slot) => THREE.Object3D | null): THREE.Quaternion | null {
+  const hips = pick('hips')
 
-  source.updateMatrixWorld(true)
-  target.updateMatrixWorld(true)
+  for (const [leftSlot, rightSlot] of SIDE_PAIRS) {
+    const left = pick(leftSlot)
+    const right = pick(rightSlot)
+    if (!left || !right) continue
 
-  // A conta é no espaço do alvo, e não no mundo, porque é assim que o
-  // `retargetClip` compara os dois: ele traz o osso da fonte para dentro da
-  // matriz da malha do alvo antes de ler a orientação.
-  const noAlvo = target
+    const a = new THREE.Vector3().setFromMatrixPosition(left.matrixWorld)
+    const b = new THREE.Vector3().setFromMatrixPosition(right.matrixWorld)
+    const sideways = a.clone().sub(b)
+    if (sideways.lengthSq() < 1e-12) continue
+    sideways.normalize()
+
+    const up = hips
+      ? a
+          .add(b)
+          .multiplyScalar(0.5)
+          .sub(new THREE.Vector3().setFromMatrixPosition(hips.matrixWorld))
+      : _up.clone()
+    if (up.lengthSq() < 1e-12) up.copy(_up)
+
+    // `lado × cima` é o para-frente, nesta ordem: com lado em +X e cima em
+    // +Y, o produto dá +Z, que é a plateia. Trocar a ordem daria uma base
+    // canhota, e o quaternion sairia de uma matriz que não é rotação.
+    const forward = new THREE.Vector3().crossVectors(sideways, up)
+    if (forward.lengthSq() < 1e-12) continue
+    forward.normalize()
+
+    // O para-cima do tronco não é exatamente perpendicular ao eixo dos
+    // ombros; refazê-lo pelo produto dos outros dois deixa a base ortonormal,
+    // que é o que `makeBasis` precisa para virar rotação.
+    const trueUp = new THREE.Vector3().crossVectors(forward, sideways).normalize()
+
+    const basis = new THREE.Matrix4().makeBasis(sideways, trueUp, forward)
+    return new THREE.Quaternion().setFromRotationMatrix(basis)
+  }
+  return null
+}
+
+/** A direção de um osso para o seguinte, em mundo. */
+function segmentDir(from: THREE.Object3D, to: THREE.Object3D) {
+  const a = new THREE.Vector3().setFromMatrixPosition(from.matrixWorld)
+  const b = new THREE.Vector3().setFromMatrixPosition(to.matrixWorld)
+  return b.sub(a)
+}
+
+const _cur = new THREE.Vector3()
+const _spin = new THREE.Quaternion()
+const _world = new THREE.Quaternion()
+const _parent = new THREE.Quaternion()
+
+/**
+ * Gira um osso até o segmento dele apontar para `want`.
+ *
+ * O giro é calculado e aplicado **em mundo**, e só depois convertido para o
+ * espaço do pai — que é onde o quaternion do osso vive. Fazer a conta no
+ * espaço local exigiria saber como esta ferramenta orienta o osso, que é
+ * justamente o que não se quer saber.
+ */
+function aimBone(bone: THREE.Object3D, child: THREE.Object3D, want: THREE.Vector3) {
+  bone.updateWorldMatrix(true, true)
+  _cur.copy(segmentDir(bone, child))
+  if (_cur.lengthSq() < 1e-12) return
+  _cur.normalize()
+
+  _spin.setFromUnitVectors(_cur, want)
+  bone.getWorldQuaternion(_world)
+  _spin.multiply(_world)
+
+  if (bone.parent) {
+    bone.parent.getWorldQuaternion(_parent)
+    bone.quaternion.copy(_parent.invert()).multiply(_spin)
+  } else {
+    bone.quaternion.copy(_spin)
+  }
+  bone.updateWorldMatrix(false, true)
+}
+
+/** Orientação de um osso em relação a outro, os dois em mundo. */
+function relativeTo(parent: THREE.Object3D, child: THREE.Object3D) {
+  return parent
     .getWorldQuaternion(new THREE.Quaternion())
     .invert()
-    .multiply(targetHips.getWorldQuaternion(new THREE.Quaternion()))
-  const naFonte = sourceHips.getWorldQuaternion(new THREE.Quaternion())
+    .multiply(child.getWorldQuaternion(new THREE.Quaternion()))
+}
 
-  source.quaternion.premultiply(noAlvo.multiply(naFonte.invert()))
-  source.updateMatrixWorld(true)
+/** A pose de um esqueleto, para guardar e devolver. */
+function snapshot(bones: THREE.Object3D[]) {
+  return bones.map((b) => b.quaternion.clone())
+}
+
+function restore(bones: THREE.Object3D[], pose: THREE.Quaternion[], root: THREE.Object3D) {
+  for (let i = 0; i < bones.length; i++) bones[i].quaternion.copy(pose[i])
+  root.updateMatrixWorld(true)
 }
 
 /**
  * Adapta um clipe Mixamo a um esqueleto de outra convenção.
  *
  * `target` precisa ser a malha com esqueleto (`SkinnedMesh`), porque é dela
- * que o `SkeletonUtils` lê os ossos. `source` é a cena do arquivo do clipe.
+ * que sai a lista de ossos. `source` é a cena do arquivo do clipe.
  *
  * Devolve `null` quando o esqueleto não é de nenhuma família conhecida.
+ *
+ * A conta está no bloco de doc do meio do arquivo; o resumo é que se mira a
+ * **direção** de cada segmento do braço, e não a base local do osso.
  */
 export function retargetMapped(
   clip: THREE.AnimationClip,
   original: THREE.Object3D,
   target: THREE.SkinnedMesh,
 ): THREE.AnimationClip | null {
-  // A adaptação reproduz o clipe na fonte, quadro a quadro, e com isso
-  // **mexe** nos nós dela. A cena do clipe é compartilhada entre os quatro
-  // papéis do palco e fica em cache, então trabalha-se sobre uma cópia —
-  // senão o segundo integrante a carregar leria a pose que o primeiro
-  // deixou para trás, em vez da pose de repouso.
+  // Reproduzir o clipe **mexe** nos nós da fonte, e a cena do clipe fica em
+  // cache compartilhada entre os quatro papéis do palco. Sem a cópia, o
+  // segundo integrante a carregar leria a pose que o primeiro deixou para
+  // trás em vez da pose de repouso.
   const source = original.clone(true)
-  const sourceIndex = indexBones(source)
-  const names = boneNameMap(target, source)
-  if (Object.keys(names).length < MIN_SLOTS) return null
-
-  // O arquivo do clipe vem **sem skin**: a malha do boneco cinza é jogada
-  // fora na preparação, e com ela some o `Skeleton`. Os nós continuam lá com
-  // a pose de repouso, que é tudo que o retargeting precisa, então o
-  // esqueleto é remontado aqui a partir deles.
   source.updateMatrixWorld(true)
-  const sourceBones = bonesOf(source).filter((node) => node.name)
-  const sourceSkeleton = new THREE.Skeleton(sourceBones as THREE.Bone[])
 
-  alignRestPose(source, target)
+  const slots = resolveSlots(target, source)
+  if (Object.keys(slots).length < MIN_SLOTS) return null
 
-  // `hip` é o nome do osso **na fonte**: é por ele que o SkeletonUtils
-  // reconhece a raiz e trata o deslocamento do quadril à parte.
-  const hip = findBone(sourceIndex, 'mixamorig:Hips') ?? undefined
-
-  // A adaptação **escreve nos ossos do alvo** enquanto assa os quadros, e o
-  // que escreve são as posições da fonte, na escala da fonte. O que sai
-  // daqui é um clipe, não uma pose, então a pose de repouso é guardada
-  // antes e devolvida depois.
-  const targetBones = bonesOf(target)
-  const rest = targetBones.map((b) => ({
-    position: b.position.clone(),
-    quaternion: b.quaternion.clone(),
-    scale: b.scale.clone(),
-  }))
-
-  let retargeted: THREE.AnimationClip
-  try {
-    retargeted = SkeletonUtils.retargetClip(target, sourceSkeleton, clip, { names, hip })
-  } catch (erro) {
-    console.warn('não deu para adaptar o clipe a este esqueleto', erro)
-    return null
-  } finally {
-    for (let i = 0; i < targetBones.length; i++) {
-      targetBones[i].position.copy(rest[i].position)
-      targetBones[i].quaternion.copy(rest[i].quaternion)
-      targetBones[i].scale.copy(rest[i].scale)
-    }
-    target.updateMatrixWorld(true)
+  const sourceNodes = nodesByName(source)
+  const targetNodes = nodesByName(target)
+  const pair = (slot: Slot) => {
+    const p = slots[slot]
+    if (!p) return null
+    const t = targetNodes.get(p.target)
+    const s = sourceNodes.get(p.source)
+    return t && s ? { target: t, source: s } : null
   }
 
-  // Duas limpezas nas faixas que saem.
-  //
-  // **As de posição saem**, pelo motivo de sempre: vêm na escala do clipe, e
-  // o modelo foi reescalado para caber no palco.
-  //
-  // **As de rotação são renomeadas.** O SkeletonUtils as endereça como
-  // `.bones[Osso].quaternion`, forma que só casa quando o mixer está ligado
-  // a uma `SkinnedMesh` — ela é quem tem `.skeleton`. O jogo liga o mixer à
-  // raiz do modelo, porque um personagem partido em dezoito malhas não tem
-  // uma malha óbvia para servir de âncora. Endereçado pelo nome do osso, o
-  // mesmo clipe casa nos dois casos. Sem isto ele não casa em lugar nenhum,
-  // e falha **em silêncio**: o mixer avisa no console e a animação some.
+  // As cadeias que dá para dirigir neste par de esqueletos. Uma cadeia com
+  // menos de dois ossos não tem segmento nenhum para mirar.
+  const chains = CHAINS.map((slotsOfChain) =>
+    slotsOfChain.map(pair).filter((p): p is NonNullable<typeof p> => !!p),
+  ).filter((chain) => chain.length >= 2)
+  if (chains.length === 0) return null
+
+  const targetBones = bonesOf(target)
+  const sourceBones = bonesOf(source)
+  const targetRest = snapshot(targetBones)
+  const sourceRest = snapshot(sourceBones)
+
+  /**
+   * O referencial do corpo do alvo, lido **uma vez, na pose de repouso**.
+   *
+   * Uma vez basta porque o tronco do alvo não é dirigido: ele fica plantado
+   * no repouso e só os braços se mexem (ver `DRIVEN`).
+   */
+  const targetBasis = bodyBasis((slot) => pair(slot)?.target ?? null)
+
+  /**
+   * O da fonte é relido **a cada quadro**, e aí está a diferença.
+   *
+   * O clipe do Mixamo gira o quadril, e o tronco inteiro vai com ele. Como o
+   * tronco do alvo fica parado, medir a direção do braço no mundo da fonte
+   * carregaria esse giro para dentro do braço do alvo — e a guitarra pendura
+   * no quadril, que não acompanha. As mãos iriam saindo de cima dela ao longo
+   * da música.
+   *
+   * Relendo o referencial a cada quadro, a direção passa a ser medida em
+   * relação ao tronco da fonte, e o balanço de quadril sai da conta sozinho.
+   * Neste clipe ele é pequeno — medido, no máximo 2,1 graus, e o eixo dos
+   * ombros o acompanha dentro de 2 — mas de graça não há motivo para deixar.
+   */
+  const sourceBasisNow = () => bodyBasis((slot) => pair(slot)?.source ?? null)
+
+  /**
+   * Sem um par simétrico não dá para medir para onde um corpo olha.
+   *
+   * Acontece em esqueleto de um braço só, que na prática é fixture de teste.
+   * A escolha neutra é assumir que os dois olham para o mesmo lado: é o que
+   * o transporte identidade faz.
+   */
+  const transport = (source: THREE.Quaternion | null) =>
+    source && targetBasis
+      ? targetBasis.clone().multiply(source.clone().invert())
+      : new THREE.Quaternion()
+
+  // A mão não tem segmento seguinte para mirar: ela recebe a orientação que
+  // tem em relação ao antebraço, corrigida pela diferença entre os repousos.
+  const wristFix = chains.map((chain) => {
+    if (chain.length < 3) return null
+    const fore = chain[chain.length - 2]
+    const hand = chain[chain.length - 1]
+    const naFonte = relativeTo(fore.source, hand.source)
+    const noAlvo = relativeTo(fore.target, hand.target)
+    return { fore, hand, fix: naFonte.invert().multiply(noAlvo) }
+  })
+
+  // Amostragem uniforme, na cadência da faixa mais densa do clipe: é a
+  // mesma régua que o clipe original usa, então nada de movimento se perde.
+  const perSecond = Math.max(...clip.tracks.map((t) => t.times.length)) / clip.duration
+  const frames = Math.max(2, Math.round(clip.duration * perSecond))
+  const step = clip.duration / (frames - 1)
+
+  const mixer = new THREE.AnimationMixer(source)
+  mixer.clipAction(clip).play()
+
+  // Uma pista de rotação por osso dirigido.
+  const driven = new Map<THREE.Object3D, { name: string; values: number[] }>()
+  for (const chain of chains) {
+    for (const bone of chain) {
+      if (!driven.has(bone.target)) driven.set(bone.target, { name: bone.target.name, values: [] })
+    }
+  }
+  const times: number[] = []
+
+  for (let frame = 0; frame < frames; frame++) {
+    const time = frame * step
+    times.push(time)
+
+    mixer.setTime(time)
+    source.updateMatrixWorld(true)
+    const carry = transport(sourceBasisNow())
+
+    // O alvo volta ao repouso a cada quadro: o que se escreve nele é uma
+    // pose absoluta, não um acréscimo à do quadro anterior.
+    restore(targetBones, targetRest, target)
+
+    for (let c = 0; c < chains.length; c++) {
+      const chain = chains[c]
+      // Da raiz para a ponta: girar o ombro move o braço, então o braço só
+      // pode ser mirado depois.
+      for (let i = 0; i < chain.length - 1; i++) {
+        const want = segmentDir(chain[i].source, chain[i + 1].source)
+        if (want.lengthSq() < 1e-12) continue
+        want.normalize().applyQuaternion(carry)
+        aimBone(chain[i].target, chain[i + 1].target, want)
+      }
+
+      const wrist = wristFix[c]
+      if (wrist) {
+        const { fore, hand, fix } = wrist
+        const desired = relativeTo(fore.source, hand.source).multiply(fix)
+        const world = fore.target.getWorldQuaternion(new THREE.Quaternion()).multiply(desired)
+        const parent = hand.target.parent
+        hand.target.quaternion.copy(
+          parent
+            ? parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(world)
+            : world,
+        )
+        hand.target.updateWorldMatrix(false, true)
+      }
+    }
+
+    for (const [bone, track] of driven) {
+      track.values.push(bone.quaternion.x, bone.quaternion.y, bone.quaternion.z, bone.quaternion.w)
+    }
+  }
+
+  // O que sai daqui é um clipe, não uma pose: os dois esqueletos voltam como
+  // estavam. Sem isto o personagem ficaria congelado no último quadro assado
+  // até o mixer começar a tocar.
+  restore(targetBones, targetRest, target)
+  restore(sourceBones, sourceRest, source)
+  mixer.stopAllAction()
+
+  // As faixas são endereçadas **pelo nome do osso**, e não como
+  // `.bones[Osso].quaternion`: esta última só casa quando o mixer está ligado
+  // a uma `SkinnedMesh`, e o jogo liga o mixer à raiz do modelo, porque um
+  // personagem partido em dezoito malhas não tem uma malha óbvia para servir
+  // de âncora. Pelo nome do osso o mesmo clipe casa nos dois casos.
   const tracks: THREE.KeyframeTrack[] = []
-  for (const track of retargeted.tracks) {
-    if (!track.name.endsWith('.quaternion')) continue
-    const bone = track.name.match(/^\.bones\[(.+)\]\.quaternion$/)?.[1]
-    const copy = track.clone()
-    copy.name = bone ? `${bone}.quaternion` : track.name
-    tracks.push(copy)
+  for (const track of driven.values()) {
+    tracks.push(
+      new THREE.QuaternionKeyframeTrack(
+        `${track.name}.quaternion`,
+        new Float32Array(times),
+        new Float32Array(track.values),
+      ),
+    )
   }
   if (tracks.length === 0) return null
 
-  return new THREE.AnimationClip(clip.name, retargeted.duration, tracks)
+  return new THREE.AnimationClip(clip.name, clip.duration, tracks)
 }
