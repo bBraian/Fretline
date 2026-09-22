@@ -193,8 +193,8 @@ const SLOTS = [
   // A base dos dedos. Não são dirigidos — servem de **marco**, para dar à
   // mão um referencial que não dependa de como o rig orienta o osso do
   // pulso. Ver `handBasis`.
-  'leftIndex', 'leftMiddle', 'leftLittle', 'leftThumb',
-  'rightIndex', 'rightMiddle', 'rightLittle', 'rightThumb',
+  'leftIndex', 'leftMiddle', 'leftRing', 'leftLittle', 'leftThumb',
+  'rightIndex', 'rightMiddle', 'rightRing', 'rightLittle', 'rightThumb',
 ] as const
 
 type Slot = (typeof SLOTS)[number]
@@ -280,9 +280,9 @@ const SKELETONS: Record<string, Partial<Record<Slot, string>>> = {
     rightShoulder: 'mixamorig:RightShoulder', rightArm: 'mixamorig:RightArm',
     rightForeArm: 'mixamorig:RightForeArm', rightHand: 'mixamorig:RightHand',
     leftIndex: 'mixamorig:LeftHandIndex1', leftMiddle: 'mixamorig:LeftHandMiddle1',
-    leftLittle: 'mixamorig:LeftHandPinky1', leftThumb: 'mixamorig:LeftHandThumb1',
+    leftRing: 'mixamorig:LeftHandRing1', leftLittle: 'mixamorig:LeftHandPinky1', leftThumb: 'mixamorig:LeftHandThumb1',
     rightIndex: 'mixamorig:RightHandIndex1', rightMiddle: 'mixamorig:RightHandMiddle1',
-    rightLittle: 'mixamorig:RightHandPinky1', rightThumb: 'mixamorig:RightHandThumb1',
+    rightRing: 'mixamorig:RightHandRing1', rightLittle: 'mixamorig:RightHandPinky1', rightThumb: 'mixamorig:RightHandThumb1',
     leftUpLeg: 'mixamorig:LeftUpLeg', leftLeg: 'mixamorig:LeftLeg', leftFoot: 'mixamorig:LeftFoot',
     rightUpLeg: 'mixamorig:RightUpLeg', rightLeg: 'mixamorig:RightLeg', rightFoot: 'mixamorig:RightFoot',
   },
@@ -299,9 +299,9 @@ const SKELETONS: Record<string, Partial<Record<Slot, string>>> = {
     // medir a distância ao polegar: o `01` é o mais perto dele (5,8 cm) e o
     // `04` o mais longe (7,7 cm), então é índice → mindinho.
     leftIndex: 'l_Finger_01_01SHJnt', leftMiddle: 'l_Finger_02_01SHJnt',
-    leftLittle: 'l_Finger_04_01SHJnt', leftThumb: 'l_Thumb_01_01SHJnt',
+    leftRing: 'l_Finger_03_01SHJnt', leftLittle: 'l_Finger_04_01SHJnt', leftThumb: 'l_Thumb_01_01SHJnt',
     rightIndex: 'r_Finger_01_01SHJnt', rightMiddle: 'r_Finger_02_01SHJnt',
-    rightLittle: 'r_Finger_04_01SHJnt', rightThumb: 'r_Thumb_01_01SHJnt',
+    rightRing: 'r_Finger_03_01SHJnt', rightLittle: 'r_Finger_04_01SHJnt', rightThumb: 'r_Thumb_01_01SHJnt',
     leftUpLeg: 'l_Leg_Hip', leftLeg: 'l_Leg_Knee', leftFoot: 'l_Leg_Ankle',
     rightUpLeg: 'r_Leg_Hip', rightLeg: 'r_Leg_Knee', rightFoot: 'r_Leg_Ankle',
   },
@@ -317,9 +317,9 @@ const SKELETONS: Record<string, Partial<Record<Slot, string>>> = {
     rightShoulder: 'DEF-shoulder.R', rightArm: 'DEF-upper_arm.R',
     rightForeArm: 'DEF-forearm.R', rightHand: 'DEF-hand.R',
     leftIndex: 'DEF-f_index.01.L', leftMiddle: 'DEF-f_middle.01.L',
-    leftLittle: 'DEF-f_pinky.01.L', leftThumb: 'DEF-thumb.01.L',
+    leftRing: 'DEF-f_ring.01.L', leftLittle: 'DEF-f_pinky.01.L', leftThumb: 'DEF-thumb.01.L',
     rightIndex: 'DEF-f_index.01.R', rightMiddle: 'DEF-f_middle.01.R',
-    rightLittle: 'DEF-f_pinky.01.R', rightThumb: 'DEF-thumb.01.R',
+    rightRing: 'DEF-f_ring.01.R', rightLittle: 'DEF-f_pinky.01.R', rightThumb: 'DEF-thumb.01.R',
     leftUpLeg: 'DEF-thigh.L', leftLeg: 'DEF-shin.L', leftFoot: 'DEF-foot.L',
     rightUpLeg: 'DEF-thigh.R', rightLeg: 'DEF-shin.R', rightFoot: 'DEF-foot.R',
   },
@@ -355,8 +355,10 @@ const SKELETONS: Record<string, Partial<Record<Slot, string>>> = {
     // da palma sai do par polegar→índice — ver `handBasis`.
     leftIndex: 'Bip01 L Finger1', leftThumb: 'Bip01 L Finger0',
     rightIndex: 'Bip01 R Finger1', rightThumb: 'Bip01 R Finger0',
-    leftUpLeg: 'Bip01 L Thigh', leftLeg: 'Bip01 L Calf', leftFoot: 'Bip01 L Foot',
-    rightUpLeg: 'Bip01 R Thigh', rightLeg: 'Bip01 R Calf', rightFoot: 'Bip01 R Foot',
+    // A perna segue a mesma numeração do braço, e pela mesma razão não se
+    // chama "Thigh" nem "Calf": é `Leg`, `Leg1` e `Foot`.
+    leftUpLeg: 'Bip01 L Leg', leftLeg: 'Bip01 L Leg1', leftFoot: 'Bip01 L Foot',
+    rightUpLeg: 'Bip01 R Leg', rightLeg: 'Bip01 R Leg1', rightFoot: 'Bip01 R Foot',
   },
   // Biped da Valve, o do Source. Mesma árvore do Max, com outro prefixo.
   'valve-biped': {
@@ -368,9 +370,9 @@ const SKELETONS: Record<string, Partial<Record<Slot, string>>> = {
     rightShoulder: 'ValveBiped.Bip01_R_Clavicle', rightArm: 'ValveBiped.Bip01_R_UpperArm',
     rightForeArm: 'ValveBiped.Bip01_R_Forearm', rightHand: 'ValveBiped.Bip01_R_Hand',
     leftThumb: 'ValveBiped.Bip01_L_Finger0', leftIndex: 'ValveBiped.Bip01_L_Finger1',
-    leftMiddle: 'ValveBiped.Bip01_L_Finger2', leftLittle: 'ValveBiped.Bip01_L_Finger4',
+    leftMiddle: 'ValveBiped.Bip01_L_Finger2', leftRing: 'ValveBiped.Bip01_L_Finger3', leftLittle: 'ValveBiped.Bip01_L_Finger4',
     rightThumb: 'ValveBiped.Bip01_R_Finger0', rightIndex: 'ValveBiped.Bip01_R_Finger1',
-    rightMiddle: 'ValveBiped.Bip01_R_Finger2', rightLittle: 'ValveBiped.Bip01_R_Finger4',
+    rightMiddle: 'ValveBiped.Bip01_R_Finger2', rightRing: 'ValveBiped.Bip01_R_Finger3', rightLittle: 'ValveBiped.Bip01_R_Finger4',
     leftUpLeg: 'ValveBiped.Bip01_L_Thigh', leftLeg: 'ValveBiped.Bip01_L_Calf',
     leftFoot: 'ValveBiped.Bip01_L_Foot', rightUpLeg: 'ValveBiped.Bip01_R_Thigh',
     rightLeg: 'ValveBiped.Bip01_R_Calf', rightFoot: 'ValveBiped.Bip01_R_Foot',
@@ -384,9 +386,9 @@ const SKELETONS: Record<string, Partial<Record<Slot, string>>> = {
     rightShoulder: 'clavicle_r', rightArm: 'upperarm_r',
     rightForeArm: 'lowerarm_r', rightHand: 'hand_r',
     leftIndex: 'index_01_l', leftMiddle: 'middle_01_l',
-    leftLittle: 'pinky_01_l', leftThumb: 'thumb_01_l',
+    leftRing: 'ring_01_l', leftLittle: 'pinky_01_l', leftThumb: 'thumb_01_l',
     rightIndex: 'index_01_r', rightMiddle: 'middle_01_r',
-    rightLittle: 'pinky_01_r', rightThumb: 'thumb_01_r',
+    rightRing: 'ring_01_r', rightLittle: 'pinky_01_r', rightThumb: 'thumb_01_r',
     leftUpLeg: 'thigh_l', leftLeg: 'calf_l', leftFoot: 'foot_l',
     rightUpLeg: 'thigh_r', rightLeg: 'calf_r', rightFoot: 'foot_r',
   },
@@ -434,6 +436,24 @@ function slotKey(name: string) {
     .toLowerCase()
 }
 
+/**
+ * O mesmo, para um padrão **escrito à mão** aqui no arquivo.
+ *
+ * A diferença é uma só, e é decisiva: **não corta o sufixo numérico do fim.**
+ * Esse corte existe para o ruído que o exportador acrescenta ao nome do osso
+ * (`mixamorigHips_01`), e um padrão escrito aqui nunca tem esse ruído — o que
+ * ele pode ter é um número que **faz parte do nome**.
+ *
+ * É o caso do esqueleto do Unreal, cuja coluna é `spine_01`, `spine_02` e
+ * `spine_03`. Cortados, os três viram `spine` e casam todos com o primeiro
+ * osso: a coluna inteira colapsa numa junta só, os elos ficam de comprimento
+ * zero e o tronco não se mexe. Passou despercebido enquanto só os braços eram
+ * dirigidos, porque nome de osso de braço não termina em número.
+ */
+function patternKey(name: string) {
+  return name.replace(/\s/g, '_').replace(/[:.]/g, '').toLowerCase()
+}
+
 /** Quantos papéis precisam casar para acreditar que é aquela família. */
 const MIN_SLOTS = 3
 
@@ -464,7 +484,7 @@ function indexBones(root: THREE.Object3D) {
 
 /** Exato primeiro: `LeftHand` não pode casar com `LeftHandRing1`. */
 function findBone(index: Map<string, string>, pattern: string): string | null {
-  const wanted = slotKey(pattern)
+  const wanted = patternKey(pattern)
   const exact = index.get(wanted)
   if (exact) return exact
   for (const [name, original] of index) {
@@ -756,7 +776,7 @@ function handBasis(
 }
 
 /** Os dedos que o clipe move, por lado. O polegar entra junto. */
-const FINGERS = ['Index', 'Middle', 'Little', 'Thumb'] as const
+const FINGERS = ['Index', 'Middle', 'Ring', 'Little', 'Thumb'] as const
 
 /**
  * A cadeia de ossos de um dedo, descendo da base para a ponta.

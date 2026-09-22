@@ -122,6 +122,13 @@ nomenclatura — Mixamo, Maya, Rigify, Biped do 3ds Max, Biped da Valve,
 Unreal, e um rig próprio. Se o `mapa` do passo 2 veio incompleto, acrescente
 a sua.
 
+**Cuidado com número no fim do nome.** Os padrões escritos na tabela passam
+por `patternKey`, que — diferente do `slotKey` dos nomes de osso — **não**
+corta o sufixo numérico, justamente porque num padrão o número costuma fazer
+parte do nome. A coluna do Unreal é `spine_01`, `spine_02`, `spine_03`: com o
+corte, as três viram `spine`, casam todas com o primeiro osso e a coluna
+colapsa numa junta só. O tronco simplesmente não se mexe, sem aviso nenhum.
+
 **Confira os comprimentos dos elos antes de confiar nos nomes.** É a parte
 que já custou um personagem: no Biped do 3ds Max o braço é `Arm`, `Arm1` e
 `Arm2`, e a leitura óbvia — `Arm` de úmero, `Arm1` de antebraço — está
@@ -138,6 +145,11 @@ Com o deslocamento o Gokê tocava com os punhos a 29 cm um do outro em vez de
 59, porque o que se dirigia como antebraço era o úmero inteiro. Meça a
 distância de cada elo, em metros de palco, e compare com a coluna do Mixamo:
 clavícula curta, úmero e antebraço parecidos entre si.
+
+O mesmo rig também não chama a perna de `Thigh` nem de `Calf`: é `Leg`, `Leg1`
+e `Foot`. Enquanto a tabela procurou os nomes errados, ele tocou de pernas
+juntas enquanto o resto do elenco abria a base — e nada avisou, porque um
+papel que não casa simplesmente não recebe animação.
 
 **Preencha também os marcos da palma** — `leftIndex`, `leftMiddle`,
 `leftLittle`, `leftThumb` e os quatro da direita. São a base de cada dedo, e é
@@ -257,13 +269,24 @@ Não aceitável — se aparecer, volte ao passo 2 ou 4:
 - cotovelo invertido, ombro deformado, braço esticado demais;
 - palma virada para fora, ou mão espalmada em cima do braço da guitarra — é o
   sintoma de marco de palma faltando (passo 4);
+- corpo duro, de pernas juntas, com só o braço se mexendo enquanto os outros
+  abrem a base — é nome de coluna ou de perna que não casou (passo 4);
 - personagem que claramente não está segurando nada.
 
-Os dedos **são** dirigidos, e fecham no braço da guitarra: o clipe traz 30
-faixas de dedo, e a fila de ossos de um dedo é descoberta descendo a
-hierarquia, sem tabela de nomes. O que pode ficar em repouso é a última junta
-de um rig que tenha mais juntas por dedo do que o clipe — são as duas
-primeiras que carregam quase toda a dobra.
+O corpo inteiro é dirigido, não só os braços: coluna, pescoço, pernas e
+dedos. É o que separa um personagem que **toca** de um que fica duro mexendo
+o braço. O que continua em repouso, de propósito ou por limite:
+
+- **o quadril**, de propósito. É o pai da coluna e das duas pernas, e as três
+  cadeias discordariam sobre para onde girá-lo. Ele é a referência de aprumo,
+  e o personagem fica plantado — que é como um guitarrista diante do microfone
+  se comporta.
+- **a ponta de cada fila** — cabeça, pés, última junta de dedo. Não têm elo
+  seguinte para mirar, então acompanham rigidamente quem vem antes.
+
+Para conferir quanto de fato chega em cada um, conte as faixas do clipe
+adaptado por parte do corpo. Um rig completo fica em torno de 36; bem menos
+que isso é sintoma de nome não casado, não de limite do modelo.
 
 ---
 
