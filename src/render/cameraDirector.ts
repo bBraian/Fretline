@@ -211,6 +211,9 @@ export class CameraDirector {
   private shotEnd = 0
   private recent: string[] = []
   private mood: ShotMood = 'calm'
+  /** Tremor e inclinação do show; ver `setShake`. */
+  private shake = 0
+  private tilt = 0
 
   private position = new THREE.Vector3()
   private target = new THREE.Vector3()
@@ -257,6 +260,20 @@ export class CameraDirector {
   }
 
   /**
+   * Tremor e inclinação do show, vindos do jogo.
+   *
+   * Moram aqui, e não na câmera da pista, porque a pista não pode se mexer:
+   * um acerto que sacode o braço muda onde a linha de batida aparece na
+   * tela, bem no instante em que o jogador está lendo a próxima nota. O
+   * palco pode sacudir à vontade — é o show reagindo, e nenhuma decisão de
+   * tempo depende dele.
+   */
+  setShake(shake: number, tilt: number) {
+    this.shake = Math.min(1, Math.max(0, shake))
+    this.tilt = Math.min(1, Math.max(0, tilt))
+  }
+
+  /**
    * Avança a direção. `beats` são os tempos de batida do chart e `songTime` a
    * posição na música, para que o corte caia na batida.
    */
@@ -286,7 +303,15 @@ export class CameraDirector {
     this.smoothTarget.lerp(this.target, k)
 
     this.camera.position.copy(this.smoothPosition)
+    // O deslocamento entra antes do `lookAt` para que a câmera gire junto,
+    // como uma câmera na mão — deslocar depois só transladaria o quadro.
+    if (this.shake > 0) {
+      const amount = this.shake * 0.09
+      this.camera.position.x += (Math.random() - 0.5) * amount
+      this.camera.position.y += (Math.random() - 0.5) * amount
+    }
     this.camera.lookAt(this.toWorld(this.smoothTarget))
+    this.camera.rotation.z += this.tilt * 0.03
 
     if (this.camera.fov !== this.shot.fov) {
       this.camera.fov += (this.shot.fov - this.camera.fov) * k

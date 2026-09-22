@@ -98,6 +98,69 @@ describe('acerto pelo traste', () => {
   })
 })
 
+/**
+ * Sem palhetada, nem toda nota é alcançável por um aperto.
+ *
+ * Quando a digitação da nota seguinte já está contida na que está na mão —
+ * um acorde verde+vermelho resolvendo para um vermelho sozinho — o gesto
+ * natural é *soltar* o verde. Nenhum traste novo desce, e o jogo precisa
+ * resolver a nota mesmo assim: exigir soltar tudo e reapertar transforma a
+ * música numa sequência de reinícios de mão.
+ */
+describe('soltura que resolve nota', () => {
+  it('soltar o traste que sobra toca a nota contida no acorde anterior', () => {
+    const s = new Session(
+      chartOf([
+        { time: 1, frets: GREEN | RED },
+        { time: 1.2, frets: RED },
+      ]),
+      'expert',
+    )
+
+    press(s, GREEN | RED, 1.0)
+    expect(s.statusOf(0)).toBe('hit')
+
+    // O vermelho continua na mão; só o verde sai.
+    press(s, RED, 1.2)
+    expect(s.statusOf(1)).toBe('hit')
+    expect(s.getState().streak).toBe(2)
+  })
+})
+
+/**
+ * A barra de strum de um controle de guitarra.
+ *
+ * O jogo não exige palhetada e continua não exigindo — mas quem tem o
+ * controle vai palhetar, porque é o gesto que o instrumento pede. Antes a
+ * barra estava ligada ao star power, então tocar a música normalmente
+ * disparava o star power a cada nota. Ela é um segundo gatilho para a nota
+ * que já está debaixo dos dedos, e nada além disso.
+ */
+describe('barra de strum', () => {
+  it('palhetar com o traste certo na mão resolve a nota', () => {
+    const s = new Session(chartOf([{ time: 1, frets: GREEN }]), 'expert')
+
+    // O traste desce cedo demais para valer como acerto.
+    press(s, GREEN, 0.5)
+    s.update(0.5 + CHORD_GRACE + 0.01)
+    s.consumeEvents()
+    expect(s.statusOf(0)).toBe('pending')
+
+    s.handleInput({ kind: 'strum', time: 1.0 })
+    expect(s.statusOf(0)).toBe('hit')
+  })
+
+  it('palhetar no vazio não castiga', () => {
+    const s = new Session(chartOf([{ time: 5, frets: GREEN }]), 'expert')
+    s.handleInput({ kind: 'strum', time: 1.0 })
+    s.update(1 + CHORD_GRACE + 0.01)
+
+    expect(s.getState().rockMeter).toBe(METER_START)
+    expect(s.getState().streak).toBe(0)
+    expect(s.consumeEvents().some((e) => e.kind === 'ghostTap')).toBe(false)
+  })
+})
+
 describe('toque no vazio', () => {
   it('apertar sem nota nenhuma por perto é castigado', () => {
     const s = new Session(chartOf([{ time: 5, frets: GREEN }]), 'expert')
@@ -155,11 +218,44 @@ describe('acordes', () => {
     expect(s.consumeEvents().some((e) => e.kind === 'ghostTap')).toBe(false)
   })
 
-  it('um dedo que nunca fecha o acorde vira castigo', () => {
+  /**
+   * Um acorde lento não é martelada.
+   *
+   * Ninguém fecha três trastes no mesmo instante, e o espalhamento dos dedos
+   * de um jogador comum passa dos 30ms com facilidade. Enquanto os dedos que
+   * desceram forem *parte* do acorde que está chegando, a mão está montando
+   * a nota — castigar aí cobra por tocar certo, só que devagar.
+   */
+  it('acorde montado devagar, além da folga, não é castigado', () => {
+    const s = new Session(chartOf([{ time: 1, frets: GREEN | YELLOW }]), 'expert')
+
+    press(s, GREEN, 0.98)
+    s.update(0.98 + CHORD_GRACE + 0.02)
+    expect(s.consumeEvents().some((e) => e.kind === 'ghostTap')).toBe(false)
+
+    press(s, GREEN | YELLOW, 1.02)
+    s.update(1.2)
+
+    expect(s.statusOf(0)).toBe('hit')
+    expect(s.getState().streak).toBe(1)
+    expect(s.consumeEvents().some((e) => e.kind === 'ghostTap')).toBe(false)
+  })
+
+  /**
+   * E quando o acorde nunca fecha, a conta é uma só.
+   *
+   * Antes o jogador levava as duas: o castigo por toque no vazio quando a
+   * folga vencia, e a nota perdida logo depois. Duas punições pela mesma
+   * falha, e o medidor descia o dobro do devido.
+   */
+  it('um dedo que nunca fecha o acorde custa a nota, e só ela', () => {
     const s = new Session(chartOf([{ time: 1, frets: GREEN | YELLOW }]), 'expert')
     press(s, GREEN, 0.99)
-    s.update(0.99 + CHORD_GRACE + 0.001)
-    expect(s.consumeEvents().some((e) => e.kind === 'ghostTap')).toBe(true)
+    s.update(1 + HIT_WINDOW + 0.05)
+
+    const events = s.consumeEvents()
+    expect(events.filter((e) => e.kind === 'miss')).toHaveLength(1)
+    expect(events.some((e) => e.kind === 'ghostTap')).toBe(false)
   })
 
   it('acorde exige correspondência exata', () => {

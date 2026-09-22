@@ -14,6 +14,7 @@
 
 import type { Chart, Difficulty, Note, NoteType, Phrase, Song, SongMeta } from '../types'
 import { TempoMap, type TempoEvent, type TimeSignature } from './tempoMap'
+import { sustainThreshold } from './sustain'
 
 const SECTION_BY_DIFFICULTY: Record<Difficulty, string> = {
   easy: 'EasySingle',
@@ -155,7 +156,12 @@ function parseTrack(lines: string[] | undefined) {
  * As flags de forced e tap chegam como eventos separados no mesmo tick, por
  * isso o agrupamento vem antes de decidir qualquer coisa sobre o tipo.
  */
-function buildNotes(raw: RawNoteEvent[], tempo: TempoMap, hopoThreshold: number): Note[] {
+function buildNotes(
+  raw: RawNoteEvent[],
+  tempo: TempoMap,
+  hopoThreshold: number,
+  resolution: number,
+): Note[] {
   const byTick = new Map<number, RawNoteEvent[]>()
   for (const ev of raw) {
     const list = byTick.get(ev.tick)
@@ -212,7 +218,10 @@ function buildNotes(raw: RawNoteEvent[], tempo: TempoMap, hopoThreshold: number)
     notes.push({
       index: notes.length,
       time: tempo.timeAt(tick),
-      duration: tempo.durationOf(tick, maxLength),
+      // O `.chart` aceita qualquer comprimento, e vários editores gravam a
+      // célula da grade em vez de zero. Sem limiar, a música inteira vira
+      // rastro na pista.
+      duration: maxLength >= sustainThreshold(resolution) ? tempo.durationOf(tick, maxLength) : 0,
       frets,
       type,
       isOpen: open,
@@ -292,7 +301,7 @@ export function parseChart(text: string, options: ParseChartOptions = {}): Song 
 
     charts[difficulty] = {
       difficulty,
-      notes: buildNotes(rawNotes, tempo, hopoThreshold),
+      notes: buildNotes(rawNotes, tempo, hopoThreshold, resolution),
       starPower: buildStarPower(specials, tempo),
       beats: [],
     }

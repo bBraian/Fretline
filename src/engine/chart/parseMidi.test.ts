@@ -183,6 +183,30 @@ describe('parseMidi', () => {
     expect(chart.notes[1].duration).toBe(0)
   })
 
+  /**
+   * O caso que quebrava os charts da Harmonix.
+   *
+   * Um `notes.mid` de Rock Band escreve as gems na grade: a nota comum tem
+   * exatamente uma semicolcheia de comprimento, que é o tamanho da célula,
+   * não uma intenção de segurar. Com o limiar em `division / 4` — a própria
+   * semicolcheia — a comparação inclusiva transformava a música inteira em
+   * sustains. Em "When I Come Around" eram 764 de 827.
+   */
+  it('gem de semicolcheia na grade não é sustain', () => {
+    const chart = song((t) =>
+      t
+        .note(EXPERT, 0, DIVISION / 4)
+        .note(EXPERT + 1, DIVISION * 2, DIVISION / 3)
+        .note(EXPERT + 2, DIVISION * 4, DIVISION * 2),
+    ).charts.expert!
+
+    expect(chart.notes[0].duration).toBe(0)
+    // Uma colcheia de tercina já é intenção de segurar, e é o limiar do
+    // Clone Hero.
+    expect(chart.notes[1].duration).toBeGreaterThan(0)
+    expect(chart.notes[2].duration).toBeCloseTo(1, 5)
+  })
+
   it('separa as dificuldades pelas oitavas', () => {
     const parsed = song((t) => t.note(EXPERT, 0, 100).note(60, 0, 100).note(84, 0, 100))
     expect(Object.keys(parsed.charts).sort()).toEqual(['easy', 'expert', 'hard'])

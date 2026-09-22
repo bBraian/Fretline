@@ -11,7 +11,7 @@ import { create } from 'zustand'
 import type { Difficulty } from '../engine/types'
 import type { SongEntry } from '../songs/library'
 import { demoEntry, loadLocalLibrary } from '../songs/library'
-import { CHARACTERS } from '../content/characters'
+import { CHARACTERS, SHOP_CHARACTERS } from '../content/characters'
 import { GUITARS } from '../content/guitars'
 import { mixer } from '../audio/mixer'
 import type { Performance } from '../content/progression'
@@ -117,7 +117,9 @@ const DEFAULT_PROFILE: Profile = {
   records: {},
   ownedCharacters: CHARACTERS.filter((c) => c.price === 0).map((c) => c.id),
   ownedGuitars: GUITARS.filter((g) => g.price === 0).map((g) => g.id),
-  characterId: CHARACTERS[0].id,
+  // O primeiro da vitrine, não o primeiro do elenco: o elenco começa
+  // pelas marionetes de reserva, que o jogador nunca vê.
+  characterId: SHOP_CHARACTERS[0].id,
   guitarId: GUITARS[0].id,
 }
 

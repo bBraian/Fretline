@@ -105,6 +105,10 @@ export function PlayScreen() {
         // Corta a faixa da guitarra: o buraco na música é o retorno mais
         // direto que existe sobre um erro, e não precisa de texto na tela.
         playerRef.current?.setMissedFeedback(true)
+        // E toca o ruído de corda abafada por cima. Só o corte não basta:
+        // num trecho em que a guitarra já estava calada, o erro não produz
+        // diferença nenhuma e passa despercebido.
+        playerRef.current?.playMissNoise()
       }
       if (event.kind === 'failed') {
         playerRef.current?.pause()
@@ -235,21 +239,48 @@ export function PlayScreen() {
     return () => cancelAnimationFrame(frame)
   }, [])
 
-  // O painel atualiza a quinze quadros por segundo; ver acima.
+  /**
+   * O painel.
+   *
+   * O que muda de forma contínua — pontuação, medidor, star power — não é
+   * legível acima de uns dez quadros por segundo, e reconciliar o React a
+   * sessenta em troca disso rouba tempo do laço que importa. Mas o
+   * multiplicador e a corrente não são contínuos: eles *saltam*, e o salto é
+   * a recompensa. Chegar até 66ms depois do acerto que o causou desliga o
+   * salto do gesto que o produziu.
+   *
+   * Então são duas cadências na mesma leitura: o que salta atualiza no
+   * quadro em que saltou, o resto espera a vez.
+   */
   useEffect(() => {
-    const id = window.setInterval(() => {
+    let frame = 0
+    let lastPush = 0
+    // O que, ao mudar, merece um quadro só para si.
+    let previous = ''
+
+    const tick = () => {
+      frame = requestAnimationFrame(tick)
       const session = sessionRef.current
       const player = playerRef.current
       if (!session || !player) return
 
-      setHudState({ ...session.getState() })
+      const state = session.getState()
+      const now = performance.now()
+      const marcos = `${state.multiplier}:${state.streak}:${state.starPowerActive}:${state.failed}`
+
+      if (marcos !== previous || now - lastPush >= 1000 / 12) {
+        previous = marcos
+        lastPush = now
+        setHudState({ ...state })
+      }
 
       const songTime = player.now()
       if (songTime < 0) setCountdown(Math.max(1, Math.ceil(-songTime)))
       else if (phase === 'countdown') setPhase('playing')
-    }, 1000 / 15)
+    }
 
-    return () => window.clearInterval(id)
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
   }, [phase])
 
   // O veredito some sozinho, senão a última palavra fica parada na tela.

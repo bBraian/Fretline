@@ -20,6 +20,15 @@ import {
 
 export type InputSink = (event: InputEvent) => void
 
+/**
+ * Idade máxima aceita para `Gamepad.timestamp`.
+ *
+ * Nem todo navegador preenche esse campo na mesma origem de
+ * `performance.now()`; um valor fora desta janela denuncia outra origem, e
+ * nesse caso vale a hora do quadro.
+ */
+const MAX_PAD_STAMP_AGE_MS = 250
+
 export class InputManager {
   private keyboard: KeyboardBindings = DEFAULT_KEYBOARD
   private gamepad: GamepadBindings = DEFAULT_GAMEPAD
@@ -90,6 +99,28 @@ export class InputManager {
     return this.clock.now() - ageInSeconds
   }
 
+  /**
+   * Instante de leitura do controle.
+   *
+   * A API de gamepad não emite eventos: o estado só pode ser lido uma vez
+   * por quadro. Carimbar essa leitura com a hora do quadro joga até 16ms de
+   * atraso em cima de quem usa controle, enquanto o teclado — que traz
+   * `timeStamp` — é julgado no instante certo. Num jogo de ritmo isso é uma
+   * desvantagem embutida no periférico.
+   *
+   * `Gamepad.timestamp` é o instante em que o navegador amostrou o
+   * dispositivo, e recupera boa parte desses 16ms. Nem todo navegador o
+   * preenche na mesma origem de `performance.now()`, então ele só é aceito
+   * quando cai numa janela plausível do passado recente; fora disso vale a
+   * hora do quadro, que é o comportamento antigo.
+   */
+  private padTime(pad: Gamepad): number {
+    const stamp = pad.timestamp
+    const ageMs = performance.now() - stamp
+    const plausible = Number.isFinite(stamp) && ageMs >= 0 && ageMs <= MAX_PAD_STAMP_AGE_MS
+    return plausible ? this.songTimeOf(stamp) : this.clock.now()
+  }
+
   private onKeyDown = (event: KeyboardEvent) => {
     if (event.repeat) return
     const time = this.songTimeOf(event.timeStamp)
@@ -152,7 +183,7 @@ export class InputManager {
     const pad = pads.find((p): p is Gamepad => p !== null && p.connected)
     if (!pad) return
 
-    const time = this.clock.now()
+    const time = this.padTime(pad)
     const pressed = pad.buttons.map((b) => b.pressed)
 
     let mask = this.mask
@@ -175,14 +206,16 @@ export class InputManager {
       this.sink({ kind: 'starPower', time })
     }
 
-    // A barra de strum. O jogo não exige palhetada, mas quem tem controle de
-    // guitarra espera que ela responda — e ignorá-la dá a impressão de que o
-    // controle não foi reconhecido.
+    // A barra de strum toca nota. O jogo não exige palhetada e continua sem
+    // exigir, mas ela estava ligada ao star power — quem tinha um controle
+    // de guitarra e palhetava a música normalmente disparava o star power a
+    // cada nota. Agora é um segundo gatilho para a nota que já está debaixo
+    // dos dedos, que é o que o instrumento promete.
     for (const strum of [this.gamepad.strumUp, this.gamepad.strumDown]) {
       if (strum < 0) continue
       if ((pressed[strum] ?? false) && !(this.previousButtons[strum] ?? false)) {
         this.strummedAt = time
-        this.sink({ kind: 'starPower', time })
+        this.sink({ kind: 'strum', time })
       }
     }
 

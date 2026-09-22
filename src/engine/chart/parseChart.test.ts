@@ -80,6 +80,34 @@ describe('parseChart', () => {
     expect(sustain.duration).toBeCloseTo(0.5, 6)
   })
 
+  /**
+   * O `.chart` aceita qualquer comprimento, inclusive um tick, e vários
+   * editores gravam a célula da grade em vez de zero. Sem limiar, cada uma
+   * dessas notas virava um rastro na pista e um sustain a segurar.
+   */
+  it('comprimento curto demais não vira sustain', () => {
+    const curto = parseChart(`
+[Song]
+{
+  Resolution = 192
+}
+[SyncTrack]
+{
+  0 = B 120000
+}
+[ExpertSingle]
+{
+  0 = N 0 48
+  192 = N 1 64
+}
+`)
+    const notes = curto.charts.expert!.notes
+    // 48 ticks é uma semicolcheia: notação, não intenção de segurar.
+    expect(notes[0].duration).toBe(0)
+    // 64 ticks é o limiar — uma colcheia de tercina — e já conta.
+    expect(notes[1].duration).toBeGreaterThan(0)
+  })
+
   it('marca nota aberta', () => {
     const open = chart.notes.at(-1)!
     expect(open.isOpen).toBe(true)

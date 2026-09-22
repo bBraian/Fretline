@@ -39,6 +39,17 @@ export interface Character {
   /** Estrelas acumuladas na carreira para liberar; 0 é inicial. */
   unlockAtStars: number
   price: number
+  /**
+   * Fora da loja, mas dentro do elenco.
+   *
+   * As marionetes construídas em código saíram da vitrine quando entraram
+   * modelos importados para todos os lugares — mas elas **não** foram
+   * apagadas, porque o resto do jogo depende delas: são o molde de onde os
+   * importados copiam cor e energia, são a reserva de `characterById`
+   * quando um perfil salvo aponta para alguém que não existe mais, e são os
+   * três integrantes que enchem o palco atrás do jogador.
+   */
+  hidden?: boolean
   build: BodyBuild
   /** Multiplicador de altura em cima de 1,75m. */
   height: number
@@ -97,6 +108,7 @@ export interface Character {
 export const CHARACTERS: Character[] = [
   {
     id: 'rane',
+    hidden: true,
     name: 'Rane Kowalczyk',
     subtitle: 'Franzino, e ninguém aguenta o ritmo dele',
     unlockAtStars: 0,
@@ -129,6 +141,7 @@ export const CHARACTERS: Character[] = [
   },
   {
     id: 'valdo',
+    hidden: true,
     name: 'Valdo Serra',
     subtitle: 'Cartola, cachos e um solo que não acaba',
     unlockAtStars: 0,
@@ -160,6 +173,7 @@ export const CHARACTERS: Character[] = [
   },
   {
     id: 'skarlet',
+    hidden: true,
     name: 'Skarlet Vey',
     subtitle: 'Toca descalça quando o palco deixa',
     unlockAtStars: 3,
@@ -210,9 +224,13 @@ export const CHARACTERS: Character[] = [
 const IMPORTED: Character[] = ([
   // arquivo, nome, descrição, estrelas, preço, tem esqueleto, giro
   ['kratos', 'Kairos', 'Barba de cinzas, olhar de quem já viu pior', 0, 0, true, undefined],
-  ['dead_pool', 'Vermelhão', 'Fala demais entre uma música e outra', 8, 5000, true, undefined],
+  ['dead_pool', 'Vermelhão', 'Fala demais entre uma música e outra', 6, 3500, true, undefined],
+  ['goku', 'Gokê Ramos', 'Cabelo em pé desde o primeiro acorde', 10, 5000, true, undefined],
+  ['homer_fmv_model_-_the_simpsons_hit__run', 'Homero Pinto', 'Toca melhor depois da terceira', 14, 7000, true, undefined],
   ['douxie_tales_of_arcadia', 'Douglas', 'Jaqueta, franja e um alaúde antigo', 18, 9000, true, undefined],
+  ['spiderman_brand_new_day_from_fortnite', 'Teixeira', 'Sobe na caixa de som todo show', 22, 11000, true, undefined],
   ['taylor_swift_band_hero', 'Stella Vaughn', 'Veio do pop e ficou pelo barulho', 28, 14000, true, undefined],
+  ['fortnite_darth_vader_advanced_rig', 'Dartes Vale', 'Capa preta e um riff que respira', 34, 18000, true, undefined],
 ] as const).map(([file, name, subtitle, unlockAtStars, price, animated, turn]) => ({
   id: `glb-${file}`,
   name: name as string,
@@ -235,6 +253,9 @@ const IMPORTED: Character[] = ([
 }))
 
 CHARACTERS.push(...IMPORTED)
+
+/** O que a loja mostra: todo mundo menos as marionetes de reserva. */
+export const SHOP_CHARACTERS: Character[] = CHARACTERS.filter((c) => !c.hidden)
 
 export function characterById(id: string): Character {
   return CHARACTERS.find((c) => c.id === id) ?? CHARACTERS[0]

@@ -9,16 +9,23 @@
  * Os eventos de input trazem o próprio instante em vez de serem amostrados
  * por frame: um frame de 16ms é largo demais perto de uma janela de 70ms.
  *
- * Não existe palhetada. Toda nota é resolvida no toque do traste, o que
- * torna teclado e controle igualmente jogáveis — nenhum dos dois tem um
- * gesto decente para palhetar. Duas consequências que a máquina de estados
- * precisa tratar:
+ * Não existe palhetada *obrigatória*. Toda nota é resolvida na mudança dos
+ * trastes, o que torna teclado e controle igualmente jogáveis — nenhum dos
+ * dois tem um gesto decente para palhetar. Quem tem um controle de guitarra
+ * pode usar a barra, que vale como um segundo gatilho (ver `onStrum`), mas
+ * ninguém precisa dela.
  *
- * - duas notas seguidas no mesmo traste exigem soltar e apertar de novo,
- *   porque só a transição de solto para pressionado resolve nota;
+ * Três consequências que a máquina de estados precisa tratar:
+ *
+ * - duas notas seguidas na mesma digitação exigem soltar e apertar de novo,
+ *   porque a mão precisa *mudar* para resolver nota;
+ * - a mudança que resolve pode ser uma soltura. Sem palhetada existem notas
+ *   que nenhum aperto alcança: um acorde verde+vermelho resolvendo para um
+ *   vermelho sozinho se toca soltando o verde. Vale quando a mão para
+ *   exatamente na forma da nota;
  * - o castigo por palhetar no vazio vira castigo por tocar no vazio, com
- *   uma folga para montar acordes (ver `CHORD_GRACE`). Sem ele, martelar os
- *   cinco trastes acertaria a música inteira.
+ *   uma folga para montar acordes (ver `CHORD_GRACE` e `buildingChord`).
+ *   Sem ele, martelar os cinco trastes acertaria a música inteira.
  */
 
 import type { Chart, Difficulty, Judgement, Note, Verdict } from '../types'
@@ -44,6 +51,7 @@ import {
 
 export type InputEvent =
   | { kind: 'frets'; mask: number; time: number }
+  | { kind: 'strum'; time: number }
   | { kind: 'whammy'; value: number; time: number }
   | { kind: 'starPower'; time: number }
 
@@ -236,6 +244,9 @@ export class Session {
       case 'frets':
         this.onFretChange(event.mask, time)
         break
+      case 'strum':
+        this.onStrum(time)
+        break
       case 'whammy':
         this.state.whammy = event.value
         break
@@ -256,14 +267,22 @@ export class Session {
     const candidate = this.findCandidate(time)
 
     if (pressed === 0) {
-      // Soltar não resolve nota comum — se resolvesse, largar um acorde para
-      // pegar a nota simples seguinte acertaria as duas de uma vez.
+      // Uma soltura resolve nota quando a mão *para* exatamente na forma da
+      // nota seguinte. Não é generosidade: sem palhetada, existem notas que
+      // nenhum aperto alcança. Um acorde verde+vermelho resolvendo para um
+      // vermelho sozinho se toca soltando o verde — nenhum traste novo
+      // desce. Exigir soltar tudo e reapertar tornaria essas notas
+      // impossíveis de tocar no tempo, e elas são 16% de um chart de expert
+      // com muitos acordes.
       //
-      // A exceção é a nota aberta. Sem palhetada ela não tem gesto próprio:
-      // "nenhum traste pressionado" só pode ser expressado soltando tudo, e
-      // é assim que ela é tocada. Soltar um traste no meio de um sustain
-      // derruba o sustain, o que é tratado no update.
-      if (mask === 0 && candidate?.isOpen) this.hit(candidate, time)
+      // A nota aberta cai neste mesmo caso: "nenhum traste pressionado" só
+      // pode ser expressado soltando tudo.
+      //
+      // O que continua não valendo é soltar para *nada*: largar o verde com
+      // outro verde à frente deixa a máscara em zero, que não satisfaz a
+      // nota, e ela segue pendente — duas notas no mesmo traste continuam
+      // exigindo soltar e apertar.
+      if (candidate && fretsSatisfyNote(mask, candidate)) this.hit(candidate, time)
       return
     }
 
@@ -283,16 +302,61 @@ export class Session {
     if (!this.pendingTap) this.pendingTap = { time }
   }
 
+  /**
+   * Palhetada.
+   *
+   * O jogo resolve a nota no traste e continua sem exigir palhetada — mas um
+   * controle de guitarra tem a barra, e quem o tem vai usá-la. Ela é um
+   * segundo gatilho para a nota que já está debaixo dos dedos: se a mão
+   * satisfaz a nota candidata, a palhetada resolve.
+   *
+   * Palhetar no vazio não é castigado, e é de propósito. Aqui a palhetada é
+   * opcional, não obrigatória; punir quem palheteia por hábito enquanto
+   * também aperta o traste cobraria por um gesto que o jogo nem pede.
+   */
+  private onStrum(time: number) {
+    const candidate = this.findCandidate(time)
+    if (!candidate) return
+    if (!fretsSatisfyNote(this.state.fretMask, candidate)) return
+    this.pendingTap = null
+    this.hit(candidate, time)
+  }
+
   /** Toque que atravessou a folga sem virar acerto: é castigo. */
   private resolvePendingTap(songTime: number) {
     const pending = this.pendingTap
     if (!pending) return
     if (songTime < pending.time + CHORD_GRACE) return
+    if (this.buildingChord(songTime)) return
 
     this.pendingTap = null
     this.breakStreak()
     this.damage(GHOST_TAP_COST)
     this.events.push({ kind: 'ghostTap', time: pending.time })
+  }
+
+  /**
+   * Os trastes na mão são parte de um acorde que ainda está por vir?
+   *
+   * A folga fixa sozinha não dá conta: ninguém fecha três trastes no mesmo
+   * instante, e o espalhamento dos dedos de um jogador comum passa dos 30ms
+   * sem esforço. Mas espalhamento não é martelada, e dá para distinguir os
+   * dois pelo conteúdo e não pelo relógio — dedos que são um *subconjunto*
+   * do acorde que está chegando são uma mão montando a nota.
+   *
+   * Enquanto for esse o caso, o castigo espera. Se o acorde nunca fechar, a
+   * nota expira e a perda dela é a conta; se fechar, vira acerto.
+   */
+  private buildingChord(songTime: number): boolean {
+    const candidate = this.findCandidate(songTime)
+    return candidate !== null && this.maskBuilds(candidate)
+  }
+
+  /** Os trastes na mão são parte — e só parte — desta nota? */
+  private maskBuilds(note: Note): boolean {
+    const mask = this.state.fretMask
+    if (mask === 0 || note.isOpen) return false
+    return (mask & ~note.frets) === 0
   }
 
   /** A nota pendente mais antiga que ainda está dentro da janela. */
@@ -346,6 +410,13 @@ export class Session {
 
       this.noteStatus[i] = 'missed'
       this.state.notesSeen++
+
+      // Um toque que estava montando justamente esta nota já tem a sua
+      // conta: a nota perdida. Cobrar também o castigo por tocar no vazio
+      // puniria a mesma falha duas vezes, e era o que fazia uma passagem
+      // difícil derrubar o medidor no dobro da velocidade devida.
+      if (this.pendingTap && this.maskBuilds(note)) this.pendingTap = null
+
       this.breakStreak()
       this.damage()
       this.creditPhrase(i, false)

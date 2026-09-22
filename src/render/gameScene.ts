@@ -358,7 +358,7 @@ export class GameScene {
     // um instrumento sem ele se mexer debaixo do controle.
     this.stage.update(this.frozen ? 0 : dt, beatPhase)
 
-    this.updateCamera(this.frozen ? 0 : dt, beatPhase)
+    this.updateCamera(this.frozen ? 0 : dt)
 
     this.director.setMood(this.mood())
     // Congelado, o diretor também para no tempo: passar o `songTime` que
@@ -457,21 +457,23 @@ export class GameScene {
     return Math.min(1, 0.25 + fromStreak * 0.5 + fromMeter * 0.35)
   }
 
-  private updateCamera(dt: number, beatPhase: number) {
+  /**
+   * Decai o tremor e o entrega ao palco.
+   *
+   * **A câmera da pista não se mexe, nunca.** Ela é posicionada uma vez, na
+   * montagem, e nada no laço a toca. Antes ela pulsava na batida e tremia no
+   * erro, o que contraria o motivo de existirem duas câmeras: a posição da
+   * linha de batida na tela é a referência que o jogador usa para decidir
+   * *quando* apertar, e movê-la — mesmo um centésimo, mesmo bonito — é mexer
+   * na leitura de tempo bem no instante em que ela mais importa.
+   *
+   * O tremor não se perde: vai para a câmera do show, que pode sacudir à
+   * vontade porque nenhuma decisão de tempo depende dela.
+   */
+  private updateCamera(dt: number) {
     this.shake *= Math.exp(-dt * 6)
     this.missFeedback *= Math.exp(-dt * 2.5)
-
-    const pulse = Math.cos(beatPhase * Math.PI * 2) * 0.012 * this.excitement()
-    const jitter = this.shake * 0.05
-
-    this.camera.position.set(
-      this.cameraBase.x + (Math.random() - 0.5) * jitter,
-      this.cameraBase.y + pulse + (Math.random() - 0.5) * jitter,
-      this.cameraBase.z + pulse * 0.5,
-    )
-    this.camera.lookAt(this.lookTarget)
-    // Uma inclinação mínima na falha: o mundo desaprumando junto com o jogador.
-    this.camera.rotation.z = this.missFeedback * 0.012
+    this.director.setShake(this.shake, this.missFeedback)
   }
 
   dispose() {

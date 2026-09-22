@@ -9,7 +9,7 @@
 import { useEffect, useRef } from 'react'
 import { owns, useGame } from '../store'
 import { ShopActions, ShopTag } from './ShopActions'
-import { BUILD_NAMES, CHARACTERS, characterById } from '../../content/characters'
+import { BUILD_NAMES, SHOP_CHARACTERS, characterById } from '../../content/characters'
 import { loadCharacterGlb } from '../../render/character/characterGlb'
 import type { StageCharacter } from '../../render/character/stageCharacter'
 import { CharacterModel } from '../../render/character/characterModel'
@@ -214,7 +214,7 @@ export function CharactersScreen() {
           </div>
 
           <div className="picker-list">
-            {CHARACTERS.map((character) => {
+            {SHOP_CHARACTERS.map((character) => {
               const owned = owns(profile.ownedCharacters, character.id)
 
               return (

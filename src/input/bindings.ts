@@ -17,9 +17,9 @@ export interface GamepadBindings {
    * Strum para cima e para baixo.
    *
    * O jogo resolve a nota no traste e não precisa de palhetada, mas quem
-   * tem controle de guitarra espera que a barra faça alguma coisa — aqui
-   * ela vale como um segundo star power, que é o gesto mais próximo.
-   * `-1` desliga.
+   * tem controle de guitarra vai palhetar de qualquer forma. A barra toca a
+   * nota que já está debaixo dos dedos — um segundo gatilho, nunca uma
+   * exigência. `-1` desliga.
    */
   strumUp: number
   strumDown: number

@@ -22,6 +22,7 @@
 
 import type { Chart, Difficulty, Note, NoteType, Phrase, Song, SongMeta } from '../types'
 import { TempoMap, type TempoEvent, type TimeSignature } from './tempoMap'
+import { sustainThreshold } from './sustain'
 import {
   META_TEMPO,
   META_TIME_SIGNATURE,
@@ -234,10 +235,9 @@ function buildChart(
     else if (inSpan(forceOff, tick)) type = 'strum'
     else type = naturalHopo ? 'hopo' : 'strum'
 
-    // Sustains curtos são artefato de gravação, não intenção do charter: o
-    // padrão do formato é descartar abaixo de um quarto de semínima.
     const rawLength = entry.length
-    const duration = rawLength >= division / 4 ? tempo.durationOf(tick, rawLength) : 0
+    const duration =
+      rawLength >= sustainThreshold(division) ? tempo.durationOf(tick, rawLength) : 0
 
     notes.push({
       index: notes.length,

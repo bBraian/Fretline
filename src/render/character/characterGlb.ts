@@ -29,7 +29,7 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import type { TwoBoneChain } from './ik'
-import { loadClip, retarget, type ClipRole } from './animationClips'
+import { loadClip, retarget, retargetMapped, type ClipRole } from './animationClips'
 import { attachToBone, WAIST_FRACTION, type BoneAttachment } from './bandMember'
 import { ATTACHMENTS } from './bandRig'
 import {
@@ -180,16 +180,42 @@ export class ImportedCharacter {
    * cinemática inversa segurando o instrumento. Quando ele chega e casa com
    * o esqueleto, **a IK sai de cena**: as duas disputando os mesmos ossos
    * produziriam uma mistura que não é nem uma coisa nem outra.
+   *
+   * São dois caminhos, e a ordem importa. O primeiro é a cópia direta das
+   * faixas, que só vale entre esqueletos da **mesma família** — dois rigs
+   * Mixamo repousam iguais, e a rotação local de um serve no outro sem
+   * conta nenhuma. É o caminho barato, e é o que os modelos Mixamo já
+   * usavam. Quando ele não casa, entra a adaptação de verdade, que
+   * reconhece o esqueleto pelo papel de cada osso e desconta a diferença
+   * entre as duas poses de repouso.
    */
   setRole(role: StageRole) {
-    if (!this.rig.hips && !this.animated) return
-    void loadClip(role as ClipRole).then((clip) => {
-      if (!clip || this.disposed) return
-      const fitted = retarget(clip, this.root)
+    void loadClip(role as ClipRole).then((loaded) => {
+      if (!loaded || this.disposed) return
+
+      const direto = retarget(loaded.clip, this.root)
+      const fitted = direto ?? this.retargetAcrossFamilies(loaded.clip, loaded.scene)
       if (!fitted) return
+
       this.mixer = new THREE.AnimationMixer(this.root)
       this.mixer.clipAction(fitted).play()
     })
+  }
+
+  /**
+   * Adapta o clipe quando o esqueleto é de outra convenção.
+   *
+   * Precisa da malha com esqueleto, e não da raiz: é dela que sai a lista de
+   * ossos e a pose de ligação. Um modelo partido em várias malhas — a
+   * Stella Vaughn tem dezoito — compartilha o mesmo esqueleto entre todas,
+   * então a primeira serve.
+   */
+  private retargetAcrossFamilies(clip: THREE.AnimationClip, source: THREE.Object3D) {
+    let skinned: THREE.SkinnedMesh | null = null
+    this.root.traverse((node) => {
+      if (!skinned && (node as THREE.SkinnedMesh).isSkinnedMesh) skinned = node as THREE.SkinnedMesh
+    })
+    return skinned ? retargetMapped(clip, source, skinned) : null
   }
 
   setState(state: PerformanceState) {
