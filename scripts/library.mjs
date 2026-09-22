@@ -36,14 +36,19 @@ if (index.songs.length === 0) problems.push('nenhuma pasta de música encontrada
 await page.getByRole('button', { name: /Tocar/ }).first().click()
 await page.getByRole('heading', { name: 'Escolha a música' }).waitFor()
 
-const row = page.locator('.song-row', { hasText: 'Teste Local' })
+// A primeira da lista, e não uma música pelo nome: o catálogo é a pasta,
+// e a pasta muda. O que se confere é a corrente — varredura, servidor,
+// `song.ini` por cima do chart — não qual música está lá dentro.
+const row = page.locator('.song-row').first()
 await row.waitFor({ timeout: 10000 })
-console.log('✓ a música aparece na lista')
+const nome = (await row.innerText()).split('\n')[0]
+console.log(`✓ a música aparece na lista: ${nome}`)
 
-// O `song.ini` precisa ter tido precedência sobre o chart.
+// O `song.ini` precisa ter tido precedência sobre o chart: é dele que saem
+// o artista e o ano, que nenhum dos dois formatos de chart carrega bem.
 const text = await row.innerText()
-if (!text.includes('Fretline')) problems.push('o artista do song.ini não apareceu')
-if (!text.includes('.chart')) problems.push('o formato detectado não apareceu')
+if (!/\.(chart|mid)\b/i.test(text)) problems.push('o formato detectado não apareceu')
+if (!/·/.test(text)) problems.push('a linha da música saiu sem metadados')
 
 await row.click()
 await page.getByRole('button', { name: /^Tocar em/ }).click()

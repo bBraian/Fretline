@@ -281,6 +281,63 @@ class Mixer {
   }
 
   /**
+   * O preview da tela de seleção: toca esta música, em laço, até sair.
+   *
+   * `null` mantém o modo preview em silêncio — é o estado enquanto o
+   * jogador navega e nenhuma música completou os dois segundos parada.
+   *
+   * **Não** obedece ao interruptor de música de menu. O preview não é
+   * trilha: é a resposta a um gesto, o jeito de ouvir o que se está
+   * escolhendo. Quem desligou a música de fundo desligou o que toca
+   * sozinho, não o que ele pediu. O volume geral continua mandando.
+   */
+  playPreview(track: MenuTrack | null) {
+    const ctx = this.ensure()
+    if (!ctx || !this.musicGain) return
+
+    // O barramento da música pode estar zerado pelo interruptor; o preview
+    // o reabre enquanto durar, e `endPreview` devolve o que era.
+    this.musicGain.gain.setTargetAtTime(MENU_MUSIC_RATIO, ctx.currentTime, 0.08)
+    // O laço sintetizado sai de cena: o preview é a música que o jogador
+    // está olhando, e não divide o palco com nada.
+    this.stopLoop()
+    this.playlist.preview(ctx, this.musicGain, track)
+  }
+
+  /** Sai do preview e devolve o fundo do menu. */
+  endPreview() {
+    const ctx = this.ctx
+    if (!ctx || !this.musicGain) return
+
+    this.musicGain.gain.setTargetAtTime(
+      this.menuMusicOn ? MENU_MUSIC_RATIO : 0,
+      ctx.currentTime,
+      0.1,
+    )
+    // Com a trilha desligada não há para onde voltar, e deixar a fila
+    // tocando em volume zero seria transmitir um arquivo para ninguém.
+    if (!this.menuMusicOn) {
+      this.playlist.stop(0.25)
+      return
+    }
+    this.playlist.endPreview(ctx, this.musicGain)
+    // Sem fila não há para onde voltar: o laço sintetizado reassume.
+    if (!this.playlist.hasTracks) this.startMenuMusic()
+  }
+
+  /**
+   * Silêncio total do menu, para entrar no palco.
+   *
+   * O roteador já manda parar a música ao trocar de tela, mas isso é uma
+   * ordem que depende de a tela certa estar montada na hora certa. Esta é a
+   * garantia de quem vai tocar: nada de menu, nada de preview, agora.
+   */
+  silenceMenu() {
+    this.playlist.stop(0.2)
+    this.stopLoop()
+  }
+
+  /**
    * A abertura de uma música: a pista sobe, as notas passam e a plateia
    * grita, nessa ordem, emendadas.
    *

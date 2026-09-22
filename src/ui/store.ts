@@ -10,7 +10,7 @@
 import { create } from 'zustand'
 import type { Difficulty } from '../engine/types'
 import type { SongEntry } from '../songs/library'
-import { demoEntry, loadLocalLibrary } from '../songs/library'
+import { catalogue, demoEntry, demoVisible, loadLocalLibrary } from '../songs/library'
 import { CHARACTERS, SHOP_CHARACTERS } from '../content/characters'
 import { GUITARS } from '../content/guitars'
 import { mixer } from '../audio/mixer'
@@ -64,6 +64,14 @@ export interface Profile {
 
 interface State {
   screen: Screen
+  /**
+   * De qual tela a partida foi iniciada.
+   *
+   * Sair da música volta para lá. Antes voltava sempre para a biblioteca, e
+   * quem tinha escolhido a música na carreira era despejado numa tela que
+   * não pediu. Não é gravado: vale enquanto a aba estiver aberta.
+   */
+  playedFrom: Screen
   /**
    * Item em exibição nas telas de seleção.
    *
@@ -176,6 +184,7 @@ const initial = load()
 
 export const useGame = create<State>((set, get) => ({
   screen: 'menu',
+  playedFrom: 'songs',
   previewCharacterId: null,
   previewGuitarId: null,
   library: [demoEntry()],
@@ -185,7 +194,17 @@ export const useGame = create<State>((set, get) => ({
   settings: initial.settings,
   profile: initial.profile,
 
-  setScreen: (screen) => set({ screen }),
+  setScreen: (screen) =>
+    set((state) => {
+      // `play` e `results` não contam como origem: são etapas da própria
+      // partida, e "de novo" precisa continuar apontando para a tela que
+      // abriu a primeira.
+      const playedFrom =
+        screen === 'play' && state.screen !== 'play' && state.screen !== 'results'
+          ? state.screen
+          : state.playedFrom
+      return { screen, playedFrom }
+    }),
 
   // Trocar o item em exibição é navegar por um menu, e soa como tal. O som
   // mora aqui, e não nas telas, porque personagens, guitarras e músicas são
@@ -213,7 +232,21 @@ export const useGame = create<State>((set, get) => ({
     set((state) => {
       const known = new Set(state.library.map((e) => e.song.meta.id))
       const fresh = entries.filter((e) => !known.has(e.song.meta.id))
-      return { library: [...state.library, ...fresh] }
+      const library = [...state.library, ...fresh]
+
+      // A demo é rede de segurança, não catálogo: quando entra música de
+      // verdade ela sai das listas, e a seleção precisa sair junto — senão
+      // o botão de tocar apontaria para uma faixa que a lista não mostra.
+      const atual = library.find((e) => e.song.meta.id === state.selectedSongId)
+      const orfa = !demoVisible() && (!atual || atual.synthesized)
+      const primeira = catalogue(library)
+        .filter((e) => !e.synthesized)
+        .sort((a, b) => a.song.meta.name.localeCompare(b.song.meta.name, 'pt-BR'))[0]
+
+      return {
+        library,
+        selectedSongId: orfa && primeira ? primeira.song.meta.id : state.selectedSongId,
+      }
     }),
 
   /** Relê a pasta `songs/` e devolve quantas músicas novas entraram. */

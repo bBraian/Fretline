@@ -10,6 +10,7 @@ import { useEffect, useRef } from 'react'
 import { useGame, type Screen } from './ui/store'
 import { mixer } from './audio/mixer'
 import type { MenuTrack } from './audio/menuPlaylist'
+import { backgroundAudio } from './songs/library'
 import { MenuScreen } from './ui/screens/MenuScreen'
 import { CareerScreen } from './ui/screens/CareerScreen'
 import { SongsScreen } from './ui/screens/SongsScreen'
@@ -44,19 +45,15 @@ export function App() {
    * A música de fundo dos menus são as próprias músicas da biblioteca.
    *
    * A mesa não conhece `songs/` — se conhecesse, as camadas se enlaçariam —
-   * então é aqui que a biblioteca vira uma lista de endereços.
-   *
-   * De cada música vai uma faixa só. Quando o pacote tem várias, a escolhida
-   * é a `backing`, que na convenção do Clone Hero é o `song.ogg`: a banda
-   * inteira já misturada. Tocar as faixas separadas em sincronia custaria
-   * vários fluxos abertos para um som que é de fundo.
+   * então é aqui que a biblioteca vira uma lista de endereços. Qual faixa
+   * de cada pacote, e a partir de onde, é decisão de `backgroundAudio`.
    */
   useEffect(() => {
     const tracks: MenuTrack[] = []
     for (const entry of library) {
       if (entry.synthesized) continue
-      const track = entry.tracks.find((t) => t.role === 'backing') ?? entry.tracks[0]
-      if (track) tracks.push({ id: entry.song.meta.id, url: track.url })
+      const audio = backgroundAudio(entry)
+      if (audio) tracks.push({ id: entry.song.meta.id, ...audio })
     }
     mixer.setMenuTracks(tracks)
   }, [library])

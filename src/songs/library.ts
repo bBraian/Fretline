@@ -32,6 +32,15 @@ export interface SongEntry {
   song: Song
   /** Faixas tocáveis, com o papel de cada uma; vazio na faixa sintetizada. */
   tracks: AudioTrack[]
+  /**
+   * O clipe de preview do pack, quando existe (`preview.ogg`/`.opus`).
+   *
+   * Fica fora de `tracks` de propósito: ele não faz parte da mixagem da
+   * música e não pode entrar no palco. É o trecho que o charter escolheu
+   * para representar a faixa no menu, e é o melhor ponto de partida que
+   * existe para o preview da seleção.
+   */
+  preview?: string
   /** A faixa demo é gerada, não carregada. */
   synthesized: boolean
   /** De onde veio: `.chart` ou `notes.mid`. */
@@ -76,6 +85,10 @@ function isPlayableAudio(name: string) {
   // `preview` é o trecho tocado no menu e `crowd` é a plateia gravada;
   // nenhum dos dois entra na mixagem do jogo.
   return isAudio(name) && base !== 'preview' && base !== 'crowd'
+}
+
+function isPreviewName(name: string) {
+  return name.replace(/\.[^.]+$/, '').toLowerCase() === 'preview'
 }
 
 const AUDIO_EXTENSIONS = ['.ogg', '.mp3', '.opus', '.wav', '.m4a']
@@ -157,6 +170,7 @@ async function entryFromFiles(folderName: string, files: SongFile[]): Promise<So
   if (!midiFile && !chartFile) return null
 
   const audioFiles = files.filter((f) => isPlayableAudio(f.name))
+  const previewFile = files.find((f) => isAudio(f.name) && isPreviewName(f.name))
   const iniFile = files.find((f) => isIni(f.name))
   const id = folderName.split('/').pop() || folderName
 
@@ -197,6 +211,7 @@ async function entryFromFiles(folderName: string, files: SongFile[]): Promise<So
   return {
     song,
     tracks: audioFiles.map((file) => ({ url: file.url, role: roleOf(file.name) })),
+    preview: previewFile?.url,
     synthesized: false,
     format,
     declaredDifficulty: ini?.guitarDifficulty ?? -1,
@@ -290,6 +305,70 @@ export function isPlayable(entry: SongEntry): boolean {
 
 export function releaseEntry(entry: SongEntry) {
   for (const track of entry.tracks) URL.revokeObjectURL(track.url)
+  if (entry.preview) URL.revokeObjectURL(entry.preview)
+}
+
+/** Um endereço tocável fora do palco, e onde começar a tocá-lo. */
+export interface BackgroundAudio {
+  url: string
+  /** Duração declarada, quando o `song.ini` a traz. */
+  duration?: number
+  /** Onde começar; sem isto, quem toca escolhe. */
+  startAt?: number
+}
+
+/**
+ * A faixa que representa a música fora do palco.
+ *
+ * Duas situações usam isto e pedem coisas diferentes. O fundo do menu quer
+ * um trecho qualquer que soe como a música, e pega o meio — o começo de uma
+ * música costuma ser justamente a parte que ainda não é a música. Já o
+ * preview da seleção quer *a* parte que identifica a faixa, e aí vale a
+ * opinião de quem charteou: primeiro o `preview.opus` do pack, depois o
+ * `preview_start_time` do `song.ini`, e só então o meio.
+ *
+ * De cada pacote sai uma faixa só. Quando há várias, a escolhida é a
+ * `backing` — o `song.ogg` da convenção do Clone Hero, a banda já
+ * misturada. Tocar as faixas separadas em sincronia custaria vários fluxos
+ * abertos para um som que é de fundo.
+ */
+export function backgroundAudio(
+  entry: SongEntry,
+  { usePreview = false } = {},
+): BackgroundAudio | null {
+  if (usePreview && entry.preview) return { url: entry.preview, startAt: 0 }
+
+  const track = entry.tracks.find((t) => t.role === 'backing') ?? entry.tracks[0]
+  if (!track) return null
+
+  const { length, previewStart } = entry.song.meta
+  return {
+    url: track.url,
+    duration: length > 0 ? length : undefined,
+    startAt: usePreview && previewStart > 0 ? previewStart : undefined,
+  }
+}
+
+/**
+ * A demo aparece nas listas?
+ *
+ * Ela é rede de segurança, não catálogo: existe para o jogo não abrir vazio
+ * quando não há pasta `songs/` — num build estático, ou antes da varredura
+ * terminar. Com biblioteca de verdade no ar, sai de cena.
+ *
+ * `?debug` a mantém à vista porque é ela que o teste de fumaça toca: o
+ * chart é gerado pelo mesmo arquivo que gera o áudio, então os dois nunca
+ * saem de sincronia e o teste pode exigir 100% de acerto.
+ */
+export function demoVisible(): boolean {
+  return typeof location !== 'undefined' && new URLSearchParams(location.search).has('debug')
+}
+
+/** O que as telas mostram: a biblioteca sem a demo, quando há o que mostrar. */
+export function catalogue(entries: SongEntry[]): SongEntry[] {
+  if (demoVisible()) return entries
+  const real = entries.filter((entry) => !entry.synthesized)
+  return real.length > 0 ? real : entries
 }
 
 
@@ -300,18 +379,44 @@ export function releaseEntry(entry: SongEntry) {
  * URLs normais, então a biblioteca continua lá depois de recarregar a
  * página — ao contrário do seletor de pastas, cujos blobs morrem com a aba.
  */
-export async function loadLocalLibrary(): Promise<SongEntry[]> {
-  let index: { songs: Array<{ id: string; path: string; files: string[] }> }
+interface LibraryIndex {
+  /**
+   * Prefixo dos arquivos, quando eles não estão neste servidor.
+   *
+   * O plugin de desenvolvimento não manda este campo — os arquivos saem
+   * dele mesmo, em `/library/file/`. O manifesto da versão hospedada manda,
+   * e aponta para o storage. É a única diferença entre as duas origens, e é
+   * por isso que existe um caminho só aqui.
+   */
+  base?: string
+  songs: Array<{ id: string; path: string; files: string[] }>
+}
 
-  try {
-    const response = await fetch('/library/index.json')
-    if (!response.ok) return []
-    index = await response.json()
-  } catch {
-    // Sem o servidor local — build estático, por exemplo — resta o seletor.
-    return []
+/**
+ * O índice da biblioteca, venha ele do servidor local ou do manifesto.
+ *
+ * Na ordem: o plugin de desenvolvimento primeiro, porque rodando na própria
+ * máquina é ele que reflete a pasta de verdade, inclusive o que acabou de
+ * ser largado lá dentro. O manifesto é a reserva do build hospedado.
+ */
+async function fetchLibraryIndex(): Promise<LibraryIndex | null> {
+  for (const url of ['/library/index.json', '/library/remote.json']) {
+    try {
+      const response = await fetch(url)
+      if (!response.ok) continue
+      return (await response.json()) as LibraryIndex
+    } catch {
+      // Endereço que não existe neste build; tenta o próximo.
+    }
   }
+  return null
+}
 
+export async function loadLocalLibrary(): Promise<SongEntry[]> {
+  const index = await fetchLibraryIndex()
+  if (!index) return []
+
+  const prefix = index.base?.replace(/\/$/, '') ?? '/library/file'
   const entries: SongEntry[] = []
 
   for (const folder of index.songs) {
@@ -319,7 +424,7 @@ export async function loadLocalLibrary(): Promise<SongEntry[]> {
       // Cada segmento é codificado em separado: codificar o caminho inteiro
       // escaparia as barras e o servidor não acharia a subpasta.
       const segments = [...folder.path.split('/').filter(Boolean), name]
-      const url = `/library/file/${segments.map(encodeURIComponent).join('/')}`
+      const url = `${prefix}/${segments.map(encodeURIComponent).join('/')}`
       return {
         name,
         url,

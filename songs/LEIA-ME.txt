@@ -14,3 +14,22 @@ Basta recarregar a página depois de acrescentar uma música.
 
 Pastas dentro de pastas também funcionam, até quatro níveis, então um pack
 inteiro pode ser jogado aqui de uma vez.
+
+O conteúdo desta pasta não é versionado: são centenas de megabytes de áudio
+com licença de terceiros, que não é nossa para redistribuir. Só este arquivo
+fica no repositório, para a pasta existir num clone novo.
+
+Dois campos do song.ini valem atenção, porque o jogo os usa e a maioria dos
+packs não preenche:
+
+    diff_guitar = 0..6        ordena a carreira, do tier mais fácil ao mais
+                              difícil. Sem ele, o jogo estima pela densidade
+                              de notas, o que costuma errar com músicas
+                              fáceis mas corridas.
+
+    preview_start_time = ms   onde começa o preview da tela de seleção. Sem
+                              ele, vale o preview.ogg do pack; sem os dois,
+                              o meio da música.
+
+Para a versão hospedada, `npm run upload-assets` sobe esta pasta para um
+storage e escreve o manifesto que o jogo lê de lá.

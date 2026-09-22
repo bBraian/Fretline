@@ -24,6 +24,21 @@ interface SongRowProps {
   stars: number | null
   score: number | null
   selected?: boolean
+  /** O preview desta linha está tocando agora. */
+  previewing?: boolean
+  /**
+   * O que liga a linha ao seletor: referência, passagem do mouse e foco.
+   *
+   * Vem de fora porque quem sabe navegar é a lista, não a linha — as duas
+   * telas que usam esta linha têm listas de formatos diferentes, e uma
+   * carreira em tiers precisa de um índice achatado que a linha não tem
+   * como calcular sozinha.
+   */
+  nav?: {
+    ref: (node: HTMLElement | null) => void
+    onMouseEnter: () => void
+    onFocus: () => void
+  }
   disabled?: boolean
   /** Tem chart mas ainda não tem áudio. */
   waiting?: boolean
@@ -39,6 +54,8 @@ export function SongRow({
   stars,
   score,
   selected,
+  previewing,
+  nav,
   disabled,
   waiting,
   onClick,
@@ -47,9 +64,22 @@ export function SongRow({
     <button
       className="song-row"
       data-selected={selected}
+      data-previewing={previewing}
       data-waiting={waiting}
+      {...nav}
       {...blockable(disabled ?? false, onClick)}
     >
+      {/* O clipe do seletor: aparece quando o preview de fato começa, e não
+          quando o destaque chega. É o retorno de que os dois segundos
+          fecharam — sem ele, o som sai sem nada na tela explicando de onde. */}
+      {previewing && (
+        <span className="song-row-eq" aria-label="tocando prévia">
+          <i aria-hidden />
+          <i aria-hidden />
+          <i aria-hidden />
+        </span>
+      )}
+
       <span className="song-row-main">
         <span className="song-name">{name}</span>
         <span className="song-artist">

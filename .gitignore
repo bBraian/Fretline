@@ -2,6 +2,11 @@ node_modules
 dist
 .DS_Store
 scripts/*.png
+# Músicas. Fora do versionamento pelo mesmo motivo dos modelos: são
+# centenas de megabytes de áudio com licença de terceiros, que não é nossa
+# para redistribuir. A pasta é lida em tempo de execução pelo plugin de
+# desenvolvimento; para a versão hospedada, ver `tools/upload-assets.mjs`.
+songs/*
 !songs/LEIA-ME.txt
 
 # Modelos 3D importados. Fora do versionamento por dois motivos: são vários

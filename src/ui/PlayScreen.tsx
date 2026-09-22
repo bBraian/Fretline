@@ -41,6 +41,7 @@ export function PlayScreen() {
   const library = useGame((s) => s.library)
   const selectedSongId = useGame((s) => s.selectedSongId)
   const setScreen = useGame((s) => s.setScreen)
+  const playedFrom = useGame((s) => s.playedFrom)
   const finishSong = useGame((s) => s.finishSong)
 
   const [phase, setPhase] = useState<Phase>('loading')
@@ -94,6 +95,11 @@ export function PlayScreen() {
     let unsubscribeVolume: (() => void) | undefined
     const canvas = canvasRef.current
     finishedRef.current = false
+
+    // Nada de menu nem de preview sobre a partida. O roteador já manda
+    // parar ao trocar de tela; isto é a garantia de quem vai tocar, e não
+    // depende de a ordem das montagens sair certa.
+    mixer.silenceMenu()
 
     const onEvent = (event: SessionEvent) => {
       if (event.kind === 'hit') {
@@ -331,13 +337,14 @@ export function PlayScreen() {
 
   const quit = () => {
     finishedRef.current = true
-    setScreen('songs')
+    setScreen(playedFrom)
   }
 
   const restart = () => {
     // Remontar a tela é mais simples e mais seguro que reiniciar a sessão no
-    // lugar: o caminho de montagem já é o único que sabe construir tudo.
-    setScreen('songs')
+    // lugar: o caminho de montagem já é o único que sabe construir tudo. O
+    // desvio é pela tela de origem, para que ela continue sendo a origem.
+    setScreen(playedFrom)
     requestAnimationFrame(() => setScreen('play'))
   }
 

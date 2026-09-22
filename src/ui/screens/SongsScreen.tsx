@@ -8,11 +8,12 @@
  * botão travado e conclui que a música está quebrada.
  */
 
-import { useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useGame } from '../store'
 import { difficultyName } from './MenuScreen'
 import { DIFFICULTIES } from '../../engine/types'
 import {
+  catalogue,
   importFromDirectoryPicker,
   importFromFileList,
   isPlayable,
@@ -22,6 +23,18 @@ import {
 import { SongRow } from './SongRow'
 import { mixer } from '../../audio/mixer'
 import { blockable } from '../blocked'
+import { DifficultyPicker } from './DifficultyPicker'
+import { useListSelection } from '../useListSelection'
+import { previewOf, useSongPreview } from '../useSongPreview'
+
+/**
+ * Quanto o jogador precisa ficar parado numa música antes de ela tocar.
+ *
+ * O número existe para separar navegar de escolher. Sem espera, atravessar
+ * a lista dispara uma música por linha; com espera demais, quem parou para
+ * decidir não recebe a ajuda que o preview é.
+ */
+const PREVIEW_DELAY = 2000
 
 function formatDuration(seconds: number) {
   if (!Number.isFinite(seconds) || seconds <= 0) return '—'
@@ -30,14 +43,23 @@ function formatDuration(seconds: number) {
 }
 
 export function SongsScreen() {
-  const { library, selectedSongId, selectSong, setScreen, addSongs, profile } = useGame()
+  const {
+    library: todas,
+    selectedSongId,
+    selectSong,
+    setScreen,
+    addSongs,
+    profile,
+  } = useGame()
   const difficulty = useGame((s) => s.settings.difficulty)
-  const updateSettings = useGame((s) => s.updateSettings)
   const refreshLocalLibrary = useGame((s) => s.refreshLocalLibrary)
   const loadingLibrary = useGame((s) => s.loadingLibrary)
 
   const inputRef = useRef<HTMLInputElement>(null)
   const [status, setStatus] = useState<string | null>(null)
+
+  // A demo sai da lista quando há biblioteca de verdade.
+  const library = useMemo(() => catalogue(todas), [todas])
 
   const { playableSongs, waitingSongs } = useMemo(() => {
     const byName = (a: SongEntry, b: SongEntry) =>
@@ -54,6 +76,48 @@ export function SongsScreen() {
   const hasChart = selected?.song.charts[difficulty] !== undefined
   const hasAudio = selected ? isPlayable(selected) : false
   const playable = hasChart && hasAudio
+
+  const iniciar = useCallback(() => {
+    if (!playable) return
+    mixer.play('select')
+    setScreen('play')
+  }, [playable, setScreen])
+
+  const { index, resting, setIndex, itemProps } = useListSelection({
+    count: playableSongs.length,
+    restDelay: PREVIEW_DELAY,
+    onConfirm: iniciar,
+  })
+
+  // O destaque é a escolha: o botão de tocar segue o seletor. Quem avisa
+  // que mudou é a própria ação da loja de estado, que já toca o som de
+  // navegar só quando a música de fato muda.
+  useEffect(() => {
+    const entry = playableSongs[index]
+    if (entry) selectSong(entry.song.meta.id)
+  }, [index, playableSongs, selectSong])
+
+  // A lista nasce vazia e vai crescendo enquanto a pasta é varrida. Quando
+  // ela aparece, o seletor vai para a música que já estava escolhida — de
+  // uma partida anterior, ou da carreira.
+  const posicionado = useRef(false)
+  useEffect(() => {
+    if (posicionado.current || playableSongs.length === 0) return
+    posicionado.current = true
+    const i = playableSongs.findIndex((e) => e.song.meta.id === selectedSongId)
+    if (i > 0) setIndex(i)
+  }, [playableSongs, selectedSongId, setIndex])
+
+  /**
+   * O preview da música em que o seletor parou.
+   *
+   * `resting` só aparece quando o seletor completou os dois segundos parado,
+   * e volta a ser nulo no instante em que ele se mexe — de tecla, de
+   * controle ou de mouse. Não há temporizador aqui: o estado já significa
+   * "ficou parado nesta".
+   */
+  const previewIndex = resting !== null && previewOf(playableSongs[resting]) ? resting : null
+  useSongPreview(previewIndex === null ? null : playableSongs[previewIndex])
 
   const handlePicker = async () => {
     try {
@@ -75,7 +139,7 @@ export function SongsScreen() {
     setStatus(describeImport(entries.length))
   }
 
-  const renderRow = (entry: SongEntry) => {
+  const renderRow = (entry: SongEntry, i = -1) => {
     const { meta } = entry.song
     const record = profile.records[`${meta.id}:${difficulty}`]
     const chart = entry.song.charts[difficulty]
@@ -100,9 +164,11 @@ export function SongsScreen() {
         meta={detalhes.join(' · ')}
         stars={record ? record.stars : null}
         score={record ? record.score : null}
-        selected={meta.id === selectedSongId}
+        selected={i >= 0 ? i === index : meta.id === selectedSongId}
+        previewing={i >= 0 && i === previewIndex}
+        nav={i >= 0 ? itemProps(i) : undefined}
         waiting={waiting}
-        onClick={() => selectSong(meta.id)}
+        onClick={() => setIndex(i)}
       />
     )
   }
@@ -118,21 +184,14 @@ export function SongsScreen() {
             Largue as pastas em <code>songs/</code> dentro do projeto e elas entram sozinhas.
           </p>
         </div>
-        <div className="segmented">
-          {DIFFICULTIES.map((d) => (
-            <button
-              key={d}
-              data-active={difficulty === d}
-              onClick={() => updateSettings({ difficulty: d })}
-            >
-              {difficultyName(d)}
-            </button>
-          ))}
-        </div>
+        <DifficultyPicker />
       </header>
 
       <div className="screen-body">
-        <div className="song-list">{playableSongs.map(renderRow)}</div>
+        {/* O índice vai junto: é ele que liga cada linha ao seletor, e o
+            que uma lista de músicas em espera — que não se navega — não
+            tem. */}
+        <div className="song-list">{playableSongs.map((e, i) => renderRow(e, i))}</div>
 
         {waitingSongs.length > 0 && (
           <>

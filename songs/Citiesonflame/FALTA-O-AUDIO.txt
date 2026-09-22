@@ -1,2 +1,0 @@
-Largue o audio desta musica aqui como song.ogg (ou .mp3/.wav).
-Com faixas separadas, o nome guitar.ogg faz a guitarra ser cortada nos erros.

@@ -1747,6 +1747,75 @@ button {
   color: #9d2b21;
 }
 
+/* --- o clipe do preview ------------------------------------------------
+ *
+ * Toma o lugar do ► enquanto a prévia toca. É a mesma marca do seletor, no
+ * mesmo ponto, trocada por uma que se mexe: o destaque diz onde você está,
+ * e o movimento diz que o som que se ouve vem dali. Duas marcas lado a lado
+ * disputariam a leitura da linha para dizer a mesma coisa. */
+.screen-paper .song-row[data-previewing='true']::before {
+  content: none;
+}
+
+/* O anel de foco do navegador sai daqui, e não é descuido de
+   acessibilidade: o seletor *é* o foco — mover o destaque leva o foco
+   junto, e receber foco move o destaque. O realce da linha e o clipe são o
+   indicador, na paleta da tela, em vez de um retângulo preto por cima do
+   papel. */
+.song-row:focus-visible,
+.song-row:focus {
+  outline: none;
+}
+
+.song-row-eq {
+  position: absolute;
+  left: -34px;
+  top: 50%;
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 15px;
+  transform: translateY(-50%);
+}
+
+.song-row-eq i {
+  width: 4px;
+  height: 100%;
+  border-radius: 1px;
+  background: #9d2b21;
+  transform-origin: bottom;
+  animation: song-eq 620ms ease-in-out infinite alternate;
+}
+
+.song-row-eq i:nth-child(2) {
+  animation-duration: 430ms;
+}
+
+.song-row-eq i:nth-child(3) {
+  animation-duration: 760ms;
+}
+
+@keyframes song-eq {
+  from {
+    transform: scaleY(0.25);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+/* Quem pediu menos movimento não perde a informação: as barras ficam
+   paradas em alturas diferentes, que já distinguem o clipe do ►. */
+@media (prefers-reduced-motion: reduce) {
+  .song-row-eq i {
+    animation: none;
+    transform: scaleY(0.55);
+  }
+  .song-row-eq i:nth-child(2) {
+    transform: scaleY(1);
+  }
+}
+
 .screen-paper .song-row[data-selected='true'] .song-name {
   color: #16203a;
 }

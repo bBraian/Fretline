@@ -206,9 +206,9 @@ export class ImportedCharacter {
    * Adapta o clipe quando o esqueleto é de outra convenção.
    *
    * Precisa da malha com esqueleto, e não da raiz: é dela que sai a lista de
-   * ossos e a pose de ligação. Um modelo partido em várias malhas — a
-   * Stella Vaughn tem dezoito — compartilha o mesmo esqueleto entre todas,
-   * então a primeira serve.
+   * ossos e a pose de ligação. Um modelo partido em várias malhas — há
+   * arquivos com mais de uma dezena — compartilha o mesmo esqueleto entre
+   * todas, então a primeira serve.
    */
   private retargetAcrossFamilies(clip: THREE.AnimationClip, source: THREE.Object3D) {
     let skinned: THREE.SkinnedMesh | null = null

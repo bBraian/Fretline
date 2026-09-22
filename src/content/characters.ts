@@ -222,15 +222,18 @@ export const CHARACTERS: Character[] = [
  * mova, e o README sempre avisou que um modelo sem rig é uma estátua.
  */
 const IMPORTED: Character[] = ([
+  // Em ordem de conquista, do primeiro ao mais raro — a mesma ordem em que
+  // a loja os mostra, porque a lista é lida de cima para baixo e uma ordem
+  // que não é a da progressão faz o preço parecer aleatório.
+  //
   // arquivo, nome, descrição, estrelas, preço, tem esqueleto, giro
-  ['kratos', 'Kairos', 'Barba de cinzas, olhar de quem já viu pior', 0, 0, true, undefined],
-  ['dead_pool', 'Vermelhão', 'Fala demais entre uma música e outra', 6, 3500, true, undefined],
-  ['goku', 'Gokê Ramos', 'Cabelo em pé desde o primeiro acorde', 10, 5000, true, undefined],
-  ['homer_simpson_-_fortnite_skin', 'Homero Pinto', 'Toca melhor depois da terceira', 14, 7000, true, undefined],
-  ['douxie_tales_of_arcadia', 'Douglas', 'Jaqueta, franja e um alaúde antigo', 18, 9000, true, undefined],
-  ['spiderman_brand_new_day_from_fortnite', 'Teixeira', 'Sobe na caixa de som todo show', 22, 11000, true, undefined],
-  ['taylor_swift_band_hero', 'Stella Vaughn', 'Veio do pop e ficou pelo barulho', 28, 14000, true, undefined],
-  ['fortnite_darth_vader_advanced_rig', 'Dartes Vale', 'Capa preta e um riff que respira', 34, 18000, true, undefined],
+  ['douxie_tales_of_arcadia', 'Douglas', 'Jaqueta, franja e um alaúde antigo', 0, 0, true, undefined],
+  ['fortnite_darth_vader_advanced_rig', 'Dartes Vale', 'Capa preta e um riff que respira', 6, 3500, true, undefined],
+  ['dead_pool', 'Vermelhão', 'Fala demais entre uma música e outra', 10, 5000, true, undefined],
+  ['kratos', 'Kairos', 'Barba de cinzas, olhar de quem já viu pior', 14, 7000, true, undefined],
+  ['homer_simpson_-_fortnite_skin', 'Homero Pinto', 'Toca melhor depois da terceira', 20, 9500, true, undefined],
+  ['spiderman_brand_new_day_from_fortnite', 'Teixeira', 'Sobe na caixa de som todo show', 26, 12500, true, undefined],
+  ['goku', 'Gokê Ramos', 'Cabelo em pé desde o primeiro acorde', 34, 17000, true, undefined],
 ] as const).map(([file, name, subtitle, unlockAtStars, price, animated, turn]) => ({
   id: `glb-${file}`,
   name: name as string,
@@ -254,7 +257,12 @@ const IMPORTED: Character[] = ([
 
 CHARACTERS.push(...IMPORTED)
 
-/** O que a loja mostra: todo mundo menos as marionetes de reserva. */
+/**
+ * O que a loja mostra: todo mundo menos as marionetes de reserva.
+ *
+ * O primeiro da lista é com quem o jogo começa — sai de graça e já
+ * equipado, ver `DEFAULT_PROFILE` em `ui/store.ts`.
+ */
 export const SHOP_CHARACTERS: Character[] = CHARACTERS.filter((c) => !c.hidden)
 
 export function characterById(id: string): Character {

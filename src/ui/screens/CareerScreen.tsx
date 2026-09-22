@@ -7,22 +7,98 @@
  * que falta, mas não vira etapa de carreira.
  */
 
-import { useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useGame } from '../store'
 import { buildCareer } from '../../content/setlists'
 import { difficultyName } from './MenuScreen'
-import { isPlayable } from '../../songs/library'
+import { catalogue, isPlayable } from '../../songs/library'
 import { SongRow } from './SongRow'
+import { DifficultyPicker } from './DifficultyPicker'
+import { useListSelection } from '../useListSelection'
+import { previewOf, useSongPreview } from '../useSongPreview'
+
+/** O mesmo descanso da lista de músicas; a espera não muda de tela. */
+const PREVIEW_DELAY = 2000
 import { mixer } from '../../audio/mixer'
 
 export function CareerScreen() {
-  const { library, setScreen, selectSong, profile, settings } = useGame()
+  const {
+    library: todas,
+    setScreen,
+    selectSong,
+    selectedSongId,
+    profile,
+    settings,
+  } = useGame()
   const totalStars = useGame((s) => s.totalStars())
 
+  // A demo não é etapa de carreira quando existe biblioteca de verdade.
+  const library = useMemo(() => catalogue(todas), [todas])
   const tiers = useMemo(() => buildCareer(library), [library])
 
   const waiting = library.filter((entry) => !isPlayable(entry)).length
   const total = tiers.reduce((sum, tier) => sum + tier.songs.length, 0)
+
+  /**
+   * As músicas que o seletor percorre, achatadas em uma lista só.
+   *
+   * A carreira desenha tiers, mas navegar por tiers seria navegar por uma
+   * divisão que existe para ler, não para andar: a seta para baixo na
+   * última música de um tier tem de cair na primeira do seguinte. O que não
+   * entra é o que não se pode tocar — tier trancado, ou música sem chart na
+   * dificuldade escolhida.
+   */
+  const navegaveis = useMemo(() => {
+    const lista: Array<{ id: string; entry: (typeof tiers)[number]['songs'][number]['entry'] }> = []
+    for (const tier of tiers) {
+      if (totalStars < tier.unlockAtStars) continue
+      for (const { entry } of tier.songs) {
+        if (!entry.song.charts[settings.difficulty]) continue
+        lista.push({ id: entry.song.meta.id, entry })
+      }
+    }
+    return lista
+  }, [tiers, totalStars, settings.difficulty])
+
+  const iniciar = useCallback(
+    (i: number) => {
+      const alvo = navegaveis[i]
+      if (!alvo) return
+      mixer.play('select')
+      selectSong(alvo.id)
+      setScreen('play')
+    },
+    [navegaveis, selectSong, setScreen],
+  )
+
+  const { index, resting, setIndex, itemProps } = useListSelection({
+    count: navegaveis.length,
+    restDelay: PREVIEW_DELAY,
+    onConfirm: iniciar,
+  })
+
+  // O destaque é a escolha, como na lista de músicas.
+  useEffect(() => {
+    const alvo = navegaveis[index]
+    if (alvo) selectSong(alvo.id)
+  }, [index, navegaveis, selectSong])
+
+  // A carreira nasce vazia enquanto a pasta é varrida; quando ela aparece,
+  // o seletor vai para a música que já estava escolhida.
+  const posicionado = useRef(false)
+  useEffect(() => {
+    if (posicionado.current || navegaveis.length === 0) return
+    posicionado.current = true
+    const i = navegaveis.findIndex((n) => n.id === selectedSongId)
+    if (i > 0) setIndex(i)
+  }, [navegaveis, selectedSongId, setIndex])
+
+  const previewIndex =
+    resting !== null && previewOf(navegaveis[resting]?.entry) ? resting : null
+  useSongPreview(previewIndex === null ? null : navegaveis[previewIndex].entry)
+
+  /** Onde esta música está na lista que o seletor percorre. */
+  const posicaoDe = (id: string) => navegaveis.findIndex((n) => n.id === id)
 
   return (
     <div className="screen screen-paper">
@@ -34,6 +110,7 @@ export function CareerScreen() {
             sozinho no tier que couber.
           </p>
         </div>
+        <DifficultyPicker />
         <div className="menu-stats">
           <div>
             <b>{totalStars}</b>
@@ -77,6 +154,7 @@ export function CareerScreen() {
                   const record = profile.records[`${meta.id}:${settings.difficulty}`]
                   const chart = entry.song.charts[settings.difficulty]
                   const playable = !locked && !!chart
+                  const i = playable ? posicaoDe(meta.id) : -1
 
                   return (
                     <SongRow
@@ -91,10 +169,13 @@ export function CareerScreen() {
                       stars={record ? record.stars : null}
                       score={record ? record.score : null}
                       disabled={!playable}
-                      onClick={() => {
-                        selectSong(meta.id)
-                        setScreen('play')
-                      }}
+                      selected={i >= 0 && i === index}
+                      previewing={i >= 0 && i === previewIndex}
+                      nav={i >= 0 ? itemProps(i) : undefined}
+                      // Aqui o clique inicia, como sempre iniciou: a
+                      // carreira não tem botão de tocar à parte. Escolher
+                      // sem iniciar é o que o seletor passou a permitir.
+                      onClick={() => iniciar(i)}
                     />
                   )
                 })}
