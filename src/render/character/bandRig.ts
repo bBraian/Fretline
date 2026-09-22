@@ -137,7 +137,12 @@ export const CHARACTER_ADJUSTMENTS: Record<string, Partial<Attachment>> = {
     scale: 0.36,
   },
   /**
-   * ## Os quatro abaixo não foram achados no painel: foram medidos
+   * ## Os de baixo partiram de uma medida, não do painel
+   *
+   * Os números que estão aqui já foram retocados a olho no painel de `?rig`
+   * — a medida deixa a guitarra no lugar certo, o olho acerta o caimento.
+   * Mas o ponto de partida foi a conta abaixo, e é por ela que um integrante
+   * novo deve começar.
    *
    * Depois que a animação passou a pôr as mãos no mesmo lugar em todos os
    * corpos (ver `render/character/animationClips.ts`), dava para parar de
@@ -157,32 +162,32 @@ export const CHARACTER_ADJUSTMENTS: Record<string, Partial<Attachment>> = {
    * É a margem em que dois ajustes bons discordam.
    */
   'glb-douxie_tales_of_arcadia': {
-    position: [-0.073, -0.097, 0.137],
-    rotation: [-0.051, -0.542, -1.244],
-    scale: 0.36,
+    position: [-0.07, -0.05, 0.07],
+    rotation: [-0.002, -0.542, -1.142],
+    scale: 0.38,
   },
   'glb-fortnite_darth_vader_advanced_rig': {
-    position: [-0.093, -0.132, 0.103],
-    rotation: [0.062, -0.34, -1.19],
-    scale: 0.36,
+    position: [-0.12, -0.095, 0.095],
+    rotation: [0.062, -0.242, -1.142],
+    scale: 0.38,
   },
   'glb-spiderman_brand_new_day_from_fortnite': {
-    position: [-0.09, -0.065, 0.146],
-    rotation: [-0.062, -0.528, -1.291],
-    scale: 0.36,
+    position: [-0.12, -0.05, 0.12],
+    rotation: [-0.062, -0.442, -1.242],
+    scale: 0.37,
   },
   // Rig do esqueleto do Unreal, o mesmo do Teixeira — e os números saem
   // parecidos, o que é o sinal de que a família foi reconhecida certo.
   'glb-lara_croft_-_shorts_style': {
-    position: [-0.083, -0.035, 0.194],
-    rotation: [-0.102, -0.513, -1.255],
+    position: [-0.12, 0.025, 0.165],
+    rotation: [-0.142, -0.442, -1.302],
     scale: 0.36,
   },
   // Biped da Valve, o do Source: é o primeiro do elenco nessa família.
   'glb-soldier_boy': {
-    position: [-0.086, -0.017, 0.054],
-    rotation: [-0.055, -0.519, -1.294],
-    scale: 0.36,
+    position: [-0.12, 0.025, 0],
+    rotation: [-0.042, -0.402, -1.302],
+    scale: 0.38,
   },
   // O Gokê é o único rig Biped do 3ds Max do elenco. Estes números são bem
   // parecidos com os dos vizinhos, e isso é o sinal de que o braço dele foi
@@ -190,8 +195,8 @@ export const CHARACTER_ADJUSTMENTS: Record<string, Partial<Attachment>> = {
   // clavícula, a derivação pedia um giro de 35 graus fora do resto, porque
   // era o úmero inteiro sendo dirigido como antebraço.
   'glb-goku': {
-    position: [-0.116, -0.128, 0.022],
-    rotation: [0.156, -0.628, -1.328],
+    position: [-0.145, 0, 0.022],
+    rotation: [-0.002, -0.442, -1.542],
     scale: 0.36,
   },
 }
