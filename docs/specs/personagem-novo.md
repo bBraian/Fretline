@@ -139,6 +139,25 @@ Com o deslocamento o Gokê tocava com os punhos a 29 cm um do outro em vez de
 distância de cada elo, em metros de palco, e compare com a coluna do Mixamo:
 clavícula curta, úmero e antebraço parecidos entre si.
 
+**Preencha também os marcos da palma** — `leftIndex`, `leftMiddle`,
+`leftLittle`, `leftThumb` e os quatro da direita. São a base de cada dedo, e é
+deles que sai o referencial que decide o giro do pulso: palma virada para o
+corpo, dedos para baixo na mão da palhetada e para cima na que corre a escala.
+Sem eles o pulso cai numa saída pior, e a mão fica torta mesmo com o braço
+certo.
+
+Duas armadilhas medidas:
+
+- **nome de dedo raramente diz qual dedo é.** No rig Maya do Douglas são
+  `Finger_01` a `Finger_04`; a ordem saiu de medir a distância ao polegar —
+  o `01` é o mais perto (5,8 cm) e o `04` o mais longe (7,7 cm), logo índice →
+  mindinho.
+- **rig com poucos dedos usa outro par de marcos**, e o código já escolhe
+  sozinho: sem mindinho, a travessia da palma vira polegar→pulso em vez de
+  índice→mindinho. Não é capricho — polegar→índice fica a 21° do eixo dos
+  dedos no clipe e a 52° no Gokê, quase paralelo nos dois e discordando 31
+  graus entre si; tirar perpendicular daí virava a palma do avesso.
+
 Acrescente o mesmo nome em `PAPEIS`, em `tools/derive-attachment.ts`, senão o
 passo 5 não acha os ossos.
 
@@ -193,9 +212,12 @@ tem rig nenhum, por definição do formato. Foi o caso do Estevão Rodrigues —
 o nó dentro do arquivo se chama `...obj.cleaner.materialmerger.gles`, e vem
 com `skins: 0`.
 
-Cadastre com `animated: false`. Ele carrega, aparece na loja e no palco com a
-guitarra pendurada na cintura, e fica parado. É honesto, e a arquitetura
-sempre previu isso.
+Dá para cadastrar com `animated: false`: ele carrega, aparece na loja e no
+palco com a guitarra na cintura, e fica parado. A arquitetura sempre previu
+isso. Mas **o elenco não ficou com nenhum** — o Estevão entrou assim e saiu na
+mesma semana, porque um integrante que não toca destoa demais dos outros oito
+numa vitrine em que todos tocam. Trate `animated: false` como sala de espera,
+não como destino.
 
 Para fazê-lo tocar, o caminho é **conseguir o rig**, não mexer na animação:
 
@@ -222,8 +244,10 @@ direta e por isso são a referência que não depende de nenhuma conta.
 
 Aceitável:
 
-- mão esquerda no braço da guitarra;
-- mão direita sobre as cordas ou o corpo;
+- mão esquerda no braço da guitarra, **palma virada para o corpo e dedos para
+  cima**, fechando sobre a escala;
+- mão direita sobre as cordas ou o corpo, **palma para o corpo e dedos para
+  baixo**;
 - cotovelos dobrados para fora, braços em pose de gente.
 
 Não aceitável — se aparecer, volte ao passo 2 ou 4:
@@ -231,13 +255,15 @@ Não aceitável — se aparecer, volte ao passo 2 ou 4:
 - braço atrás do corpo, ou atravessando o tronco;
 - mão longe da guitarra, ou flutuando;
 - cotovelo invertido, ombro deformado, braço esticado demais;
+- palma virada para fora, ou mão espalmada em cima do braço da guitarra — é o
+  sintoma de marco de palma faltando (passo 4);
 - personagem que claramente não está segurando nada.
 
-Uma última coisa que **é** esperada e não é defeito: os dedos não são
-retargetados. Os ossos de dedo ficam fora do conjunto dirigido, então a mão
-mantém a pose de repouso do modelo — punho fechado no Vermelhão, porque a
-malha dele já vem assim, e mão aberta sobre o braço em quem vem com a mão
-espalmada.
+Os dedos **são** dirigidos, e fecham no braço da guitarra: o clipe traz 30
+faixas de dedo, e a fila de ossos de um dedo é descoberta descendo a
+hierarquia, sem tabela de nomes. O que pode ficar em repouso é a última junta
+de um rig que tenha mais juntas por dedo do que o clipe — são as duas
+primeiras que carregam quase toda a dobra.
 
 ---
 

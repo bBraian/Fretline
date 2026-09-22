@@ -190,6 +190,11 @@ const SLOTS = [
   'rightShoulder', 'rightArm', 'rightForeArm', 'rightHand',
   'leftUpLeg', 'leftLeg', 'leftFoot',
   'rightUpLeg', 'rightLeg', 'rightFoot',
+  // A base dos dedos. Não são dirigidos — servem de **marco**, para dar à
+  // mão um referencial que não dependa de como o rig orienta o osso do
+  // pulso. Ver `handBasis`.
+  'leftIndex', 'leftMiddle', 'leftLittle', 'leftThumb',
+  'rightIndex', 'rightMiddle', 'rightLittle', 'rightThumb',
 ] as const
 
 type Slot = (typeof SLOTS)[number]
@@ -228,8 +233,35 @@ const CHAINS: readonly (readonly Slot[])[] = [
   ['rightShoulder', 'rightArm', 'rightForeArm', 'rightHand'],
 ]
 
+/**
+ * O tronco e as pernas, dirigidos **antes** dos braços.
+ *
+ * Ficaram de fora por muito tempo, e o motivo não valia mais: era o método
+ * antigo, que escrevia em cada osso a orientação de **mundo** do osso da
+ * fonte. Aquilo deitava um modelo no chão, dobrava outro no ar e dava um
+ * chute alto no meio da música, porque cada ferramenta orienta coxa e coluna
+ * de um jeito. Mirar direção de elo não tem esse problema — direção é a mesma
+ * coisa em qualquer rig —, e com ela o corpo inteiro acompanha, que é o que
+ * separava um personagem que **toca** de um que só mexe o braço.
+ *
+ * **O quadril continua fora, e agora por um motivo estrutural:** ele é o pai
+ * dos três, e as três cadeias discordariam sobre para onde girá-lo. Ele segue
+ * sendo a referência de aprumo (ver `bodyBasis`), e o personagem fica
+ * plantado — que é como um guitarrista diante do microfone se comporta.
+ *
+ * A ordem importa: a clavícula pendura na coluna, então a coluna tem de parar
+ * antes de o braço ser mirado. Como a mira é **absoluta em mundo**, o braço
+ * não herda duas vezes o giro do tronco — ele simplesmente vai para onde tem
+ * de ir, seja qual for a pose da coluna.
+ */
+const BODY_CHAINS: readonly (readonly Slot[])[] = [
+  ['spine', 'spine1', 'spine2', 'neck', 'head'],
+  ['leftUpLeg', 'leftLeg', 'leftFoot'],
+  ['rightUpLeg', 'rightLeg', 'rightFoot'],
+]
+
 /** Os mesmos ossos, soltos — é a forma que o mapa de nomes quer. */
-const DRIVEN: readonly Slot[] = CHAINS.flat()
+const DRIVEN: readonly Slot[] = [...CHAINS, ...BODY_CHAINS].flat()
 
 /**
  * Onde cada papel mora, em cada convenção de esqueleto.
@@ -247,6 +279,10 @@ const SKELETONS: Record<string, Partial<Record<Slot, string>>> = {
     leftForeArm: 'mixamorig:LeftForeArm', leftHand: 'mixamorig:LeftHand',
     rightShoulder: 'mixamorig:RightShoulder', rightArm: 'mixamorig:RightArm',
     rightForeArm: 'mixamorig:RightForeArm', rightHand: 'mixamorig:RightHand',
+    leftIndex: 'mixamorig:LeftHandIndex1', leftMiddle: 'mixamorig:LeftHandMiddle1',
+    leftLittle: 'mixamorig:LeftHandPinky1', leftThumb: 'mixamorig:LeftHandThumb1',
+    rightIndex: 'mixamorig:RightHandIndex1', rightMiddle: 'mixamorig:RightHandMiddle1',
+    rightLittle: 'mixamorig:RightHandPinky1', rightThumb: 'mixamorig:RightHandThumb1',
     leftUpLeg: 'mixamorig:LeftUpLeg', leftLeg: 'mixamorig:LeftLeg', leftFoot: 'mixamorig:LeftFoot',
     rightUpLeg: 'mixamorig:RightUpLeg', rightLeg: 'mixamorig:RightLeg', rightFoot: 'mixamorig:RightFoot',
   },
@@ -259,6 +295,13 @@ const SKELETONS: Record<string, Partial<Record<Slot, string>>> = {
     leftForeArm: 'l_Arm_Elbow', leftHand: 'l_Arm_Wrist',
     rightShoulder: 'r_Arm_Clavicle', rightArm: 'r_Arm_Shoulder',
     rightForeArm: 'r_Arm_Elbow', rightHand: 'r_Arm_Wrist',
+    // `Finger_01` a `Finger_04` não dizem qual dedo é qual. A ordem saiu de
+    // medir a distância ao polegar: o `01` é o mais perto dele (5,8 cm) e o
+    // `04` o mais longe (7,7 cm), então é índice → mindinho.
+    leftIndex: 'l_Finger_01_01SHJnt', leftMiddle: 'l_Finger_02_01SHJnt',
+    leftLittle: 'l_Finger_04_01SHJnt', leftThumb: 'l_Thumb_01_01SHJnt',
+    rightIndex: 'r_Finger_01_01SHJnt', rightMiddle: 'r_Finger_02_01SHJnt',
+    rightLittle: 'r_Finger_04_01SHJnt', rightThumb: 'r_Thumb_01_01SHJnt',
     leftUpLeg: 'l_Leg_Hip', leftLeg: 'l_Leg_Knee', leftFoot: 'l_Leg_Ankle',
     rightUpLeg: 'r_Leg_Hip', rightLeg: 'r_Leg_Knee', rightFoot: 'r_Leg_Ankle',
   },
@@ -273,6 +316,10 @@ const SKELETONS: Record<string, Partial<Record<Slot, string>>> = {
     leftForeArm: 'DEF-forearm.L', leftHand: 'DEF-hand.L',
     rightShoulder: 'DEF-shoulder.R', rightArm: 'DEF-upper_arm.R',
     rightForeArm: 'DEF-forearm.R', rightHand: 'DEF-hand.R',
+    leftIndex: 'DEF-f_index.01.L', leftMiddle: 'DEF-f_middle.01.L',
+    leftLittle: 'DEF-f_pinky.01.L', leftThumb: 'DEF-thumb.01.L',
+    rightIndex: 'DEF-f_index.01.R', rightMiddle: 'DEF-f_middle.01.R',
+    rightLittle: 'DEF-f_pinky.01.R', rightThumb: 'DEF-thumb.01.R',
     leftUpLeg: 'DEF-thigh.L', leftLeg: 'DEF-shin.L', leftFoot: 'DEF-foot.L',
     rightUpLeg: 'DEF-thigh.R', rightLeg: 'DEF-shin.R', rightFoot: 'DEF-foot.R',
   },
@@ -303,6 +350,11 @@ const SKELETONS: Record<string, Partial<Record<Slot, string>>> = {
     leftForeArm: 'Bip01 L Arm2', leftHand: 'Bip01 L Hand',
     rightShoulder: 'Bip01 R Arm', rightArm: 'Bip01 R Arm1',
     rightForeArm: 'Bip01 R Arm2', rightHand: 'Bip01 R Hand',
+    // O Biped numera os dedos a partir do polegar, e este rig só trouxe dois:
+    // `Finger0` é o polegar e `Finger1` o índice. Sem mindinho, o referencial
+    // da palma sai do par polegar→índice — ver `handBasis`.
+    leftIndex: 'Bip01 L Finger1', leftThumb: 'Bip01 L Finger0',
+    rightIndex: 'Bip01 R Finger1', rightThumb: 'Bip01 R Finger0',
     leftUpLeg: 'Bip01 L Thigh', leftLeg: 'Bip01 L Calf', leftFoot: 'Bip01 L Foot',
     rightUpLeg: 'Bip01 R Thigh', rightLeg: 'Bip01 R Calf', rightFoot: 'Bip01 R Foot',
   },
@@ -315,6 +367,10 @@ const SKELETONS: Record<string, Partial<Record<Slot, string>>> = {
     leftForeArm: 'ValveBiped.Bip01_L_Forearm', leftHand: 'ValveBiped.Bip01_L_Hand',
     rightShoulder: 'ValveBiped.Bip01_R_Clavicle', rightArm: 'ValveBiped.Bip01_R_UpperArm',
     rightForeArm: 'ValveBiped.Bip01_R_Forearm', rightHand: 'ValveBiped.Bip01_R_Hand',
+    leftThumb: 'ValveBiped.Bip01_L_Finger0', leftIndex: 'ValveBiped.Bip01_L_Finger1',
+    leftMiddle: 'ValveBiped.Bip01_L_Finger2', leftLittle: 'ValveBiped.Bip01_L_Finger4',
+    rightThumb: 'ValveBiped.Bip01_R_Finger0', rightIndex: 'ValveBiped.Bip01_R_Finger1',
+    rightMiddle: 'ValveBiped.Bip01_R_Finger2', rightLittle: 'ValveBiped.Bip01_R_Finger4',
     leftUpLeg: 'ValveBiped.Bip01_L_Thigh', leftLeg: 'ValveBiped.Bip01_L_Calf',
     leftFoot: 'ValveBiped.Bip01_L_Foot', rightUpLeg: 'ValveBiped.Bip01_R_Thigh',
     rightLeg: 'ValveBiped.Bip01_R_Calf', rightFoot: 'ValveBiped.Bip01_R_Foot',
@@ -327,6 +383,10 @@ const SKELETONS: Record<string, Partial<Record<Slot, string>>> = {
     leftForeArm: 'lowerarm_l', leftHand: 'hand_l',
     rightShoulder: 'clavicle_r', rightArm: 'upperarm_r',
     rightForeArm: 'lowerarm_r', rightHand: 'hand_r',
+    leftIndex: 'index_01_l', leftMiddle: 'middle_01_l',
+    leftLittle: 'pinky_01_l', leftThumb: 'thumb_01_l',
+    rightIndex: 'index_01_r', rightMiddle: 'middle_01_r',
+    rightLittle: 'pinky_01_r', rightThumb: 'thumb_01_r',
     leftUpLeg: 'thigh_l', leftLeg: 'calf_l', leftFoot: 'foot_l',
     rightUpLeg: 'thigh_r', rightLeg: 'calf_r', rightFoot: 'foot_r',
   },
@@ -607,6 +667,119 @@ function relativeTo(parent: THREE.Object3D, child: THREE.Object3D) {
     .multiply(child.getWorldQuaternion(new THREE.Quaternion()))
 }
 
+/**
+ * Os marcos da palma que dão referencial à mão, de um lado do corpo.
+ *
+ * O `along` é para onde os dedos apontam e o par `across` atravessa a palma,
+ * do lado do polegar para o do mindinho. Dois eixos independentes bastam para
+ * fixar a orientação inteira.
+ */
+interface PalmMarks {
+  along: Slot
+  from: Slot
+  to: Slot
+}
+
+/**
+ * Escolhe os marcos da palma que **os dois** esqueletos têm.
+ *
+ * O clipe é Mixamo e traz os cinco dedos, então quem decide é o alvo. Um rig
+ * com a mão inteira usa índice→mindinho, a maior travessia da palma.
+ *
+ * Um rig que só trouxe polegar e índice — é o caso do Biped do Gokê — usa
+ * **polegar→pulso**, e não polegar→índice como seria natural escrever. O
+ * motivo é condicionamento, e está medido: o eixo polegar→índice cai a 21°
+ * do eixo dos dedos no clipe e a 52° no Gokê, quase paralelo nos dois e com
+ * 31 graus de desacordo entre eles. Tirar uma perpendicular de dois vetores
+ * quase paralelos amplia essa diferença, e a palma saía virada do avesso.
+ * Polegar→pulso dá 142° e 132°: longe do paralelo, e com 10 graus de
+ * desacordo.
+ *
+ * Os dois apontam **para o lado do mindinho**, afastando-se do polegar — é o
+ * que mantém a mesma mão nas duas definições.
+ *
+ * A definição escolhida é aplicada **igual nos dois lados da conta**. Medir
+ * de um jeito na fonte e de outro no alvo daria dois eixos que não são o
+ * mesmo eixo, e a palma sairia girada.
+ */
+function palmMarks(side: 'left' | 'right', has: (slot: Slot) => boolean): PalmMarks | null {
+  const index = `${side}Index` as Slot
+  const middle = `${side}Middle` as Slot
+  const little = `${side}Little` as Slot
+  const thumb = `${side}Thumb` as Slot
+  const wrist = `${side}Hand` as Slot
+
+  if (!has(index)) return null
+  const along = has(middle) ? middle : index
+  if (has(little)) return { along, from: index, to: little }
+  if (has(thumb)) return { along, from: thumb, to: wrist }
+  return null
+}
+
+/**
+ * O referencial da mão, tirado da anatomia dela.
+ *
+ * Mesma ideia do `bodyBasis`, um nível abaixo: duas direções que existem em
+ * qualquer mão de qualquer rig — ao longo dos dedos, e atravessando a palma —
+ * e delas sai a orientação inteira, **sem** passar pela base local do osso do
+ * pulso, que cada ferramenta escolhe como quer.
+ *
+ * As bases dos dedos servem porque são **rígidas em relação à mão**: o osso
+ * de um nó de dedo gira o dedo seguinte, não a si mesmo. Então este
+ * referencial é o do osso do pulso, só expresso de um jeito que dá para
+ * comparar entre esqueletos — que é exatamente o que falta na base local.
+ */
+function handBasis(
+  wrist: THREE.Object3D,
+  along: THREE.Object3D,
+  from: THREE.Object3D,
+  to: THREE.Object3D,
+): THREE.Quaternion | null {
+  const origem = new THREE.Vector3().setFromMatrixPosition(wrist.matrixWorld)
+  const e1 = new THREE.Vector3().setFromMatrixPosition(along.matrixWorld).sub(origem)
+  if (e1.lengthSq() < 1e-12) return null
+  e1.normalize()
+
+  const across = new THREE.Vector3()
+    .setFromMatrixPosition(to.matrixWorld)
+    .sub(new THREE.Vector3().setFromMatrixPosition(from.matrixWorld))
+  if (across.lengthSq() < 1e-12) return null
+
+  // A normal da palma, e depois a travessia refeita perpendicular: os dois
+  // marcos não são exatamente ortogonais, e `makeBasis` precisa que sejam.
+  const e3 = new THREE.Vector3().crossVectors(e1, across)
+  if (e3.lengthSq() < 1e-12) return null
+  e3.normalize()
+  const e2 = new THREE.Vector3().crossVectors(e3, e1).normalize()
+
+  return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(e1, e2, e3))
+}
+
+/** Os dedos que o clipe move, por lado. O polegar entra junto. */
+const FINGERS = ['Index', 'Middle', 'Little', 'Thumb'] as const
+
+/**
+ * A cadeia de ossos de um dedo, descendo da base para a ponta.
+ *
+ * Não precisa de tabela de nomes: um dedo é uma fila, e **em todos os rigs
+ * medidos cada osso dela tem exatamente um filho**. Então basta descer. É o
+ * que evita escrever cinco dedos vezes três juntas vezes dois lados vezes
+ * sete convenções à mão.
+ *
+ * `allowed` existe para não sair da fila em rig que pendura ajudante no
+ * dedo: no Rigify a mão tem `MCH-` e `ORG-` no meio dos filhos, e só os
+ * `DEF-` estão no esqueleto.
+ */
+function fingerChain(root: THREE.Object3D, allowed: Set<string> | null, limit = 4) {
+  const chain: THREE.Object3D[] = [root]
+  let node: THREE.Object3D | undefined = root
+  while (node && chain.length < limit) {
+    node = node.children.find((child) => !allowed || allowed.has(child.name))
+    if (node) chain.push(node)
+  }
+  return chain
+}
+
 /** A pose de um esqueleto, para guardar e devolver. */
 function snapshot(bones: THREE.Object3D[]) {
   return bones.map((b) => b.quaternion.clone())
@@ -655,10 +828,16 @@ export function retargetMapped(
 
   // As cadeias que dá para dirigir neste par de esqueletos. Uma cadeia com
   // menos de dois ossos não tem segmento nenhum para mirar.
-  const chains = CHAINS.map((slotsOfChain) =>
-    slotsOfChain.map(pair).filter((p): p is NonNullable<typeof p> => !!p),
-  ).filter((chain) => chain.length >= 2)
+  const montar = (lista: readonly (readonly Slot[])[]) =>
+    lista
+      .map((slotsOfChain) => slotsOfChain.map(pair).filter((p): p is NonNullable<typeof p> => !!p))
+      .filter((chain) => chain.length >= 2)
+
+  const chains = montar(CHAINS)
   if (chains.length === 0) return null
+  // O tronco e as pernas: entram se o esqueleto os nomear, e a falta de
+  // qualquer um deles só significa que aquela parte fica em repouso.
+  const bodyChains = montar(BODY_CHAINS)
 
   const targetBones = bonesOf(target)
   const sourceBones = bonesOf(source)
@@ -701,15 +880,94 @@ export function retargetMapped(
       ? targetBasis.clone().multiply(source.clone().invert())
       : new THREE.Quaternion()
 
-  // A mão não tem segmento seguinte para mirar: ela recebe a orientação que
-  // tem em relação ao antebraço, corrigida pela diferença entre os repousos.
+  /**
+   * A mão, que não tem segmento seguinte para mirar.
+   *
+   * Aqui não dá para usar a direção de um elo, porque o que decide o jeito da
+   * mão não é para onde ela aponta — é o **giro em torno disso**: palma
+   * virada para o corpo com os dedos para baixo, sobre as cordas, e para cima
+   * na mão que corre a escala.
+   *
+   * Duas saídas foram descartadas, e por medida:
+   *
+   * - **relativa ao antebraço**, que era o que este arquivo fazia. Aplicar no
+   *   antebraço do alvo a orientação que a mão tem no antebraço da fonte
+   *   supõe que os dois antebraços tenham a mesma base local, e não têm. Pior:
+   *   a torção do antebraço do alvo em torno do próprio eixo sai do
+   *   `setFromUnitVectors` do `aimBone`, que dá a rotação **mínima** — um
+   *   valor que não quer dizer nada anatomicamente. A palma pendurava desse
+   *   número arbitrário.
+   * - **somar a variação ao repouso**, que deixa em cada rig o erro constante
+   *   da diferença entre os dois repousos de pulso. É a mesma armadilha do
+   *   braço, e a mesma medida a descarta: o Vermelhão e o Kairos passam pela
+   *   cópia direta, que **substitui** a pose, e são eles a referência.
+   *
+   * O que fica é o referencial anatômico da palma nos dois esqueletos, ligado
+   * absoluto, do mesmo jeito que o corpo. `K` é o que sobra da base local do
+   * osso do pulso depois de tirada a anatomia — constante do rig, e a única
+   * parte em que a convenção da ferramenta entra.
+   */
   const wristFix = chains.map((chain) => {
     if (chain.length < 3) return null
     const fore = chain[chain.length - 2]
     const hand = chain[chain.length - 1]
+    const side = chain === chains[0] ? 'left' : 'right'
+
+    const marks = palmMarks(side, (slot) => !!pair(slot))
+    const marcos = marks && {
+      along: pair(marks.along)!,
+      from: pair(marks.from)!,
+      to: pair(marks.to)!,
+    }
+
+    const noAlvo =
+      marcos &&
+      handBasis(hand.target, marcos.along.target, marcos.from.target, marcos.to.target)
+
+    if (marcos && noAlvo) {
+      // `K` leva do referencial da palma para a base do osso do pulso.
+      const K = noAlvo
+        .clone()
+        .invert()
+        .multiply(hand.target.getWorldQuaternion(new THREE.Quaternion()))
+      return { modo: 'palma' as const, hand, marcos, K }
+    }
+
+    // Sem marcos de dedo suficientes não há anatomia de mão para medir, e
+    // sobra a saída relativa ao antebraço — pior, mas melhor que a pose de
+    // repouso. Nenhum rig do elenco cai aqui; é rede para o próximo.
     const naFonte = relativeTo(fore.source, hand.source)
-    const noAlvo = relativeTo(fore.target, hand.target)
-    return { fore, hand, fix: naFonte.invert().multiply(noAlvo) }
+    const doAlvo = relativeTo(fore.target, hand.target)
+    return { modo: 'antebraco' as const, fore, hand, fix: naFonte.invert().multiply(doAlvo) }
+  })
+
+  /**
+   * As cadeias de dedo, um par por dedo e por lado.
+   *
+   * É o que fecha a mão no braço da guitarra. O clipe traz **30 faixas de
+   * dedo** — é de lá que sai o punho do Vermelhão, que recebe tudo pela cópia
+   * direta. Sem dirigi-las, o modelo fica na pose de repouso da mão dele, que
+   * no Douglas é a palma espalmada: pulso certo, mão de quem não está tocando.
+   *
+   * As filas são zipadas até a menor. O clipe traz três juntas por dedo e há
+   * rig com quatro; as duas primeiras carregam quase toda a dobra, e a que
+   * sobra fica em repouso, que é bem melhor que receber a junta errada.
+   */
+  const ossosDoAlvo = new Set(targetBones.map((b) => b.name))
+  const fingers = chains.map((chain, lado) => {
+    const side = lado === 0 ? 'left' : 'right'
+    const hand = chain[chain.length - 1]
+    const filas: Array<{ source: THREE.Object3D[]; target: THREE.Object3D[] }> = []
+
+    for (const dedo of FINGERS) {
+      const base = pair(`${side}${dedo}` as Slot)
+      if (!base) continue
+      const naFonte = fingerChain(base.source, null)
+      const noAlvo = fingerChain(base.target, ossosDoAlvo)
+      const passos = Math.min(naFonte.length, noAlvo.length)
+      if (passos >= 2) filas.push({ source: naFonte.slice(0, passos), target: noAlvo.slice(0, passos) })
+    }
+    return filas.length ? { hand, filas } : null
   })
 
   // Amostragem uniforme, na cadência da faixa mais densa do clipe: é a
@@ -723,10 +981,17 @@ export function retargetMapped(
 
   // Uma pista de rotação por osso dirigido.
   const driven = new Map<THREE.Object3D, { name: string; values: number[] }>()
-  for (const chain of chains) {
-    for (const bone of chain) {
-      if (!driven.has(bone.target)) driven.set(bone.target, { name: bone.target.name, values: [] })
-    }
+  const registrar = (bone: THREE.Object3D) => {
+    if (!driven.has(bone)) driven.set(bone, { name: bone.name, values: [] })
+  }
+  for (const chain of chains) for (const bone of chain) registrar(bone.target)
+  // No tronco e nas pernas só o último de cada fila não recebe mira.
+  for (const chain of bodyChains) for (let i = 0; i < chain.length - 1; i++) registrar(chain[i].target)
+  // Só os ossos que de fato recebem mira: o último de cada fila de dedo não
+  // tem para onde apontar e fica em repouso.
+  for (const mao of fingers) {
+    if (!mao) continue
+    for (const fila of mao.filas) for (let i = 0; i < fila.target.length - 1; i++) registrar(fila.target[i])
   }
   const times: number[] = []
 
@@ -742,6 +1007,18 @@ export function retargetMapped(
     // pose absoluta, não um acréscimo à do quadro anterior.
     restore(targetBones, targetRest, target)
 
+    // O tronco e as pernas primeiro: a clavícula pendura na coluna, e mirar o
+    // braço a partir de uma coluna que ainda vai se mexer seria mirar de um
+    // lugar onde ele não vai estar.
+    for (const chain of bodyChains) {
+      for (let i = 0; i < chain.length - 1; i++) {
+        const want = segmentDir(chain[i].source, chain[i + 1].source)
+        if (want.lengthSq() < 1e-12) continue
+        want.normalize().applyQuaternion(carry)
+        aimBone(chain[i].target, chain[i + 1].target, want)
+      }
+    }
+
     for (let c = 0; c < chains.length; c++) {
       const chain = chains[c]
       // Da raiz para a ponta: girar o ombro move o braço, então o braço só
@@ -755,16 +1032,67 @@ export function retargetMapped(
 
       const wrist = wristFix[c]
       if (wrist) {
-        const { fore, hand, fix } = wrist
-        const desired = relativeTo(fore.source, hand.source).multiply(fix)
-        const world = fore.target.getWorldQuaternion(new THREE.Quaternion()).multiply(desired)
-        const parent = hand.target.parent
-        hand.target.quaternion.copy(
-          parent
-            ? parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(world)
-            : world,
+        const { hand } = wrist
+        let world: THREE.Quaternion | null = null
+
+        if (wrist.modo === 'palma') {
+          const naFonte = handBasis(
+            hand.source,
+            wrist.marcos.along.source,
+            wrist.marcos.from.source,
+            wrist.marcos.to.source,
+          )
+          // A palma do alvo fica onde a da fonte está, e o `K` devolve a base
+          // do osso a partir dela.
+          if (naFonte) world = carry.clone().multiply(naFonte).multiply(wrist.K)
+        } else {
+          const desired = relativeTo(wrist.fore.source, hand.source).multiply(wrist.fix)
+          world = wrist.fore.target.getWorldQuaternion(new THREE.Quaternion()).multiply(desired)
+        }
+
+        if (world) {
+          const parent = hand.target.parent
+          hand.target.quaternion.copy(
+            parent
+              ? parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(world)
+              : world,
+          )
+          hand.target.updateWorldMatrix(false, true)
+        }
+      }
+
+      // Os dedos, agora que o pulso já está no lugar.
+      //
+      // O transporte aqui é **da mão**, e não do corpo: a dobra de um dedo é
+      // medida em relação à palma que o carrega. Ele é lido depois do pulso
+      // de propósito, e continua valendo enquanto os dedos fecham — a base de
+      // um dedo não sai do lugar quando ela mesma gira, só leva a junta
+      // seguinte.
+      const dedos = fingers[c]
+      if (dedos && wrist?.modo === 'palma') {
+        const naFonte = handBasis(
+          dedos.hand.source,
+          wrist.marcos.along.source,
+          wrist.marcos.from.source,
+          wrist.marcos.to.source,
         )
-        hand.target.updateWorldMatrix(false, true)
+        const noAlvo = handBasis(
+          dedos.hand.target,
+          wrist.marcos.along.target,
+          wrist.marcos.from.target,
+          wrist.marcos.to.target,
+        )
+        if (naFonte && noAlvo) {
+          const daMao = noAlvo.multiply(naFonte.invert())
+          for (const fila of dedos.filas) {
+            for (let i = 0; i < fila.target.length - 1; i++) {
+              const want = segmentDir(fila.source[i], fila.source[i + 1])
+              if (want.lengthSq() < 1e-12) continue
+              want.normalize().applyQuaternion(daMao)
+              aimBone(fila.target[i], fila.target[i + 1], want)
+            }
+          }
+        }
       }
     }
 

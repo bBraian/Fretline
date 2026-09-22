@@ -228,9 +228,6 @@ const IMPORTED: Character[] = ([
   //
   // arquivo, nome, descrição, estrelas, preço, tem esqueleto, giro
   ['douxie_tales_of_arcadia', 'Douglas', 'Jaqueta, franja e um alaúde antigo', 0, 0, true, undefined],
-  // Sem esqueleto no arquivo — ver `animated` acima. Fica barato de propósito:
-  // um integrante que não toca não serve de recompensa de fim de carreira.
-  ['steven_rogers_captain_america', 'Estevão Rodrigues', 'Escudo nas costas, pose de estátua', 4, 2500, false, undefined],
   ['fortnite_darth_vader_advanced_rig', 'Dartes Vale', 'Capa preta e um riff que respira', 6, 3500, true, undefined],
   ['dead_pool', 'Vermelhão', 'Fala demais entre uma música e outra', 10, 5000, true, undefined],
   ['kratos', 'Kairos', 'Barba de cinzas, olhar de quem já viu pior', 14, 7000, true, undefined],
