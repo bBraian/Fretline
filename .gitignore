@@ -14,3 +14,7 @@ songs/*
 # têm licença própria — alguns exigem atribuição, outros proíbem
 # redistribuição. Versionar aqui seria republicá-los.
 public/models/
+
+# Publicação dos assets (npm run upload-assets).
+.assets-dist/
+.wrangler/

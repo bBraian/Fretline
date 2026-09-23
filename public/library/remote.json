@@ -1,0 +1,348 @@
+{
+  "base": "https://fretline-assets.bbraian.workers.dev/songs",
+  "songs": [
+    {
+      "id": "AC／DC - Back in Black (Live) (Harmonix)",
+      "path": "AC／DC - Back in Black (Live) (Harmonix)",
+      "files": [
+        "drums_1.opus",
+        "drums_2.opus",
+        "drums_3.opus",
+        "guitar.opus",
+        "notes.mid",
+        "rhythm.opus",
+        "song.ini",
+        "song.opus",
+        "vocals.opus"
+      ]
+    },
+    {
+      "id": "Alice Cooper (WaveGroup) - School's Out (Neversoft)",
+      "path": "Alice Cooper (WaveGroup) - School's Out (Neversoft)",
+      "files": [
+        "guitar.opus",
+        "notes.mid",
+        "preview.opus",
+        "rhythm.opus",
+        "song.ini",
+        "song.opus"
+      ]
+    },
+    {
+      "id": "Black Sabbath (Steve Ouimette) - Paranoid (Neversoft)",
+      "path": "Black Sabbath (Steve Ouimette) - Paranoid (Neversoft)",
+      "files": [
+        "guitar.opus",
+        "notes.mid",
+        "preview.opus",
+        "rhythm.opus",
+        "song.ini",
+        "song.opus"
+      ]
+    },
+    {
+      "id": "Bon Jovi - You Give Love a Bad Name (Harmonix)",
+      "path": "Bon Jovi - You Give Love a Bad Name (Harmonix)",
+      "files": [
+        "crowd.opus",
+        "drums_1.opus",
+        "drums_2.opus",
+        "drums_3.opus",
+        "guitar.opus",
+        "notes.mid",
+        "rhythm.opus",
+        "song.ini",
+        "song.opus",
+        "vocals.opus"
+      ]
+    },
+    {
+      "id": "Cream (WaveGroup) - Sunshine of Your Love (Neversoft)",
+      "path": "Cream (WaveGroup) - Sunshine of Your Love (Neversoft)",
+      "files": [
+        "guitar.opus",
+        "notes.mid",
+        "preview.opus",
+        "rhythm.opus",
+        "song.ini",
+        "song.opus"
+      ]
+    },
+    {
+      "id": "Foghat (WaveGroup) - Slow Ride (Neversoft)",
+      "path": "Foghat (WaveGroup) - Slow Ride (Neversoft)",
+      "files": [
+        "guitar.opus",
+        "notes.mid",
+        "preview.opus",
+        "rhythm.opus",
+        "song.ini",
+        "song.opus"
+      ]
+    },
+    {
+      "id": "Green Day - American Idiot (Harmonix)",
+      "path": "Green Day - American Idiot (Harmonix)",
+      "files": [
+        "crowd.opus",
+        "drums_1.opus",
+        "drums_2.opus",
+        "drums_3.opus",
+        "guitar.opus",
+        "notes.mid",
+        "rhythm.opus",
+        "song.ini",
+        "song.opus",
+        "vocals.opus"
+      ]
+    },
+    {
+      "id": "Green Day - Basket Case (Harmonix)",
+      "path": "Green Day - Basket Case (Harmonix)",
+      "files": [
+        "crowd.opus",
+        "drums_1.opus",
+        "drums_2.opus",
+        "drums_3.opus",
+        "guitar.opus",
+        "notes.mid",
+        "rhythm.opus",
+        "song.ini",
+        "song.opus",
+        "vocals.opus"
+      ]
+    },
+    {
+      "id": "Green Day - Holiday (Harmonix)",
+      "path": "Green Day - Holiday (Harmonix)",
+      "files": [
+        "crowd.opus",
+        "drums_1.opus",
+        "drums_2.opus",
+        "drums_3.opus",
+        "guitar.opus",
+        "notes.mid",
+        "rhythm.opus",
+        "song.ini",
+        "song.opus",
+        "vocals.opus"
+      ]
+    },
+    {
+      "id": "Guns N' Roses - Welcome To The Jungle (Neversoft)",
+      "path": "Guns N' Roses - Welcome To The Jungle (Neversoft)",
+      "files": [
+        "guitar.opus",
+        "notes.mid",
+        "preview.opus",
+        "rhythm.opus",
+        "song.ini",
+        "song.opus"
+      ]
+    },
+    {
+      "id": "Guns n' Roses (WaveGroup) - Sweet Child O' Mine (Harmonix)",
+      "path": "Guns n' Roses (WaveGroup) - Sweet Child O' Mine (Harmonix)",
+      "files": [
+        "bass.opus",
+        "guitar.opus",
+        "notes.mid",
+        "song.ini",
+        "song.opus"
+      ]
+    },
+    {
+      "id": "Heart - Barracuda (Beenox,  Neversoft)",
+      "path": "Heart - Barracuda (Beenox,  Neversoft)",
+      "files": [
+        "bass.opus",
+        "crowd.opus",
+        "drums_1.opus",
+        "drums_2.opus",
+        "drums_3.opus",
+        "drums_4.opus",
+        "guitar.opus",
+        "notes.mid",
+        "song.ini",
+        "song.opus",
+        "vocals.opus"
+      ]
+    },
+    {
+      "id": "Iron Maiden - The Trooper (Harmonix)",
+      "path": "Iron Maiden - The Trooper (Harmonix)",
+      "files": [
+        "drums_1.opus",
+        "drums_2.opus",
+        "drums_3.opus",
+        "guitar.opus",
+        "notes.mid",
+        "rhythm.opus",
+        "song.ini",
+        "song.opus",
+        "vocals.opus"
+      ]
+    },
+    {
+      "id": "Metallica - Enter Sandman (Neversoft)",
+      "path": "Metallica - Enter Sandman (Neversoft)",
+      "files": [
+        "bass.opus",
+        "crowd.opus",
+        "drums_1.opus",
+        "drums_2.opus",
+        "drums_3.opus",
+        "drums_4.opus",
+        "guitar.opus",
+        "notes.mid",
+        "preview.opus",
+        "song.ini",
+        "song.opus",
+        "vocals.opus"
+      ]
+    },
+    {
+      "id": "Metallica - Master of Puppets (Neversoft)",
+      "path": "Metallica - Master of Puppets (Neversoft)",
+      "files": [
+        "bass.opus",
+        "crowd.opus",
+        "drums_1.opus",
+        "drums_2.opus",
+        "drums_3.opus",
+        "drums_4.opus",
+        "guitar.opus",
+        "notes.mid",
+        "preview.opus",
+        "song.ini",
+        "song.opus",
+        "vocals.opus"
+      ]
+    },
+    {
+      "id": "Mountain (WaveGroup) - Mississippi Queen (Neversoft)",
+      "path": "Mountain (WaveGroup) - Mississippi Queen (Neversoft)",
+      "files": [
+        "guitar.opus",
+        "notes.mid",
+        "preview.opus",
+        "rhythm.opus",
+        "song.ini",
+        "song.opus"
+      ]
+    },
+    {
+      "id": "Nirvana - Smells Like Teen Spirit (Harmonix)",
+      "path": "Nirvana - Smells Like Teen Spirit (Harmonix)",
+      "files": [
+        "drums_1.opus",
+        "drums_2.opus",
+        "drums_3.opus",
+        "guitar.opus",
+        "notes.mid",
+        "rhythm.opus",
+        "song.ini",
+        "song.opus",
+        "vocals.opus"
+      ]
+    },
+    {
+      "id": "Pat Benatar - Hit Me With Your Best Shot (Vicarious Visions)",
+      "path": "Pat Benatar - Hit Me With Your Best Shot (Vicarious Visions)",
+      "files": [
+        "guitar.opus",
+        "notes.mid",
+        "rhythm.opus",
+        "song.ini",
+        "song.opus"
+      ]
+    },
+    {
+      "id": "Pearl Jam - Even Flow (Neversoft)",
+      "path": "Pearl Jam - Even Flow (Neversoft)",
+      "files": [
+        "guitar.opus",
+        "notes.mid",
+        "preview.opus",
+        "rhythm.opus",
+        "song.ini",
+        "song.opus"
+      ]
+    },
+    {
+      "id": "Poison - Talk Dirty to Me (Neversoft)",
+      "path": "Poison - Talk Dirty to Me (Neversoft)",
+      "files": [
+        "guitar.opus",
+        "notes.mid",
+        "preview.opus",
+        "rhythm.opus",
+        "song.ini",
+        "song.opus"
+      ]
+    },
+    {
+      "id": "Scorpions - Rock You Like A Hurricane (Mickelräven)",
+      "path": "Scorpions - Rock You Like A Hurricane (Mickelräven)",
+      "files": [
+        "bass.opus",
+        "drums_1.opus",
+        "drums_2.opus",
+        "drums_3.opus",
+        "drums_4.opus",
+        "guitar.opus",
+        "notes.mid",
+        "song.ini",
+        "vocals.opus"
+      ]
+    },
+    {
+      "id": "Slipknot - Before I Forget (Neversoft)",
+      "path": "Slipknot - Before I Forget (Neversoft)",
+      "files": [
+        "guitar.opus",
+        "notes.mid",
+        "preview.opus",
+        "rhythm.opus",
+        "song.ini",
+        "song.opus"
+      ]
+    },
+    {
+      "id": "The Killers - When You Were Young (Neversoft)",
+      "path": "The Killers - When You Were Young (Neversoft)",
+      "files": [
+        "guitar.opus",
+        "notes.mid",
+        "preview.opus",
+        "rhythm.opus",
+        "song.ini",
+        "song.opus"
+      ]
+    },
+    {
+      "id": "The Rolling Stones - Paint It Black (Neversoft)",
+      "path": "The Rolling Stones - Paint It Black (Neversoft)",
+      "files": [
+        "guitar.opus",
+        "notes.mid",
+        "preview.opus",
+        "rhythm.opus",
+        "song.ini",
+        "song.opus"
+      ]
+    },
+    {
+      "id": "ZZ Top (Steve Ouimette) - La Grange (Neversoft)",
+      "path": "ZZ Top (Steve Ouimette) - La Grange (Neversoft)",
+      "files": [
+        "guitar.opus",
+        "notes.mid",
+        "preview.opus",
+        "rhythm.opus",
+        "song.ini",
+        "song.opus"
+      ]
+    }
+  ]
+}
