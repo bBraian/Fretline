@@ -153,6 +153,17 @@ export class CharacterModel {
     // integrantes em cena passavam de duzentas chamadas de desenho, e era o
     // custo dominante do palco inteiro.
     mergeChildren(this.group)
+
+    // Tudo o que existe até aqui é corpo; instrumento só é pendurado depois.
+    //
+    // A mão da marionete é o fim do braço, e a palma e o polegar são filhos
+    // dela — o mesmo nó onde o palco pendura o microfone. A marca é o que
+    // deixa a troca de corpo levar o microfone e deixar a mão para trás. Vai
+    // depois da fusão, e não em cada peça, porque a fusão cria malhas novas
+    // e não copia `userData`.
+    this.group.traverse((node) => {
+      if ((node as THREE.Mesh).isMesh) node.userData.bodyPart = true
+    })
   }
 
   // --- materiais ---------------------------------------------------------

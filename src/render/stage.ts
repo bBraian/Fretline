@@ -987,10 +987,13 @@ export class Stage {
         //
         // Esta transferência foi retirada quando as baquetas construídas em
         // código davam problema; sem ela o microfone ficava no corpo
-        // provisório e sumia junto com ele. As baquetas não existem mais, e
-        // o que resta aqui pertence ao papel, não ao corpo.
+        // provisório e sumia junto com ele.
+        //
+        // Só o que não é corpo: na marionete a mão é o fim do braço, e a
+        // palma e o polegar são filhos do mesmo nó. Levar tudo pendurava a
+        // mão de pele do corpo descartado no cantor novo, longe do pulso dele.
         for (const filho of [...antigo.pickHand.children]) {
-          membro.pickHand.add(filho)
+          if (!filho.userData.bodyPart) membro.pickHand.add(filho)
         }
         this.group.remove(antigo.group)
         antigo.dispose()

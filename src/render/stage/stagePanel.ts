@@ -338,6 +338,10 @@ function snippet() {
       rigOffset: model.rigOffset.map(n),
       crowd: { y: n(model.crowd.y), z: n(model.crowd.z) },
       emissiveCap: n(model.emissiveCap),
+      // Não tem controle no painel, mas sair do bloco faria colar o JSON
+      // devolver ao palco as peças que o cenário esconde.
+      ...(model.albedo !== undefined ? { albedo: n(model.albedo) } : {}),
+      ...(model.hide ? { hide: model.hide } : {}),
     },
     null,
     2,

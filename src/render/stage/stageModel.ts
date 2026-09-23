@@ -96,12 +96,35 @@ export interface StageModel {
   emissiveCap: number
 
   /**
+   * Multiplica a cor base dos materiais do arquivo. Sem ele, 1.
+   *
+   * O irmão do `emissiveCap` para quem estoura sem brilhar: um cenário
+   * branco sob os refletores passa do limiar do bloom (0,92, em
+   * `gameScene.ts`) e vira névoa leitosa em cima da banda. Escurecer a cor
+   * devolve a parede para baixo do limiar sem mexer na luz do palco, que é
+   * a mesma para todos os cenários.
+   */
+  albedo?: number
+
+  /**
    * Luz de apoio própria do cenário.
    *
    * Alguns arquivos têm cantos que as luzes do palco não alcançam, e um
    * arquivo de material sem brilho (`unlit`) não responde a luz nenhuma.
    */
   fill: Array<{ color: number; intensity: number; distance: number; position: [number, number, number] }>
+
+  /**
+   * Nós do arquivo que não entram na cena, pelo nome que têm no Blender.
+   *
+   * Um cenário de banco público vem montado para a banda de outra pessoa:
+   * tablado de bateria, painel e praticável no lugar onde *aquela* banda
+   * tocava. A nossa tem outra formação, e uma peça dessas no meio dela
+   * enterra um pé ou esconde o baterista. Tirar aqui, e não no arquivo,
+   * deixa o `.glb` como o autor o exportou e a lista à vista de quem ler a
+   * tabela.
+   */
+  hide?: string[]
 }
 
 /**
@@ -153,18 +176,55 @@ export const STAGE_MODELS: StageModel[] = [
   },
   {
     id: 'liveaid',
-    label: 'Live Aid 1985 (18 MB · 254 mil tri · 1978 desenhos)',
-    url: '/models/stages/liveaid_diorama.glb',
-    // Diorama dentro de uma moldura de polaroide: o palco de verdade é uma
-    // fatia pequena no meio, então a escala é alta e a moldura sobra.
-    scale: 0.535,
-    position: [0.047, -0.006, -0.518],
-    rotation: [0, 0, 0],
-    replaces: { floor: true, backdrop: true, amps: true },
-    rigOffset: [0, 1.6, 0],
-    crowd: { y: -1, z: 4 },
+    label: 'Live Aid 1985 (14 MB · 223 mil tri · 1762 desenhos)',
+    url: '/models/stages/palco_3.glb',
+    // O diorama do Queen em Wembley, reeditado no Blender sem a moldura de
+    // polaroide e sem a banda. As coordenadas continuam as do original:
+    // estrado com o topo em y = 1, plano de z = −4,83 (parede do fundo) a
+    // z = −2,0, onde desce um degrau para a beira.
+    //
+    // A escala é a do próprio modelo, não uma escolha: a plateia do arquivo
+    // mede 0,6, e perto de 3,1 ela fica com a altura da banda. Por sorte é
+    // também a que põe a banda inteira no estrado.
+    //
+    // Cada número da posição tem um motivo diferente:
+    // - `x` é enquadramento, achado a olho no painel: o palco 1 m para a
+    //   direita abre os bastidores à esquerda no plano geral;
+    // - `y` fica perto de −escala, que é o que leva o topo do estrado (y = 1
+    //   no arquivo) a y = 0. O estrado do arquivo é nivelado, então a
+    //   rotação precisa ficar perto de zero: 0,04 já afundava a bateria
+    //   13 cm e soltava o cantor;
+    // - `z` tem uma janela de 9,87 a 10,75. Abaixo dela o cantor sai do
+    //   estrado e fica 57 cm acima do degrau da beira; acima, o baterista
+    //   entra na parede do fundo. Em 10,6 o palco fica o mais recuado que dá
+    //   para a banda: o cantor com quase 1 m de estrado à frente, e a
+    //   parede a 15 cm dos pés do baterista.
+    scale: 3.127,
+    position: [1.05, -3.1, 10.6],
+    rotation: [-0.002, -0.002, -0.002],
+    // O telão do código cairia atrás da parede do fundo do arquivo, que é
+    // onde está o letreiro do Live Aid.
+    replaces: { floor: true, backdrop: true, amps: true, ledWall: true },
+    // A treliça baixa do arquivo fica a 8,3 m do estrado; os refletores
+    // nascem a 7,5 e sobem até encostar nela.
+    rigOffset: [0, 0.4, 0],
+    // A plateia do arquivo pisa em y = 0 e começa em z = 0,7 — no jogo,
+    // y = −3,13 e z = 12. A do código entra no mesmo fosso, junto dela.
+    crowd: { y: -2.7, z: 5.6 },
     emissiveCap: 2.2,
+    albedo: 0.6,
     fill: [],
+    hide: [
+      // O cubo inicial do Blender, que ficou na exportação: 6 m de caixa
+      // cinza no meio do fosso.
+      'Cube',
+      // Painel de 13 x 3 m atravessando o palco, logo atrás de onde era a
+      // bateria do Queen. A nossa fica mais para o fundo, e ele a esconderia.
+      'Cube.002_769',
+      // O tablado da bateria do Queen. Cai bem onde pisa o guitarrista, e os
+      // pés dele sumiriam 12 cm dentro da madeira.
+      'podium_143',
+    ],
   },
   {
     id: 'starry',
@@ -232,6 +292,22 @@ export async function loadStageModel(model: StageModel): Promise<LoadedStageMode
   const gltf = await loader.loadAsync(model.url)
   const root = gltf.scene
 
+  // Sai do grafo antes do primeiro quadro, então nunca chega à placa de vídeo
+  // e não há o que descartar.
+  //
+  // A busca é pelo `userData.name`, onde o carregador guarda o nome como
+  // veio do arquivo. O `name` ele limpa — tira os pontos, e `Cube.002` vira
+  // `Cube002` — e ainda numera repetidos, então não bate com o Blender.
+  const esconder = new Set(model.hide ?? [])
+  const pecas: THREE.Object3D[] = []
+  root.traverse((node) => {
+    if (esconder.delete(node.userData.name)) pecas.push(node)
+  })
+  for (const peca of pecas) peca.removeFromParent()
+  for (const nome of esconder) {
+    console.warn(`cenário ${model.id}: o arquivo não tem "${nome}" para esconder`)
+  }
+
   // A transformação fica no invólucro, não no nó do arquivo: assim o painel
   // mexe num objeto só e o que está dentro continua como veio.
   const group = new THREE.Group()
@@ -273,6 +349,14 @@ export async function loadStageModel(model: StageModel): Promise<LoadedStageMode
     }
   }
   setEmissiveCap(model.emissiveCap)
+
+  // Uma vez só, e por material, não por malha: o arquivo divide o mesmo
+  // material entre centenas de malhas, e multiplicar a cada uma escureceria
+  // o palco até o preto. Cada carga traz materiais novos, então trocar de
+  // cenário no painel e voltar não acumula.
+  if (model.albedo !== undefined) {
+    for (const material of materials) material.color.multiplyScalar(model.albedo)
+  }
 
   return {
     group,

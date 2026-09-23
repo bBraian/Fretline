@@ -60,7 +60,7 @@ export const ATTACHMENTS: Record<string, Attachment> = {
   /** Microfone: vai na mão, não na cintura. */
   mic: {
     bone: 'RightHand',
-    position: [-0.795, -0.15, 0.015],
+    position: [-0.745, -0.015, -0.015],
     rotation: [1.678, 2.638, -0.602],
     scale: 0.2,
   },
