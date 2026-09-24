@@ -3,11 +3,13 @@ declare const __APP_VERSION__: string
 
 interface ImportMetaEnv {
   /**
-   * Prefixo do storage de onde saem músicas e modelos na versão hospedada.
+   * Endereço do host de assets da versão hospedada, sem barra no fim —
+   * `https://fretline-assets.<subdominio>.workers.dev`.
    *
-   * Vazio rodando na própria máquina, onde a pasta `songs/` é servida pelo
-   * plugin e `public/models/` sai do próprio servidor. Ver
-   * `tools/upload-assets.mjs`.
+   * Com ela, a biblioteca vem do `library.json` publicado lá e os modelos
+   * saem de `<base>/models/`. Vazia rodando na própria máquina, onde a pasta
+   * `songs/` é servida pelo plugin e `public/models/` sai do próprio
+   * servidor. Não vai no `.env` — ver a seção *Hospedagem* do `CLAUDE.md`.
    */
   readonly VITE_ASSETS_BASE?: string
 }

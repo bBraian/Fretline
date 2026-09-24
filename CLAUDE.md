@@ -16,7 +16,7 @@ sem passar por ele.
 
 ```bash
 npm run dev       # http://localhost:5173
-npm test          # 127 testes do engine, do áudio e do conteúdo, em Node
+npm test          # 167 testes do engine, do áudio, do conteúdo e da publicação, em Node
 npm run build     # tsc -b && vite build
 npm run smoke     # sobe o jogo num navegador de verdade e toca a demo
 npm run menus     # captura as telas de menu em scripts/menu-*.png
@@ -25,7 +25,8 @@ npm run shots     # um retrato de cada plano de câmera
 npm run gallery   # cada guitarra e cada personagem
 npm run library   # confere que songs/ é lida e tocada
 npm run test-song # escreve uma música de teste em songs/
-npm run upload-assets # sobe músicas e modelos para o storage da versão hospedada
+npm run upload-assets # publica músicas, modelos e previews no host de assets
+npm run hosted        # confere o layout hospedado sem publicar
 npm run attachment    # mede onde a guitarra fica no corpo de cada personagem
 ```
 
@@ -235,9 +236,34 @@ deploy estático, nenhuma das duas existe: o plugin que serve `songs/` é
 middleware do Vite e não roda, e `public/models/` está fora do
 versionamento.
 
-`npm run upload-assets` sobe as duas coisas para um storage público e
-escreve `public/library/remote.json`. O cliente muda em dois pontos, os dois
-pequenos: `loadLocalLibrary` aceita um `base` no manifesto, e
-`render/assetBase.ts` reescreve os caminhos `/models/...` pelo gancho de URL
-do `LoadingManager` do three. O prefixo vem de `VITE_ASSETS_BASE`; sem ela,
-tudo continua local.
+Então são dois sites. O app vai para a Vercel; músicas e modelos vão para
+um Worker só de assets na Cloudflare (`fretline-assets`), publicado por
+`npm run upload-assets` — que monta `.assets-dist/` com hard links, gera um
+`preview.opus` de 30 s para cada música e escreve o `library.json`. O
+wrangler só envia o que mudou.
+
+O cliente muda em dois pontos, os dois pequenos: com `VITE_ASSETS_BASE`,
+`songs/libraryIndex.ts` pede `${base}/library.json` em vez do índice do
+plugin, e `render/assetBase.ts` reescreve os caminhos `/models/...` pelo
+gancho de URL do `LoadingManager` do three. Sem a variável, tudo continua
+local.
+
+**O host não atende byte range**: um pedido de trecho recebe o arquivo
+inteiro. É por isso que a música de menu e o preview tocam o clipe de 30 s
+desde o início, em vez de pular para o meio da faixa.
+
+**O preview gerado soma todas as faixas**, menos a plateia. Nos packs com
+instrumentos separados, o `song.opus` guarda só as sobras — nos da
+Harmonix, às vezes silêncio —, então ele sozinho não serve de preview.
+
+**`VITE_ASSETS_BASE` não vai no `.env`.** Com ela, `npm run dev` e todos os
+scripts de navegador leem a biblioteca do host em vez de `songs/`. Ela mora
+só nas variáveis do projeto na Vercel (como *Config*: o aviso de segredo não
+se aplica a uma URL pública, e sem o prefixo `VITE_` ela não chega ao
+navegador). `npm run hosted` a passa por conta própria.
+
+**Acrescentar uma música** é largá-la em `songs/` e rodar
+`npm run upload-assets`. Sem commit, sem deploy na Vercel.
+
+**O preview do pack nunca entra por hard link.** O ffmpeg escrevendo por
+cima de um link truncaria o original em `songs/`.

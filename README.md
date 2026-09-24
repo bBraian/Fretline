@@ -243,3 +243,20 @@ principal a ponto de atrasar o próprio piloto automático — o teste passaria
 a medir o rasterizador em vez do jogo. Pelo mesmo motivo o limiar de
 precisão é 85% e não 98%: a medida oscila entre execuções por causa do
 ambiente. `npm run capture` é o oposto, roda grande e não verifica nada.
+
+## Publicar
+
+O app vai para a Vercel; músicas e modelos, para um Worker só de assets na
+Cloudflare. Os dois planos gratuitos bastam.
+
+Uma vez só:
+
+1. Node 22 ou mais novo, e `sudo apt install ffmpeg`.
+2. Conta na Cloudflare e `npx wrangler login`.
+3. `npm run upload-assets` — no fim, imprime a URL do host.
+4. Na Vercel: importar o repositório (framework Vite) e criar a variável
+   `VITE_ASSETS_BASE` com a URL do passo 3, marcada como *Config*.
+
+Depois disso, música nova é largar a pasta em `songs/` e rodar
+`npm run upload-assets` de novo. `npm run hosted` confere tudo localmente
+antes, sem publicar.
