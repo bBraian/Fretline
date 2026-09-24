@@ -238,20 +238,24 @@ export function SongsScreen() {
           ← Voltar
         </button>
 
-        <button
-          className="btn"
-          disabled={loadingLibrary}
-          onClick={async () => {
-            const added = await refreshLocalLibrary()
-            setStatus(
-              added > 0
-                ? `${added} música${added === 1 ? '' : 's'} nova${added === 1 ? '' : 's'} na pasta songs/.`
-                : 'Nada novo na pasta songs/.',
-            )
-          }}
-        >
-          {loadingLibrary ? 'Lendo songs/…' : 'Reler a pasta songs/'}
-        </button>
+        {/* Na versão hospedada não existe pasta para reler: a biblioteca é
+            o índice publicado, e muda por `upload-assets`, não daqui. */}
+        {!import.meta.env.VITE_ASSETS_BASE && (
+          <button
+            className="btn"
+            disabled={loadingLibrary}
+            onClick={async () => {
+              const added = await refreshLocalLibrary()
+              setStatus(
+                added > 0
+                  ? `${added} música${added === 1 ? '' : 's'} nova${added === 1 ? '' : 's'} na pasta songs/.`
+                  : 'Nada novo na pasta songs/.',
+              )
+            }}
+          >
+            {loadingLibrary ? 'Lendo songs/…' : 'Reler a pasta songs/'}
+          </button>
+        )}
 
         <button
           className="btn"

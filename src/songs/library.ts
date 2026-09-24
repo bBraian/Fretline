@@ -322,11 +322,10 @@ export interface BackgroundAudio {
 /**
  * A faixa que representa a música fora do palco.
  *
- * Duas situações usam isto e pedem coisas diferentes. O fundo do menu quer
- * um trecho qualquer que soe como a música, e pega o meio — o começo de uma
- * música costuma ser justamente a parte que ainda não é a música. Já o
- * preview da seleção quer *a* parte que identifica a faixa, e aí vale a
- * opinião de quem charteou: primeiro o `preview.opus` do pack, depois o
+ * Duas situações usam isto: o fundo do menu e o preview da seleção. As
+ * duas querem *a* parte que identifica a faixa, e aí vale a opinião de quem
+ * charteou: primeiro o `preview.opus` — o do pack, ou o que
+ * `upload-assets` gera para toda música publicada —, depois o
  * `preview_start_time` do `song.ini`, e só então o meio.
  *
  * De cada pacote sai uma faixa só. Quando há várias, a escolhida é a
@@ -349,6 +348,23 @@ export function backgroundAudio(
     duration: length > 0 ? length : undefined,
     startAt: usePreview && previewStart > 0 ? previewStart : undefined,
   }
+}
+
+/**
+ * A trilha do menu: um clipe de cada música da biblioteca.
+ *
+ * O preview desde o início, quando existe. Além de ser o trecho que
+ * representa a faixa, tocá-lo do começo não depende de o servidor aceitar
+ * pular para o meio de um arquivo — coisa que o host de assets não faz.
+ */
+export function menuTracks(entries: SongEntry[]): Array<BackgroundAudio & { id: string }> {
+  const tracks: Array<BackgroundAudio & { id: string }> = []
+  for (const entry of entries) {
+    if (entry.synthesized) continue
+    const audio = backgroundAudio(entry, { usePreview: true })
+    if (audio) tracks.push({ id: entry.song.meta.id, ...audio })
+  }
+  return tracks
 }
 
 /**

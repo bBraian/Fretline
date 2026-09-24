@@ -9,8 +9,7 @@
 import { useEffect, useRef } from 'react'
 import { useGame, type Screen } from './ui/store'
 import { mixer } from './audio/mixer'
-import type { MenuTrack } from './audio/menuPlaylist'
-import { backgroundAudio } from './songs/library'
+import { menuTracks } from './songs/library'
 import { MenuScreen } from './ui/screens/MenuScreen'
 import { CareerScreen } from './ui/screens/CareerScreen'
 import { SongsScreen } from './ui/screens/SongsScreen'
@@ -46,17 +45,11 @@ export function App() {
    * A música de fundo dos menus são as próprias músicas da biblioteca.
    *
    * A mesa não conhece `songs/` — se conhecesse, as camadas se enlaçariam —
-   * então é aqui que a biblioteca vira uma lista de endereços. Qual faixa
-   * de cada pacote, e a partir de onde, é decisão de `backgroundAudio`.
+   * então é aqui que a biblioteca vira uma lista de endereços. Qual trecho
+   * de cada pacote é decisão de `menuTracks`.
    */
   useEffect(() => {
-    const tracks: MenuTrack[] = []
-    for (const entry of library) {
-      if (entry.synthesized) continue
-      const audio = backgroundAudio(entry)
-      if (audio) tracks.push({ id: entry.song.meta.id, ...audio })
-    }
-    mixer.setMenuTracks(tracks)
+    mixer.setMenuTracks(menuTracks(library))
   }, [library])
 
   // A mesa de som nasce com o que estava salvo.
