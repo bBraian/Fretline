@@ -1,7 +1,46 @@
 # Hospedagem e telas de carregamento — Design
 
 Data: 2026-09-22
-Status: aprovado em conversa; aguardando revisão deste documento
+Status: aprovado; **no ar pelo atalho desde 2026-09-23**, código do plano
+ainda não implementado (ver *Estado em 2026-09-23*)
+
+## Estado em 2026-09-23
+
+O jogo foi publicado antes da implementação, aproveitando o que o código
+atual já fazia: ele lê `/library/remote.json` com um `base` absoluto, e
+reescreve `/models/...` pela `VITE_ASSETS_BASE`.
+
+**Feito:**
+
+- Conta na Cloudflare, `wrangler login` e subdomínio `bbraian`. O Worker
+  `fretline-assets` está em `https://fretline-assets.bbraian.workers.dev`.
+- `tools/assets-worker/wrangler.jsonc` como descrito abaixo, e `.gitignore`
+  com `.assets-dist/` e `.wrangler/`.
+- `.assets-dist/` montado **à mão**: as 25 músicas (chart, `song.ini` e
+  áudio; sem as capas) e os 34 modelos por hard link, mais o `_headers`. Os
+  14 `preview.*` que vieram nos packs entraram por **cópia**. Publicado, e
+  os 214 arquivos da primeira leva foram conferidos contra os locais, um
+  por um.
+- `public/library/remote.json` gerado à mão a partir de `.assets-dist/songs`,
+  com `base` absoluto, e versionado.
+- `ffmpeg` e `ffprobe` instalados.
+- Vercel: repositório importado (Vite), `VITE_ASSETS_BASE` definida como
+  *Config*, não segredo. O nome precisa do prefixo `VITE_` — o aviso de
+  segredo que a Vercel mostra não se aplica a uma URL pública.
+
+**O que o atalho não tem** é o que falta implementar: a abertura, o
+progresso e o cancelamento do Afinando, os previews gerados para todas as
+músicas, o `library.json` publicado junto com os assets e os créditos. E
+música nova, por enquanto, exige refazer o `remote.json` e fazer commit.
+
+**Ordem sugerida**, uma parte por sessão: publicação com previews (script +
+`library.json` + cliente lendo o índice do host) → Afinando → abertura →
+créditos.
+
+**Pendente de decisão — créditos.** Proposto e não confirmado: o script
+avisa sobre GLB sem entrada em vez de recusar, e os campos ficam só autor,
+link e licença. `src/content/credits.json` existe como esqueleto vazio, com
+as 34 entradas.
 
 ## Objetivo
 
@@ -50,7 +89,7 @@ Dois sites, cada um com um papel:
     Vercel                          Cloudflare — Worker só de assets "fretline-assets"
     └─ o app (vite build)           ├─ _headers         CORS
        VITE_ASSETS_BASE=https://    ├─ library.json     índice da biblioteca
-         fretline-assets.<conta>    ├─ songs/<pasta>/…  notes.mid, song.ini, *.opus, preview.opus
+         fretline-assets.bbraian    ├─ songs/<pasta>/…  notes.mid, song.ini, *.opus, preview.opus
          .workers.dev               └─ models/…         os GLBs
 
 `VITE_ASSETS_BASE` aponta o build para o host de assets. Sem ela, tudo
@@ -149,6 +188,11 @@ de varredura (`varrerMusicas`, `listar`, `interessa`) são reaproveitadas.
 **Sai:** `@vercel/blob`, o `put()` por arquivo, `public/library/remote.json`
 e as flags `--songs`/`--models` (publicar a pasta inteira já pula o que não
 mudou).
+
+**Cuidado na troca:** o `remote.json` é o que a versão no ar lê hoje. Ele
+só pode sair no mesmo commit em que o cliente passa a ler
+`${VITE_ASSETS_BASE}/library.json`, e depois de o `library.json` estar
+publicado — na ordem inversa, a versão no ar fica sem músicas.
 
 ## Cliente
 
@@ -274,7 +318,7 @@ redistribuir, e CC-BY sem crédito descumpre a licença.
   entrada, e deixa de fora os `redistribui: false`, avisando quais
   personagens ou guitarras apontam para eles.
 - A tela de ajustes ganha um bloco "Créditos" com a lista.
-- Preencher as 35 entradas é trabalho manual do autor, na página de origem
+- Preencher as 34 entradas é trabalho manual do autor, na página de origem
   de cada modelo.
 
 As músicas não entram nesse controle: são rips de jogos, sem licença que
@@ -321,12 +365,13 @@ autorize redistribuir, e a publicação foi decidida sabendo disso (ver
 
 ## Configuração única, do autor
 
-1. Conta gratuita na Cloudflare e `npx wrangler login`.
-2. `sudo apt install ffmpeg`.
-3. Preencher `src/content/credits.json`.
-4. `npm run upload-assets` — imprime a URL do host de assets.
-5. Na Vercel: importar o repositório (framework Vite), definir
-   `VITE_ASSETS_BASE` com a URL do passo 4, publicar.
+1. ~~Conta gratuita na Cloudflare e `npx wrangler login`.~~ Feito.
+2. ~~`sudo apt install ffmpeg`.~~ Feito.
+3. Preencher `src/content/credits.json`. Pendente (ver *Estado*).
+4. `npm run upload-assets` — imprime a URL do host de assets. Feito à mão
+   por enquanto; o script ainda não existe.
+5. ~~Na Vercel: importar o repositório (framework Vite), definir
+   `VITE_ASSETS_BASE` com a URL do passo 4, publicar.~~ Feito.
 
 Depois disso, **acrescentar uma música** é largá-la em `songs/` e rodar
 `npm run upload-assets`. Sem commit, sem novo deploy na Vercel.
