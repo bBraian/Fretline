@@ -22,6 +22,8 @@ import type { Song } from '../engine/types'
 import { buildDemoSong } from '../content/demoSong'
 import { parseSongIni } from './songIni'
 import type { StemRole } from '../audio/songPlayer'
+import { filePrefix, libraryIndexUrl, type LibraryIndex } from './libraryIndex'
+import { mapInOrder } from './mapInOrder'
 
 export interface AudioTrack {
   url: string
@@ -371,75 +373,71 @@ export function catalogue(entries: SongEntry[]): SongEntry[] {
   return real.length > 0 ? real : entries
 }
 
-
 /**
- * Carrega a pasta `songs/` do projeto, servida pelo servidor local.
+ * O índice da biblioteca e a URL de onde ele veio.
  *
- * É o caminho recomendado para jogar na própria máquina: os endereços são
- * URLs normais, então a biblioteca continua lá depois de recarregar a
- * página — ao contrário do seletor de pastas, cujos blobs morrem com a aba.
+ * Um endereço só por build: o do host de assets na versão hospedada, o do
+ * plugin na própria máquina. Sem índice, a biblioteca fica vazia e o
+ * catálogo cai na faixa de demonstração.
  */
-interface LibraryIndex {
-  /**
-   * Prefixo dos arquivos, quando eles não estão neste servidor.
-   *
-   * O plugin de desenvolvimento não manda este campo — os arquivos saem
-   * dele mesmo, em `/library/file/`. O manifesto da versão hospedada manda,
-   * e aponta para o storage. É a única diferença entre as duas origens, e é
-   * por isso que existe um caminho só aqui.
-   */
-  base?: string
-  songs: Array<{ id: string; path: string; files: string[] }>
-}
-
-/**
- * O índice da biblioteca, venha ele do servidor local ou do manifesto.
- *
- * Na ordem: o plugin de desenvolvimento primeiro, porque rodando na própria
- * máquina é ele que reflete a pasta de verdade, inclusive o que acabou de
- * ser largado lá dentro. O manifesto é a reserva do build hospedado.
- */
-async function fetchLibraryIndex(): Promise<LibraryIndex | null> {
-  for (const url of ['/library/index.json', '/library/remote.json']) {
-    try {
-      const response = await fetch(url)
-      if (!response.ok) continue
-      return (await response.json()) as LibraryIndex
-    } catch {
-      // Endereço que não existe neste build; tenta o próximo.
-    }
+async function fetchLibraryIndex(): Promise<{ index: LibraryIndex; url: string } | null> {
+  const url = libraryIndexUrl(import.meta.env.VITE_ASSETS_BASE)
+  try {
+    const response = await fetch(url)
+    if (!response.ok) return null
+    return { index: (await response.json()) as LibraryIndex, url }
+  } catch {
+    return null
   }
-  return null
 }
 
-export async function loadLocalLibrary(): Promise<SongEntry[]> {
-  const index = await fetchLibraryIndex()
-  if (!index) return []
+/** Quantas pastas da biblioteca são lidas ao mesmo tempo. */
+const PARALLEL_FOLDERS = 6
 
-  const prefix = index.base?.replace(/\/$/, '') ?? '/library/file'
-  const entries: SongEntry[] = []
+/**
+ * Carrega a biblioteca publicada: a pasta `songs/` servida pelo plugin, ou
+ * o índice do host de assets na versão hospedada.
+ *
+ * Os endereços são URLs normais, então a biblioteca continua lá depois de
+ * recarregar a página — ao contrário do seletor de pastas, cujos blobs
+ * morrem com a aba. `onProgress` conta pastas lidas contra o total.
+ */
+export async function loadLocalLibrary(
+  onProgress?: (done: number, total: number) => void,
+): Promise<SongEntry[]> {
+  const found = await fetchLibraryIndex()
+  if (!found) return []
 
-  for (const folder of index.songs) {
-    const files: SongFile[] = folder.files.map((name) => {
-      // Cada segmento é codificado em separado: codificar o caminho inteiro
-      // escaparia as barras e o servidor não acharia a subpasta.
-      const segments = [...folder.path.split('/').filter(Boolean), name]
-      const url = `${prefix}/${segments.map(encodeURIComponent).join('/')}`
-      return {
-        name,
-        url,
-        text: async () => (await fetch(url)).text(),
-        arrayBuffer: async () => (await fetch(url)).arrayBuffer(),
+  const prefix = filePrefix(found.index, found.url, location.href)
+
+  const entries = await mapInOrder(
+    found.index.songs,
+    PARALLEL_FOLDERS,
+    async (folder) => {
+      const files: SongFile[] = folder.files.map((name) => {
+        // Cada segmento é codificado em separado: codificar o caminho inteiro
+        // escaparia as barras e o servidor não acharia a subpasta. É também
+        // a forma que o host de assets considera canônica — outra
+        // codificação recebe um 307 até ela.
+        const segments = [...folder.path.split('/').filter(Boolean), name]
+        const url = `${prefix}/${segments.map(encodeURIComponent).join('/')}`
+        return {
+          name,
+          url,
+          text: async () => (await fetch(url)).text(),
+          arrayBuffer: async () => (await fetch(url)).arrayBuffer(),
+        }
+      })
+
+      try {
+        return await entryFromFiles(folder.id, files)
+      } catch (error) {
+        console.warn(`Não consegui ler a música em songs/${folder.path}:`, error)
+        return null
       }
-    })
+    },
+    onProgress,
+  )
 
-    try {
-      const entry = await entryFromFiles(folder.id, files)
-      if (entry) entries.push(entry)
-    } catch (error) {
-      console.warn(`Não consegui ler a música em songs/${folder.path}:`, error)
-    }
-  }
-
-  return entries
+  return entries.filter((entry): entry is SongEntry => entry !== null)
 }
