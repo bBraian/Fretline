@@ -67,13 +67,3 @@ export function evaluate(state: SessionState, difficulty: Difficulty): Performan
     failed: state.failed,
   }
 }
-
-export function starLabel(stars: number): string {
-  if (stars >= 6) return 'Sem um erro'
-  if (stars === 5) return 'Impecável'
-  if (stars === 4) return 'Muito bom'
-  if (stars === 3) return 'Aprovado'
-  if (stars === 2) return 'Passou raspando'
-  if (stars === 1) return 'Sobreviveu'
-  return 'Não passou'
-}

@@ -14,17 +14,19 @@
  */
 
 import { mixer } from '../../audio/mixer'
+import { useT } from '../useT'
 
 const URL = 'https://buymeacoffee.com/bbraian'
 
 export function CoffeeCard() {
+  const t = useT()
   return (
     <a
       className="coffee-card"
       href={URL}
       target="_blank"
       rel="noopener noreferrer"
-      aria-label="Me paga um café, no Buy Me a Coffee (abre em nova aba)"
+      aria-label={t.coffee.label}
       onMouseEnter={() => mixer.play('move')}
       onClick={() => mixer.play('select')}
     >
@@ -32,11 +34,8 @@ export function CoffeeCard() {
         <CupIcon />
       </span>
       <span className="coffee-card-body">
-        <span className="coffee-card-title">Me paga um café</span>
-        <span className="coffee-card-text">
-          O Fretline é de graça e sem anúncio. Se ele te rendeu um bom show, um café mantém o
-          palco aceso.
-        </span>
+        <span className="coffee-card-title">{t.coffee.title}</span>
+        <span className="coffee-card-text">{t.coffee.text}</span>
         <span className="coffee-card-link">
           buymeacoffee.com/bbraian <span aria-hidden>↗</span>
         </span>

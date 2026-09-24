@@ -24,7 +24,7 @@ const browser = await chromium.launch({
 const page = await browser.newPage({ viewport: { width: 900, height: 600 } })
 page.on('pageerror', (e) => console.log('[erro]', e.message))
 
-await page.goto(`${BASE}/?debug`, { waitUntil: 'networkidle' })
+await page.goto(`${BASE}/?lang=pt&debug`, { waitUntil: 'networkidle' })
 await passarAbertura(page)
 
 const report = await page.evaluate(async (name) => {

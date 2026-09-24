@@ -18,9 +18,11 @@
 
 import { useEffect, useState } from 'react'
 import { mixer } from '../audio/mixer'
+import { useT } from './useT'
 
 export function FullscreenButton() {
   const [full, setFull] = useState(() => Boolean(document.fullscreenElement))
+  const t = useT()
 
   useEffect(() => {
     const sincronizar = () => setFull(Boolean(document.fullscreenElement))
@@ -45,13 +47,13 @@ export function FullscreenButton() {
       type="button"
       className="fullscreen-toggle"
       onClick={alternar}
-      title={full ? 'Sair da tela cheia' : 'Tela cheia'}
-      aria-label={full ? 'Sair da tela cheia' : 'Tela cheia'}
+      title={full ? t.fullscreen.exit : t.fullscreen.enter}
+      aria-label={full ? t.fullscreen.exit : t.fullscreen.enter}
     >
       <span className="fullscreen-icon" aria-hidden>
         {full ? <CompressIcon /> : <ExpandIcon />}
       </span>
-      <span className="fullscreen-label">{full ? 'Sair' : 'Tela cheia'}</span>
+      <span className="fullscreen-label">{full ? t.fullscreen.exitShort : t.fullscreen.enter}</span>
     </button>
   )
 }

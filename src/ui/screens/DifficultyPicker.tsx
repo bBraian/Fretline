@@ -14,14 +14,15 @@ import { useCallback } from 'react'
 import { DIFFICULTIES } from '../../engine/types'
 import { mixer } from '../../audio/mixer'
 import { useGame } from '../store'
-import { difficultyName } from './MenuScreen'
+import { useT } from '../useT'
 
 export function DifficultyPicker() {
   const difficulty = useGame((s) => s.settings.difficulty)
   const updateSettings = useGame((s) => s.updateSettings)
+  const t = useT()
 
   return (
-    <div className="segmented" aria-label="Dificuldade">
+    <div className="segmented" aria-label={t.settings.difficulty}>
       {DIFFICULTIES.map((d) => (
         <button
           key={d}
@@ -31,7 +32,7 @@ export function DifficultyPicker() {
             updateSettings({ difficulty: d })
           }}
         >
-          {difficultyName(d)}
+          {t.difficulty[d]}
         </button>
       ))}
     </div>

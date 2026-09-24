@@ -104,7 +104,7 @@ function confere(condicao, descricao) {
 }
 
 // `?debug` traz a faixa de demonstração, que toca sem baixar nada.
-await page.goto(`${BASE}/?debug&lowfx`, { waitUntil: 'networkidle' })
+await page.goto(`${BASE}/?lang=pt&debug&lowfx`, { waitUntil: 'networkidle' })
 await passarAbertura(page)
 await page.getByRole('heading', { name: 'FRETLINE' }).waitFor()
 await page.evaluate(() => window.__conectar())

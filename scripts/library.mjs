@@ -27,7 +27,7 @@ const page = await browser.newPage({ viewport: { width: 640, height: 360 } })
 page.on('console', (m) => m.type() === 'error' && problems.push(`console: ${m.text()}`))
 page.on('pageerror', (e) => problems.push(`exceção: ${e.message}`))
 
-await page.goto(`${BASE}/?debug&lowfx`, { waitUntil: 'networkidle' })
+await page.goto(`${BASE}/?lang=pt&debug&lowfx`, { waitUntil: 'networkidle' })
 await passarAbertura(page)
 
 // Na conferência hospedada (`npm run hosted`) o índice vem do host de

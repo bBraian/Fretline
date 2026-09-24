@@ -14,7 +14,7 @@ page.on('pageerror', (e) => console.log('[pageerror]', e.message))
 await page.addInitScript(() => {
   localStorage.setItem('fretline:v1', JSON.stringify({ profile: { money: 4000 } }))
 })
-await page.goto(`${server.url}/?still`, { waitUntil: 'networkidle' })
+await page.goto(`${server.url}/?lang=pt&still`, { waitUntil: 'networkidle' })
 await passarAbertura(page)
 
 await page.getByRole('button', { name: /Guitarra/ }).first().click()

@@ -68,8 +68,13 @@ describe('downloadProgress', () => {
 
 describe('mb', () => {
   it('em megabytes, com vírgula e uma casa', () => {
-    expect(mb(13 * 1024 * 1024)).toBe('13,0')
-    expect(mb(12.44 * 1024 * 1024)).toBe('12,4')
-    expect(mb(0)).toBe('0,0')
+    expect(mb(13 * 1024 * 1024, 'pt-BR')).toBe('13,0')
+    expect(mb(12.44 * 1024 * 1024, 'pt-BR')).toBe('12,4')
+    expect(mb(0, 'pt-BR')).toBe('0,0')
+  })
+
+  it('em inglês, com ponto', () => {
+    expect(mb(12.44 * 1024 * 1024, 'en-US')).toBe('12.4')
+    expect(mb(1500 * 1024 * 1024, 'en-US')).toBe('1500.0')
   })
 })

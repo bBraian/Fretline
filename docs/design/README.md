@@ -399,9 +399,11 @@ escolhido, ocre sobre escuro no outro — e as bandeiras são **SVG desenhado**,
 pela mesma regra do fundo: nenhum bitmap na interface. As estrelas das duas
 ficam de fora; num corpo de vinte pixels elas viram mancha cinza.
 
-Por ora o valor só é **gravado** (`settings.language`, padrão `en`). Nada o
-lê para escolher texto, e as telas seguem em português: a tradução é trabalho
-separado, e isto é o lugar onde ela vai encontrar a escolha já feita.
+A escolha grava `settings.language` (padrão `en`) e **vale na hora**: todas
+as telas leem o texto pelo dicionário do idioma (`src/i18n/`), então o menu
+redesenha na outra língua sem recarregar. Os rótulos das opções ficam na
+língua de cada uma — "English", "Português" —, porque quem procura o próprio
+idioma não lê o atual.
 
 ### O cartão do café
 
@@ -440,7 +442,8 @@ clica sem querer. Quem manda no ícone é `document.fullscreenElement`, não uma
 variável própria: sair pelo Esc não passa pelo componente.
 
 Como ele não pertence a nenhuma tela, **quem tem rodapé reserva a faixa**:
-`--corner-gutter`, no `padding-right` de `.screen-foot`.
+`--corner-gutter`, no `padding-right` de `.screen-foot`. A medida é a do
+rótulo mais largo entre os idiomas — "Fullscreen", não "Tela cheia".
 
 Numa janela pequena o botão **some**, e a reserva vai a zero com ele. Ali o
 rodapé já quebra os números em três linhas; segurar a faixa espremia a coluna
@@ -471,6 +474,11 @@ Estão aqui porque cada uma custou uma ida e volta.
 6. **Captura de tela não serve para medir animação.** Um `screenshot()` do
    Playwright leva ~500ms; amostrar 550ms de animação com ele dá dois
    quadros. Animação se mede lendo o estado pelo gancho de depuração.
+7. **Texto tem dois comprimentos.** Um rótulo que cabe em português pode
+   não caber em inglês, e o contrário: "Tocar" vira "Quickplay", e o
+   "Fullscreen" invadiu o botão principal da lista de músicas por ser mais
+   largo que "Tela cheia". Confira as duas línguas — os scripts abrem em
+   português (`?lang=pt`), e sem o parâmetro o jogo abre em inglês.
 
 ## 9. Como conferir
 

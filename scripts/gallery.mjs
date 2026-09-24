@@ -37,7 +37,7 @@ await page.addInitScript(() => {
 page.on('pageerror', (error) => console.log('[pageerror]', error.message))
 page.on('console', (m) => m.type() === 'error' && console.log('[console]', m.text().slice(0, 300)))
 
-await page.goto(`${BASE}/?still`, { waitUntil: 'networkidle' })
+await page.goto(`${BASE}/?lang=pt&still`, { waitUntil: 'networkidle' })
 await passarAbertura(page)
 
 /**

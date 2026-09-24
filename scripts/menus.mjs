@@ -22,7 +22,7 @@ await page.addInitScript(() => {
     JSON.stringify({ profile: { money: 42000, ownedGuitars: ['*'], ownedCharacters: ['*'] } }),
   )
 })
-await page.goto(BASE, { waitUntil: 'networkidle' })
+await page.goto(`${BASE}/?lang=pt`, { waitUntil: 'networkidle' })
 
 // A abertura pronta, antes de passar por ela.
 await page.getByText(/Pressione/).waitFor({ timeout: 120000 })
@@ -104,7 +104,7 @@ await cdp.send('Network.emulateNetworkConditions', {
   downloadThroughput: (8 * 1024 * 1024) / 8,
   uploadThroughput: (1024 * 1024) / 8,
 })
-await page.goto(BASE, { waitUntil: 'domcontentloaded' })
+await page.goto(`${BASE}/?lang=pt`, { waitUntil: 'domcontentloaded' })
 await page.getByText(/\d+,\d \/ \d+,\d MB/).waitFor({ timeout: 30000 })
 await page.waitForTimeout(1500)
 await page.screenshot({ path: 'scripts/menu-abertura-baixando.png' })

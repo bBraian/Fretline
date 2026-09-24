@@ -24,9 +24,11 @@ import { Hud } from './hud/Hud'
 import { YouRock } from './hud/YouRock'
 import { mixer } from '../audio/mixer'
 import type { TrackProgress } from '../audio/download'
-import { loadErrorView } from './loadError'
+import { loadErrorView, type LoadErrorReason } from './loadError'
 import { downloadProgress, mb } from './downloadProgress'
 import { holdGamepadNav } from './gamepadNav'
+import { useT } from './useT'
+import type { StageAsset } from '../render/stage'
 
 const LEAD_IN = 3
 
@@ -76,14 +78,16 @@ export function PlayScreen() {
   const finishSong = useGame((s) => s.finishSong)
   const retry = useGame((s) => s.retry)
   const updateSettings = useGame((s) => s.updateSettings)
+  const t = useT()
 
   const [phase, setPhase] = useState<Phase>('loading')
   const [assets, setAssets] = useState<{
-    itens: Array<{ label: string; done: boolean }>
+    itens: Array<{ label: StageAsset; done: boolean }>
     done: number
     total: number
   }>({ itens: [], done: 0, total: 0 })
-  const [error, setError] = useState<string | null>(null)
+  /** Por que não deu; a frase sai do dicionário na hora de desenhar. */
+  const [error, setError] = useState<LoadErrorReason | 'noChart' | null>(null)
   /** O download das faixas, faixa a faixa; vazio na demo. */
   const [download, setDownload] = useState<TrackProgress[]>([])
   /** Em que parte da espera está: o áudio, ou o palco depois dele. */
@@ -127,7 +131,7 @@ export function PlayScreen() {
   // Montagem: áudio, sessão, input e cena. Roda uma vez por entrada na tela.
   useEffect(() => {
     if (!entry || !chart || !canvasRef.current) {
-      setError('Essa música não tem chart para a dificuldade escolhida.')
+      setError('noChart')
       setPhase('error')
       return
     }
@@ -209,7 +213,7 @@ export function PlayScreen() {
         if (!cancelled) {
           console.error(loadError)
           const falha = loadErrorView(loadError)
-          setError(falha.message)
+          setError(falha.reason)
           setRetryable(falha.retryable)
           setPhase('error')
         }
@@ -545,23 +549,23 @@ export function PlayScreen() {
     barra = 1
     fase =
       assets.total && assets.done >= assets.total
-        ? 'Preparando o palco…'
-        : `Montando o palco (${assets.done}/${assets.total || '…'})`
+        ? t.play.preparingStage
+        : t.play.buildingStage(assets.done, assets.total)
   } else if (entry?.synthesized) {
     barra = null
-    fase = 'Sintetizando a faixa de demonstração…'
+    fase = t.play.synthesizing
   } else if (baixado.phase === 'connecting') {
     barra = null
-    fase = 'Conectando…'
+    fase = t.play.connecting
   } else if (baixado.phase === 'downloading') {
     barra = baixado.fraction
     fase =
       baixado.total !== null
-        ? `Baixando a música ${mb(baixado.loaded)} / ${mb(baixado.total)} MB`
-        : `Baixando a música (${Math.round((baixado.fraction ?? 0) * download.length)}/${download.length} faixas)`
+        ? t.play.downloading(mb(baixado.loaded, t.locale), mb(baixado.total, t.locale))
+        : t.play.downloadingTracks(Math.round((baixado.fraction ?? 0) * download.length), download.length)
   } else {
     barra = 1
-    fase = 'Decodificando o áudio…'
+    fase = t.play.decoding
   }
 
   return (
@@ -587,7 +591,7 @@ export function PlayScreen() {
       {phase === 'loading' && (
         <div className="overlay">
           <div className="overlay-panel loading-panel">
-            <h2>Afinando</h2>
+            <h2>{t.play.tuning}</h2>
             {entry && (
               <p className="screen-subtitle">
                 <b>{entry.song.meta.name}</b>
@@ -606,7 +610,7 @@ export function PlayScreen() {
               <ul className="loading-list">
                 {assets.itens.map((item) => (
                   <li key={item.label} data-done={item.done}>
-                    <span>{item.label}</span>
+                    <span>{t.play.assets[item.label]}</span>
                     <b>{item.done ? '✓' : '…'}</b>
                   </li>
                 ))}
@@ -614,7 +618,7 @@ export function PlayScreen() {
             )}
 
             <button className="btn btn-ghost" onClick={quit}>
-              Voltar
+              {t.play.back}
             </button>
           </div>
         </div>
@@ -623,15 +627,15 @@ export function PlayScreen() {
       {phase === 'error' && (
         <div className="overlay">
           <div className="overlay-panel">
-            <h2>Não deu</h2>
-            <p className="screen-subtitle">{error}</p>
+            <h2>{t.play.errorTitle}</h2>
+            <p className="screen-subtitle">{error && t.play.errors[error]}</p>
             {retryable && (
               <button className="btn btn-primary" onClick={restart}>
-                Tentar de novo
+                {t.play.tryAgain}
               </button>
             )}
             <button className={retryable ? 'btn btn-ghost' : 'btn btn-primary'} onClick={quit}>
-              Voltar
+              {t.play.back}
             </button>
           </div>
         </div>
@@ -640,23 +644,23 @@ export function PlayScreen() {
       {phase === 'paused' && (
         <div className="overlay">
           <div className="overlay-panel">
-            <h2>Pausado</h2>
-            <p className="screen-subtitle">Esc volta ao jogo — no controle, B.</p>
+            <h2>{t.play.paused}</h2>
+            <p className="screen-subtitle">{t.play.pausedHint}</p>
             {/* Em foco ao abrir: Enter, ou o A do controle, continua. */}
             <button className="btn btn-primary" data-autofocus autoFocus onClick={resume}>
-              Continuar
+              {t.play.resume}
             </button>
             <button className="btn" onClick={restart}>
-              Recomeçar
+              {t.play.restart}
             </button>
             <button className="btn btn-ghost" onClick={quit}>
-              Sair da música
+              {t.play.quit}
             </button>
 
             {/* O volume geral, o mesmo dos ajustes: a mesa avisa o tocador,
                 e a música obedece assim que a pausa sai. */}
             <label className="pause-volume">
-              <span className="field-label">Volume</span>
+              <span className="field-label">{t.play.volume}</span>
               <input
                 type="range"
                 min={0}
@@ -677,16 +681,13 @@ export function PlayScreen() {
       {phase === 'failed' && (
         <div className="overlay">
           <div className="overlay-panel">
-            <h2>Você foi vaiado</h2>
-            <p className="screen-subtitle">
-              O medidor zerou. Dá para tentar de novo, baixar a dificuldade, ou ligar o modo sem
-              falha nos ajustes.
-            </p>
+            <h2>{t.play.booedTitle}</h2>
+            <p className="screen-subtitle">{t.play.booedText}</p>
             <button className="btn btn-primary" onClick={restart}>
-              De novo
+              {t.play.retry}
             </button>
             <button className="btn btn-ghost" onClick={finish}>
-              Ver o resultado
+              {t.play.seeResults}
             </button>
           </div>
         </div>

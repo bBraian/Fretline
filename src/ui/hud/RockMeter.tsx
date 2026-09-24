@@ -21,6 +21,7 @@
  */
 
 import { STAR_POWER_ACTIVATION_MINIMUM, STAR_POWER_PER_PHRASE } from '../../engine/gameplay/rules'
+import { useT } from '../useT'
 
 const CENTER = { x: 80, y: 96 }
 const RADIUS = 52
@@ -71,6 +72,7 @@ export function RockMeter({ value, starPower, starPowerActive }: RockMeterProps)
   const base = polar(START_ANGLE + value * SWEEP + 90, 6)
   const baseOpposite = polar(START_ANGLE + value * SWEEP - 90, 6)
   const ready = !starPowerActive && starPower >= STAR_POWER_ACTIVATION_MINIMUM
+  const t = useT()
 
   return (
     <div
@@ -82,7 +84,7 @@ export function RockMeter({ value, starPower, starPowerActive }: RockMeterProps)
       <svg
         viewBox="0 0 160 124"
         role="img"
-        aria-label={`Medidor de rock em ${Math.round(value * 100)}%, star power em ${Math.round(starPower * 100)}%`}
+        aria-label={t.hud.rockMeter(Math.round(value * 100), Math.round(starPower * 100))}
       >
         {/* As válvulas do star power, em leque sobre o mostrador. */}
         {TUBE_ANGLES.map((angle, i) => {

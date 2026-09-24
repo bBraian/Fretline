@@ -18,6 +18,8 @@ import type { SessionState } from '../../engine/gameplay/session'
 import type { Verdict } from '../../engine/types'
 import { RockMeter } from './RockMeter'
 import { ScorePanel } from './ScorePanel'
+import { useT } from '../useT'
+import type { Messages } from '../../i18n'
 
 export interface HudProps {
   state: SessionState
@@ -28,6 +30,7 @@ export interface HudProps {
 
 export function Hud({ state, verdict, songName, artist }: HudProps) {
   const accuracy = state.notesSeen > 0 ? state.notesHit / state.notesSeen : 1
+  const t = useT()
 
   return (
     <div className="hud">
@@ -62,17 +65,17 @@ export function Hud({ state, verdict, songName, artist }: HudProps) {
           data-show={verdict !== null}
           style={{ color: verdictColor(verdict) }}
         >
-          {verdict ? verdictLabel(verdict) : ''}
+          {verdict ? verdictLabel(verdict, t) : ''}
         </div>
       </div>
     </div>
   )
 }
 
-function verdictLabel(v: { verdict: Verdict; delta: number }) {
-  if (v.verdict === 'perfect') return 'no ponto'
+function verdictLabel(v: { verdict: Verdict; delta: number }, t: Messages) {
+  if (v.verdict === 'perfect') return t.hud.perfect
   // Mostrar de que lado o jogador errou ensina mais que só dizer "quase".
-  return v.delta < 0 ? 'adiantado' : 'atrasado'
+  return v.delta < 0 ? t.hud.early : t.hud.late
 }
 
 function verdictColor(v: { verdict: Verdict; delta: number } | null) {

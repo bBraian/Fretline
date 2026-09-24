@@ -12,6 +12,7 @@
  */
 
 import { MAX_MULTIPLIER, NOTES_PER_MULTIPLIER_STEP } from '../../engine/gameplay/rules'
+import { useT } from '../useT'
 
 export interface ScorePanelProps {
   score: number
@@ -29,6 +30,7 @@ export function ScorePanel({ score, multiplier, streak, starPowerActive }: Score
   // O degrau sem o dobro do star power: é ele que as luzes contam.
   const step = starPowerActive ? multiplier / 2 : multiplier
   const lit = step >= MAX_MULTIPLIER ? NOTES_PER_MULTIPLIER_STEP : streak % NOTES_PER_MULTIPLIER_STEP
+  const t = useT()
 
   return (
     <div className="score-panel" data-star={starPowerActive} data-level={step}>
@@ -49,12 +51,12 @@ export function ScorePanel({ score, multiplier, streak, starPowerActive }: Score
         </div>
 
         <div className="score-bottom">
-          <div className="multiplier-badge" aria-label={`Multiplicador ${multiplier}×`}>
+          <div className="multiplier-badge" aria-label={t.hud.multiplier(multiplier)}>
             <small>×</small>
             <span>{multiplier}</span>
           </div>
 
-          <div className="streak-readout" aria-label={`${streak} notas seguidas`}>
+          <div className="streak-readout" aria-label={t.hud.streak(streak)}>
             <span className="streak-note" aria-hidden>
               ♪
             </span>

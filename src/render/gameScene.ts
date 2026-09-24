@@ -472,7 +472,48 @@ export class GameScene {
       })
     }
 
+    this.drawEverything()
     this.draw()
+  }
+
+  /**
+   * Um quadro com a cena inteira, antes do quadro de verdade.
+   *
+   * Compilar não basta. O driver só termina de montar um programa no
+   * primeiro desenho que o usa — e sobe os vértices de cada malha no
+   * primeiro desenho dela —, e o quadro de partida só desenha o que o
+   * primeiro plano enquadra. O resto pagava essa conta no primeiro corte de
+   * câmera que o mostrasse, com a música correndo: em medição, o primeiro
+   * plano geral de uma música travou 334 ms para desenhar os sete
+   * refletores da treliça.
+   *
+   * Aqui, por um quadro, o recorte de visão sai e cada malha instanciada
+   * vazia ganha uma instância — as partículas de acerto, as notas abertas e
+   * os rastros só aparecem mais tarde na música. O quadro seguinte, o de
+   * partida, desenha por cima.
+   */
+  private drawEverything() {
+    const culled: THREE.Object3D[] = []
+    const empty: THREE.InstancedMesh[] = []
+    for (const scene of [this.stageScene, this.playScene]) {
+      scene.traverse((object) => {
+        if (object.frustumCulled) {
+          object.frustumCulled = false
+          culled.push(object)
+        }
+        const instanced = object as THREE.InstancedMesh
+        if (instanced.isInstancedMesh && instanced.count === 0) {
+          instanced.count = 1
+          empty.push(instanced)
+        }
+      })
+    }
+    try {
+      this.draw()
+    } finally {
+      for (const object of culled) object.frustumCulled = true
+      for (const instanced of empty) instanced.count = 0
+    }
   }
 
   /** O que já chegou, para a tela de espera mostrar progresso de verdade. */

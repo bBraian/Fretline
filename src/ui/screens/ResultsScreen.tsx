@@ -3,15 +3,15 @@
  */
 
 import { useGame } from '../store'
-import { starLabel } from '../../content/progression'
-import { difficultyName } from './MenuScreen'
 import { Backdrop } from '../Backdrop'
 import { mixer } from '../../audio/mixer'
 import { useBackToMenu } from '../useBackKey'
+import { useT } from '../useT'
 
 export function ResultsScreen() {
   const { lastPerformance, setScreen, selectedSongId, library, settings } = useGame()
   const entry = library.find((e) => e.song.meta.id === selectedSongId)
+  const t = useT()
   useBackToMenu()
 
   if (!lastPerformance) {
@@ -26,16 +26,16 @@ export function ResultsScreen() {
       <Backdrop variant="content" />
       <header className="screen-head">
         <div>
-          <h1 className="screen-title">{p.failed ? 'A plateia foi embora' : starLabel(p.stars)}</h1>
+          <h1 className="screen-title">{p.failed ? t.results.booed : t.results.verdict(p.stars)}</h1>
           <p className="screen-subtitle">
             {entry?.song.meta.name} · {entry?.song.meta.artist} ·{' '}
-            {difficultyName(settings.difficulty)}
+            {t.difficulty[settings.difficulty]}
           </p>
         </div>
       </header>
 
       <div className="screen-body">
-        <div className="stars" aria-label={`${p.stars} de 6 estrelas`}>
+        <div className="stars" aria-label={t.results.starsOf(p.stars)}>
           {Array.from({ length: 6 }, (_, i) => (
             <span key={i} className={i < p.stars ? '' : 'off'}>
               ★
@@ -45,26 +45,26 @@ export function ResultsScreen() {
 
         <div className="results-grid" style={{ marginTop: 22 }}>
           <div className="result-stat">
-            <b>{p.score.toLocaleString('pt-BR')}</b>
-            <span>Pontos</span>
+            <b>{t.number(p.score)}</b>
+            <span>{t.results.score}</span>
           </div>
           <div className="result-stat">
             <b>{Math.round(p.accuracy * 100)}%</b>
-            <span>Notas acertadas</span>
+            <span>{t.results.accuracy}</span>
           </div>
           <div className="result-stat">
             <b>{p.longestStreak}</b>
-            <span>Maior corrente</span>
+            <span>{t.results.streak}</span>
           </div>
           <div className="result-stat">
-            <b>${p.money.toLocaleString('pt-BR')}</b>
-            <span>Cachê</span>
+            <b>{t.money(p.money)}</b>
+            <span>{t.results.money}</span>
           </div>
         </div>
 
         {p.fullCombo && (
           <p className="screen-subtitle" style={{ marginTop: 18 }}>
-            Música inteira sem errar uma nota.
+            {t.results.fullCombo}
           </p>
         )}
       </div>
@@ -74,14 +74,14 @@ export function ResultsScreen() {
             mixer.play('back')
             setScreen('menu')
           }}>
-          Menu
+          {t.results.menu}
         </button>
         <button className="btn" onClick={() => setScreen('songs')}>
-          Outra música
+          {t.results.anotherSong}
         </button>
         <span style={{ flex: 1 }} />
         <button className="btn btn-primary" onClick={() => setScreen('play')}>
-          Tocar de novo
+          {t.results.playAgain}
         </button>
       </footer>
     </div>

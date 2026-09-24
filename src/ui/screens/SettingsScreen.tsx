@@ -4,13 +4,13 @@
 
 import { useEffect, useState } from 'react'
 import { useGame } from '../store'
-import { difficultyName } from './MenuScreen'
 import { DIFFICULTIES, FRET_COLORS, FRET_NAMES } from '../../engine/types'
 import { gamepadAxisLabel, gamepadButtonLabel, DEFAULT_GAMEPAD, DEFAULT_KEYBOARD, keyLabel } from '../../input/bindings'
 import { Backdrop } from '../Backdrop'
 import { mixer } from '../../audio/mixer'
 import { useBackKey } from '../useBackKey'
 import { holdGamepadNav } from '../gamepadNav'
+import { useT } from '../useT'
 
 type Listening = { kind: 'fret'; index: number } | { kind: 'starPower' | 'whammy' } | null
 
@@ -27,6 +27,7 @@ export function SettingsScreen() {
   const [padListening, setPadListening] = useState<PadListening>(null)
   const [livePressed, setLivePressed] = useState<number[]>([])
   const [axes, setAxes] = useState<number[]>([])
+  const t = useT()
 
   /**
    * Esc aqui tem dois donos, e o de dentro vem primeiro.
@@ -165,7 +166,7 @@ export function SettingsScreen() {
             mixer.play('move')
           }}
         >
-          {ativo ? 'aperte um botão…' : gamepadButtonLabel(index)}
+          {ativo ? t.settings.pressButton : gamepadButtonLabel(index, t.input)}
         </button>
       </div>
     )
@@ -180,8 +181,8 @@ export function SettingsScreen() {
         onClick={() => setListening(target)}
       >
         {listening && JSON.stringify(listening) === JSON.stringify(target)
-          ? 'aperte…'
-          : keyLabel(code)}
+          ? t.settings.pressKey
+          : keyLabel(code, t.input)}
       </button>
     </div>
   )
@@ -191,14 +192,14 @@ export function SettingsScreen() {
       <Backdrop variant="content" />
       <header className="screen-head">
         <div>
-          <h1 className="screen-title">Ajustes</h1>
-          <p className="screen-subtitle">Tudo é gravado no navegador assim que você muda.</p>
+          <h1 className="screen-title">{t.settings.title}</h1>
+          <p className="screen-subtitle">{t.settings.subtitle}</p>
         </div>
       </header>
 
       <div className="screen-body">
         <div className="field">
-          <span className="field-label">Dificuldade</span>
+          <span className="field-label">{t.settings.difficulty}</span>
           <div className="segmented">
             {DIFFICULTIES.map((d) => (
               <button
@@ -206,18 +207,15 @@ export function SettingsScreen() {
                 data-active={settings.difficulty === d}
                 onClick={() => updateSettings({ difficulty: d })}
               >
-                {difficultyName(d)}
+                {t.difficulty[d]}
               </button>
             ))}
           </div>
         </div>
 
         <div className="field">
-          <span className="field-label">Velocidade do braço</span>
-          <p className="field-hint">
-            Não muda a música, só o quanto ela ocupa da tela. Mais rápido significa notas mais
-            espalhadas e mais fáceis de ler nos trechos densos.
-          </p>
+          <span className="field-label">{t.settings.noteSpeed}</span>
+          <p className="field-hint">{t.settings.noteSpeedHint}</p>
           <div className="field-row">
             <input
               type="range"
@@ -232,7 +230,7 @@ export function SettingsScreen() {
         </div>
 
         <div className="field">
-          <span className="field-label">Volume</span>
+          <span className="field-label">{t.settings.volume}</span>
           <div className="field-row">
             <input
               type="range"
@@ -250,11 +248,8 @@ export function SettingsScreen() {
         </div>
 
         <div className="field">
-          <span className="field-label">Música nos menus</span>
-          <p className="field-hint">
-            Um laço de fundo enquanto você escolhe música e personagem. Toca à metade do volume
-            geral, para não disputar com os efeitos.
-          </p>
+          <span className="field-label">{t.settings.menuMusic}</span>
+          <p className="field-hint">{t.settings.menuMusicHint}</p>
           <label className="field-row">
             <input
               type="checkbox"
@@ -264,32 +259,25 @@ export function SettingsScreen() {
                 mixer.play('tweak')
               }}
             />
-            <span className="field-value">{settings.menuMusic ? 'Ligada' : 'Desligada'}</span>
+            <span className="field-value">{settings.menuMusic ? t.settings.on : t.settings.off}</span>
           </label>
         </div>
 
         <div className="field">
-          <span className="field-label">Qualidade gráfica</span>
-          <p className="field-hint">
-            Na alta, o show ganha brilho difuso e sombras projetadas. Na baixa esses dois saem, o
-            que devolve bastante quadro por segundo em máquinas modestas — a jogabilidade e o
-            julgamento das notas não mudam em nada.
-          </p>
+          <span className="field-label">{t.settings.quality}</span>
+          <p className="field-hint">{t.settings.qualityHint}</p>
           <div className="segmented">
             {(['alta', 'baixa'] as const).map((q) => (
               <button key={q} data-active={settings.quality === q} onClick={() => updateSettings({ quality: q })}>
-                {q === 'alta' ? 'Alta' : 'Baixa'}
+                {q === 'alta' ? t.settings.high : t.settings.low}
               </button>
             ))}
           </div>
         </div>
 
         <div className="field">
-          <span className="field-label">Sem falha</span>
-          <p className="field-hint">
-            O medidor continua se mexendo, mas a música nunca é interrompida. Útil para aprender
-            um trecho difícil.
-          </p>
+          <span className="field-label">{t.settings.noFail}</span>
+          <p className="field-hint">{t.settings.noFailHint}</p>
           <div className="field-row">
             <label className="field-row" style={{ gap: 8 }}>
               <input
@@ -297,19 +285,16 @@ export function SettingsScreen() {
                 checked={settings.noFail}
                 onChange={(e) => updateSettings({ noFail: e.target.checked })}
               />
-              Nunca falhar a música
+              {t.settings.noFailToggle}
             </label>
           </div>
         </div>
 
         <div className="field">
-          <span className="field-label">Calibração</span>
-          <p className="field-hint">
-            Dois números diferentes: o de áudio desloca o julgamento das notas, o de vídeo desloca
-            só o desenho. A tela de calibração mede os dois para você.
-          </p>
+          <span className="field-label">{t.settings.calibration}</span>
+          <p className="field-hint">{t.settings.calibrationHint}</p>
           <div className="field-row">
-            <span style={{ minWidth: 60 }}>Áudio</span>
+            <span style={{ minWidth: 60 }}>{t.settings.audio}</span>
             <input
               type="range"
               min={-0.2}
@@ -321,7 +306,7 @@ export function SettingsScreen() {
             <span className="field-value">{Math.round(settings.audioOffset * 1000)} ms</span>
           </div>
           <div className="field-row">
-            <span style={{ minWidth: 60 }}>Vídeo</span>
+            <span style={{ minWidth: 60 }}>{t.settings.video}</span>
             <input
               type="range"
               min={-0.2}
@@ -333,42 +318,37 @@ export function SettingsScreen() {
             <span className="field-value">{Math.round(settings.videoOffset * 1000)} ms</span>
           </div>
           <button className="btn" onClick={() => setScreen('calibration')}>
-            Medir automaticamente
+            {t.settings.measure}
           </button>
         </div>
 
         <div className="field">
-          <span className="field-label">Teclado</span>
-          <p className="field-hint">
-            Não há palhetada: a nota é tocada no traste. Notas abertas — a barra larga que ocupa
-            a pista inteira — são tocadas soltando todos os trastes.
-          </p>
+          <span className="field-label">{t.settings.keyboard}</span>
+          <p className="field-hint">{t.settings.keyboardHint}</p>
           {settings.keyboard.frets.map((code, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span
                 className="swatch"
                 style={{ background: `#${FRET_COLORS[i].toString(16).padStart(6, '0')}` }}
               />
-              {bindingButton(`Traste ${FRET_NAMES[i]}`, code, { kind: 'fret', index: i })}
+              {bindingButton(t.settings.fret(t.frets[FRET_NAMES[i]]), code, { kind: 'fret', index: i })}
             </div>
           ))}
-          {bindingButton('Star power', settings.keyboard.starPower, { kind: 'starPower' })}
-          {bindingButton('Alavanca', settings.keyboard.whammy, { kind: 'whammy' })}
+          {bindingButton(t.settings.starPower, settings.keyboard.starPower, { kind: 'starPower' })}
+          {bindingButton(t.settings.whammy, settings.keyboard.whammy, { kind: 'whammy' })}
 
           <button
             className="btn btn-ghost"
             onClick={() => updateSettings({ keyboard: DEFAULT_KEYBOARD })}
           >
-            Restaurar o padrão
+            {t.settings.restore}
           </button>
         </div>
 
         <div className="field">
-          <span className="field-label">Controle</span>
+          <span className="field-label">{t.settings.controller}</span>
           <p className="field-hint">
-            {gamepadName
-              ? `Conectado: ${gamepadName}. Clique num comando e aperte o botão que quer usar.`
-              : 'Nenhum controle detectado. Conecte e aperte um botão — o navegador só o revela depois disso.'}
+            {gamepadName ? t.settings.connected(gamepadName) : t.settings.noController}
           </p>
 
           {gamepadName && (
@@ -379,15 +359,15 @@ export function SettingsScreen() {
                     className="swatch"
                     style={{ background: `#${FRET_COLORS[i].toString(16).padStart(6, '0')}` }}
                   />
-                  {padButton(`Traste ${FRET_NAMES[i]}`, button, { kind: 'fret', index: i })}
+                  {padButton(t.settings.fret(t.frets[FRET_NAMES[i]]), button, { kind: 'fret', index: i })}
                 </div>
               ))}
-              {padButton('Star power', settings.gamepad.starPower, { kind: 'starPower' })}
-              {padButton('Strum para cima', settings.gamepad.strumUp, { kind: 'strumUp' })}
-              {padButton('Strum para baixo', settings.gamepad.strumDown, { kind: 'strumDown' })}
+              {padButton(t.settings.starPower, settings.gamepad.starPower, { kind: 'starPower' })}
+              {padButton(t.settings.strumUp, settings.gamepad.strumUp, { kind: 'strumUp' })}
+              {padButton(t.settings.strumDown, settings.gamepad.strumDown, { kind: 'strumDown' })}
 
               <div className="field-row">
-                <span style={{ minWidth: 92 }}>Alavanca</span>
+                <span style={{ minWidth: 92 }}>{t.settings.whammy}</span>
                 <select
                   value={settings.gamepad.whammyAxis}
                   onChange={(e) => {
@@ -397,10 +377,10 @@ export function SettingsScreen() {
                     mixer.play('tweak')
                   }}
                 >
-                  <option value={-1}>desligada</option>
+                  <option value={-1}>{t.settings.whammyOff}</option>
                   {axes.map((_, i) => (
                     <option key={i} value={i}>
-                      {gamepadAxisLabel(i)}
+                      {gamepadAxisLabel(i, t.input)}
                     </option>
                   ))}
                 </select>
@@ -413,7 +393,7 @@ export function SettingsScreen() {
                   permite descobrir o número de um botão sem consultar tabela
                   nenhuma. */}
               <p className="field-hint">
-                Apertados agora: {livePressed.length ? livePressed.map(gamepadButtonLabel).join(', ') : 'nenhum'}
+                {t.settings.pressedNow(livePressed.map((b) => gamepadButtonLabel(b, t.input)).join(', '))}
               </p>
             </>
           )}
@@ -425,7 +405,7 @@ export function SettingsScreen() {
               mixer.play('back')
             }}
           >
-            Restaurar o padrão
+            {t.settings.restore}
           </button>
         </div>
       </div>
@@ -435,7 +415,7 @@ export function SettingsScreen() {
             mixer.play('back')
             setScreen('menu')
           }}>
-          ← Voltar
+          {t.common.back}
         </button>
       </footer>
     </div>

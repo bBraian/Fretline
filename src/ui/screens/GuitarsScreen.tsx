@@ -9,13 +9,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { owns, useGame } from '../store'
 import { ShopActions, ShopTag } from './ShopActions'
-import { GUITARS, SHAPE_NAMES, guitarById } from '../../content/guitars'
+import { GUITARS, guitarById } from '../../content/guitars'
 import { loadGuitarGlb } from '../../render/guitar/guitarGlb'
 import { buildGuitar } from '../../render/guitar/guitarModel'
 import { ModelPreview } from '../../render/preview'
 import { Backdrop } from '../Backdrop'
 import { mixer } from '../../audio/mixer'
 import { useBackToMenu } from '../useBackKey'
+import { useT } from '../useT'
 
 function hex(color: number) {
   return `#${color.toString(16).padStart(6, '0')}`
@@ -25,6 +26,7 @@ export function GuitarsScreen() {
   const { profile, setScreen, chooseGuitar, buyGuitar, previewGuitar } = useGame()
   const totalStars = useGame((s) => s.totalStars())
   const previewId = useGame((s) => s.previewGuitarId)
+  const t = useT()
   useBackToMenu()
 
   /** A guitarra ainda não está pronta na tela; o véu cobre o visor. */
@@ -105,19 +107,17 @@ export function GuitarsScreen() {
       <Backdrop variant="content" />
       <header className="screen-head">
         <div>
-          <h1 className="screen-title">A guitarra</h1>
-          <p className="screen-subtitle">
-            Só muda o que você vê — nenhuma delas toca melhor que a outra.
-          </p>
+          <h1 className="screen-title">{t.guitars.title}</h1>
+          <p className="screen-subtitle">{t.guitars.subtitle}</p>
         </div>
         <div className="menu-stats">
           <div>
-            <b>${profile.money.toLocaleString('pt-BR')}</b>
-            no bolso
+            <b>{t.money(profile.money)}</b>
+            {t.common.inPocket}
           </div>
           <div>
             <b>{totalStars}</b>
-            estrelas
+            {t.starsWord(totalStars)}
           </div>
         </div>
       </header>
@@ -128,15 +128,15 @@ export function GuitarsScreen() {
             <canvas ref={canvasRef} />
             {/* O mesmo véu da tela de personagens: cobre na hora, sai devagar. */}
             <div className="picker-loading" data-hidden={!loading} aria-hidden={!loading}>
-              <b>Carregando</b>
+              <b>{t.common.loading}</b>
               <div className="loading-bar">
                 <i />
               </div>
             </div>
-            {!loading && <span className="picker-hint">arraste para girar</span>}
+            {!loading && <span className="picker-hint">{t.common.dragToRotate}</span>}
             <div className="picker-caption">
               <h2>{shown.name}</h2>
-              <p>{shown.brandless}</p>
+              <p>{shown.brandless[t.language]}</p>
             </div>
 
             <ShopActions
@@ -166,7 +166,7 @@ export function GuitarsScreen() {
                   <span className="picker-chip" style={{ background: hex(guitar.colors.body) }} />
                   <span>
                     <strong>{guitar.name}</strong>
-                    <span>{SHAPE_NAMES[guitar.shape]}</span>
+                    <span>{t.shapes[guitar.shape]}</span>
                   </span>
                   <span>
                     <ShopTag
@@ -190,12 +190,9 @@ export function GuitarsScreen() {
             mixer.play('back')
             setScreen('menu')
           }}>
-          ← Voltar
+          {t.common.back}
         </button>
-        <span className="screen-subtitle">
-          Clique em qualquer guitarra para vê-la de perto. Comprar e equipar são os botões no
-          visor.
-        </span>
+        <span className="screen-subtitle">{t.guitars.footer}</span>
       </footer>
     </div>
   )

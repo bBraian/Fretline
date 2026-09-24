@@ -21,21 +21,15 @@ import { useEffect, useState } from 'react'
 import { useGame } from './store'
 import { FRET_NAMES } from '../engine/types'
 import { gamepadButtonLabel, gamepadName, pausePadButton } from '../input/bindings'
+import { useT } from './useT'
 
 /** Quanto o aviso fica inteiro na tela, antes de sair. */
 const VISIBLE_MS = 4200
 /** A saída, igual à duração de `pad-toast-out` em `theme.css`. */
 const LEAVE_MS = 220
 
-const FRET_LABELS: Record<(typeof FRET_NAMES)[number], string> = {
-  green: 'verde',
-  red: 'vermelho',
-  yellow: 'amarelo',
-  blue: 'azul',
-  orange: 'laranja',
-}
-
 interface Notice {
+  /** O nome que o navegador deu, limpo; vazio quando não sobra nenhum. */
   name: string
   /** Um controle novo remonta o aviso, e a entrada recomeça. */
   key: number
@@ -47,13 +41,16 @@ export function GamepadToast() {
   const pausa = pausePadButton(bindings)
   const [notice, setNotice] = useState<Notice | null>(null)
   const [leaving, setLeaving] = useState(false)
+  const t = useT()
 
   useEffect(() => {
     let seq = 0
     const onConnect = (event: GamepadEvent) => {
       seq += 1
       setLeaving(false)
-      setNotice({ name: gamepadName(event.gamepad.id), key: seq })
+      // Sem a palavra genérica ainda: ela é do idioma, e o idioma pode
+      // mudar com o aviso na tela.
+      setNotice({ name: gamepadName(event.gamepad.id, ''), key: seq })
     }
     window.addEventListener('gamepadconnected', onConnect)
     return () => window.removeEventListener('gamepadconnected', onConnect)
@@ -70,7 +67,7 @@ export function GamepadToast() {
   }, [notice])
 
   const mapa = frets
-    .map((button, i) => `${FRET_LABELS[FRET_NAMES[i]]} ${gamepadButtonLabel(button)}`)
+    .map((button, i) => `${t.frets[FRET_NAMES[i]]} ${gamepadButtonLabel(button, t.input)}`)
     .join(', ')
 
   // A região fica montada o tempo todo: leitor de tela só anuncia mudança
@@ -83,9 +80,9 @@ export function GamepadToast() {
             <PadIcon />
           </span>
           <div className="pad-toast-body">
-            <strong className="pad-toast-title">Controle conectado</strong>
-            <span className="pad-toast-name">{notice.name}</span>
-            <span className="pad-toast-frets" aria-label={`Trastes: ${mapa}`}>
+            <strong className="pad-toast-title">{t.pad.connected}</strong>
+            <span className="pad-toast-name">{notice.name || t.pad.unnamed}</span>
+            <span className="pad-toast-frets" aria-label={t.pad.frets(mapa)}>
               {frets.map((button, i) => (
                 <span
                   key={i}
@@ -93,13 +90,15 @@ export function GamepadToast() {
                   style={{ background: `var(--${FRET_NAMES[i]})` }}
                   aria-hidden
                 >
-                  {gamepadButtonLabel(button)}
+                  {gamepadButtonLabel(button, t.input)}
                 </span>
               ))}
             </span>
             {/* O botão de pausa depende do mapeamento — o Start costuma ser
                 o star power —, e sem dizer qual é ninguém o acharia. */}
-            {pausa >= 0 && <span className="pad-toast-hint">Pausa: {gamepadButtonLabel(pausa)}</span>}
+            {pausa >= 0 && (
+              <span className="pad-toast-hint">{t.pad.pause(gamepadButtonLabel(pausa, t.input))}</span>
+            )}
           </div>
         </div>
       )}

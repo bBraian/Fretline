@@ -262,6 +262,19 @@ listas de música, esquerda e direita trocam a dificuldade. Durante a música
 A e B são trastes, e quem pausa é o Start — ou o Select, quando o Start está
 no star power, como no padrão. O aviso de controle conectado diz qual.
 
+## Idiomas
+
+A interface fala inglês e português. O jogo abre em inglês; as bandeiras
+embaixo do menu principal trocam o idioma na hora, sem recarregar, e a
+escolha fica gravada no navegador com os outros ajustes. `?lang=pt` (ou
+`en`) no endereço abre direto num idioma.
+
+Os textos ficam em `src/i18n/`, um dicionário por língua. O português define
+o formato, e o inglês precisa ter cada chave — faltar uma é erro de
+compilação. Nomes próprios (personagens, guitarras, tiers, músicas) são os
+mesmos nas duas línguas; as descrições de personagem e guitarra são
+traduzidas ao lado de cada entrada, em `src/content/`.
+
 ## Testes
 
 ```bash

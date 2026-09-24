@@ -5,9 +5,13 @@
  * biblioteca tem linha própria, contada por pasta, porque são dezenas de
  * arquivos pequenos cujo tamanho não se sabe de antemão. As duas coisas
  * precisam terminar para o "Pressione qualquer tecla".
+ *
+ * As frases vêm do dicionário que a tela passa: aqui mora só qual delas
+ * vale em cada momento.
  */
 
 import { downloadProgress, mb, type DownloadItem } from './downloadProgress'
+import type { Messages } from '../i18n'
 
 export interface BootState {
   /** Modelos e efeitos. Vazio só antes de a abertura começar. */
@@ -31,7 +35,7 @@ export interface BootView {
   failures: string | null
 }
 
-export function bootView({ itens, biblioteca, falhas }: BootState): BootView {
+export function bootView({ itens, biblioteca, falhas }: BootState, t: Messages): BootView {
   const baixado = downloadProgress(itens)
   const arquivosProntos = itens.length > 0 && baixado.phase === 'done'
   const ready = arquivosProntos && biblioteca.pronta
@@ -40,35 +44,30 @@ export function bootView({ itens, biblioteca, falhas }: BootState): BootView {
   let line: string
   if (baixado.phase === 'connecting' || itens.length === 0) {
     bar = null
-    line = 'Conectando…'
+    line = t.boot.connecting
   } else if (baixado.phase === 'downloading') {
     bar = baixado.fraction
     line =
       baixado.total !== null
-        ? `${mb(baixado.loaded)} / ${mb(baixado.total)} MB`
-        : `${Math.round((baixado.fraction ?? 0) * itens.length)}/${itens.length} arquivos`
+        ? `${mb(baixado.loaded, t.locale)} / ${mb(baixado.total, t.locale)} MB`
+        : t.boot.files(Math.round((baixado.fraction ?? 0) * itens.length), itens.length)
   } else {
     bar = 1
-    line = 'Lendo a biblioteca…'
+    line = t.boot.readingLibrary
   }
 
   // Pronta, conta o que entrou, não o tamanho do índice: uma pasta que não
   // abriu não está na biblioteca, e dizer "25" seria prometer uma a mais.
   const carregadas = biblioteca.carregadas ?? 0
   let library: string
-  if (biblioteca.pronta && carregadas === 0) library = 'Sem biblioteca — entra a faixa de demonstração'
+  if (biblioteca.pronta && carregadas === 0) library = t.boot.noLibrary
   else if (biblioteca.pronta && biblioteca.total && carregadas < biblioteca.total)
-    library = `${carregadas} de ${biblioteca.total} músicas`
-  else if (biblioteca.pronta) library = `${carregadas} música${carregadas === 1 ? '' : 's'}`
-  else if (biblioteca.total === null) library = 'Biblioteca…'
-  else library = `Biblioteca ${biblioteca.done}/${biblioteca.total}`
+    library = t.boot.someSongs(carregadas, biblioteca.total)
+  else if (biblioteca.pronta) library = `${carregadas} ${t.songsWord(carregadas)}`
+  else if (biblioteca.total === null) library = t.boot.libraryPending
+  else library = t.boot.libraryProgress(biblioteca.done, biblioteca.total)
 
-  const failures =
-    falhas === 0
-      ? null
-      : falhas === 1
-        ? '1 arquivo não veio — carrega quando precisar'
-        : `${falhas} arquivos não vieram — carregam quando precisar`
+  const failures = falhas === 0 ? null : t.boot.failures(falhas)
 
   return { bar, line, library, ready, failures }
 }

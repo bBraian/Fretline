@@ -18,6 +18,7 @@ import { useGame } from '../store'
 import { blockable } from '../blocked'
 import { Backdrop } from '../Backdrop'
 import { useBackKey } from '../useBackKey'
+import { useT } from '../useT'
 
 type Mode = 'idle' | 'audio' | 'video'
 
@@ -36,6 +37,7 @@ export function CalibrationScreen() {
   const [mode, setMode] = useState<Mode>('idle')
   const [taps, setTaps] = useState<number[]>([])
   const [pulse, setPulse] = useState(0)
+  const t = useT()
 
   const ctxRef = useRef<AudioContext | null>(null)
   const startRef = useRef(0)
@@ -149,43 +151,34 @@ export function CalibrationScreen() {
       <Backdrop variant="content" />
       <header className="screen-head">
         <div>
-          <h1 className="screen-title">Calibração</h1>
-          <p className="screen-subtitle">
-            Bata espaço junto com a referência, umas quinze vezes. Vale a mediana, então errar uma
-            ou outra não estraga a medida.
-          </p>
+          <h1 className="screen-title">{t.calibration.title}</h1>
+          <p className="screen-subtitle">{t.calibration.subtitle}</p>
         </div>
       </header>
 
       <div className="screen-body">
         <div className="field">
-          <span className="field-label">1. Áudio</span>
-          <p className="field-hint">
-            Ouça o clique e bata junto, sem olhar a tela. Mede o atraso da saída de som — é o que
-            desloca o julgamento das notas.
-          </p>
+          <span className="field-label">{t.calibration.audio}</span>
+          <p className="field-hint">{t.calibration.audioHint}</p>
           <div className="field-row">
             <button className="btn" onClick={() => void begin('audio')}>
-              {mode === 'audio' ? 'Medindo…' : 'Começar'}
+              {mode === 'audio' ? t.calibration.measuring : t.calibration.start}
             </button>
             <span className="field-value">
-              atual: {Math.round(settings.audioOffset * 1000)} ms
+              {t.calibration.current(Math.round(settings.audioOffset * 1000))}
             </span>
           </div>
         </div>
 
         <div className="field">
-          <span className="field-label">2. Vídeo</span>
-          <p className="field-hint">
-            Sem som: bata junto com o pulso na tela. Mede o atraso do display — desloca só o
-            desenho das notas, nunca o julgamento.
-          </p>
+          <span className="field-label">{t.calibration.video}</span>
+          <p className="field-hint">{t.calibration.videoHint}</p>
           <div className="field-row">
             <button className="btn" onClick={() => void begin('video')}>
-              {mode === 'video' ? 'Medindo…' : 'Começar'}
+              {mode === 'video' ? t.calibration.measuring : t.calibration.start}
             </button>
             <span className="field-value">
-              atual: {Math.round(settings.videoOffset * 1000)} ms
+              {t.calibration.current(Math.round(settings.videoOffset * 1000))}
             </span>
           </div>
         </div>
@@ -208,8 +201,7 @@ export function CalibrationScreen() {
             </div>
 
             <p className="screen-subtitle" style={{ marginTop: 14 }}>
-              {taps.length} de {NEEDED} batidas · desvio mediano{' '}
-              <b>{Math.round(result * 1000)} ms</b>
+              {t.calibration.progress(taps.length, NEEDED)} <b>{Math.round(result * 1000)} ms</b>
             </p>
 
             <div className="hits">
@@ -220,10 +212,10 @@ export function CalibrationScreen() {
 
             <div className="field-row" style={{ marginTop: 16 }}>
               <button className="btn btn-primary" {...blockable(!enough, apply)}>
-                Aplicar {Math.round(result * 1000)} ms
+                {t.calibration.apply(Math.round(result * 1000))}
               </button>
               <button className="btn btn-ghost" onClick={stop}>
-                Cancelar
+                {t.calibration.cancel}
               </button>
             </div>
           </>
@@ -238,7 +230,7 @@ export function CalibrationScreen() {
             setScreen('menu')
           }}
         >
-          ← Voltar
+          {t.common.back}
         </button>
       </footer>
     </div>

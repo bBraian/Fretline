@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { bootView, contaComoTecla, type BootState } from './bootView'
+import { bootView as bootViewIn, contaComoTecla, type BootState } from './bootView'
+import { pt } from '../i18n/pt'
+import { en } from '../i18n/en'
+
+// Os casos conferem o português, que é o texto de referência; o inglês tem
+// o seu no fim.
+const bootView = (state: BootState) => bootViewIn(state, pt)
 
 const MB = 1024 * 1024
 const biblioteca = (done: number, total: number | null, pronta = false, carregadas: number | null = null) => ({
@@ -78,6 +84,25 @@ describe('bootView', () => {
 
   it('antes de qualquer item, não está pronta', () => {
     expect(bootView(estado({ biblioteca: biblioteca(0, null, true) })).ready).toBe(false)
+  })
+
+  it('em inglês, com ponto decimal e plural próprio', () => {
+    const baixando = bootViewIn(
+      estado({
+        itens: [
+          { state: 'receiving', loaded: 10 * MB, total: 20 * MB },
+          { state: 'done', loaded: 11.6 * MB, total: 15.2 * MB },
+        ],
+      }),
+      en,
+    )
+    expect(baixando.line).toBe('21.6 / 35.2 MB')
+
+    const pronto = { itens: [{ state: 'done' as const, loaded: MB, total: MB }] }
+    expect(bootViewIn(estado({ ...pronto, biblioteca: biblioteca(1, 1, true, 1) }), en).library).toBe('1 song')
+    expect(bootViewIn(estado({ ...pronto, biblioteca: biblioteca(25, 25, true, 23) }), en).library).toBe(
+      '23 of 25 songs',
+    )
   })
 })
 

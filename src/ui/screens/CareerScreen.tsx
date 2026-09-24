@@ -10,7 +10,6 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useGame } from '../store'
 import { buildCareer } from '../../content/setlists'
-import { difficultyName } from './MenuScreen'
 import { catalogue, isPlayable } from '../../songs/library'
 import { SongRow } from './SongRow'
 import { DifficultyPicker, useStepDifficulty } from './DifficultyPicker'
@@ -21,6 +20,8 @@ import { previewOf, useSongPreview } from '../useSongPreview'
 const PREVIEW_DELAY = 2000
 import { mixer } from '../../audio/mixer'
 import { useBackToMenu } from '../useBackKey'
+import { useT } from '../useT'
+import { Rich } from '../Rich'
 
 export function CareerScreen() {
   const {
@@ -32,6 +33,7 @@ export function CareerScreen() {
     settings,
   } = useGame()
   const totalStars = useGame((s) => s.totalStars())
+  const t = useT()
   useBackToMenu()
 
   // A demo não é etapa de carreira quando existe biblioteca de verdade.
@@ -108,21 +110,18 @@ export function CareerScreen() {
     <div className="screen screen-paper">
       <header className="screen-head">
         <div>
-          <h1 className="screen-title">Carreira</h1>
-          <p className="screen-subtitle">
-            As músicas da sua biblioteca, da mais fácil para a mais difícil. Cada pack novo entra
-            sozinho no tier que couber.
-          </p>
+          <h1 className="screen-title">{t.career.title}</h1>
+          <p className="screen-subtitle">{t.career.subtitle}</p>
         </div>
         <DifficultyPicker />
         <div className="menu-stats">
           <div>
             <b>{totalStars}</b>
-            estrelas
+            {t.starsWord(totalStars)}
           </div>
           <div>
             <b>{total}</b>
-            músicas
+            {t.songsWord(total)}
           </div>
         </div>
       </header>
@@ -130,8 +129,7 @@ export function CareerScreen() {
       <div className="screen-body">
         {tiers.length === 0 && (
           <p className="empty">
-            Nenhuma música tocável ainda. Coloque as pastas em <code>songs/</code> — cada uma com o
-            chart e o áudio dentro — e elas aparecem aqui.
+            <Rich text={t.career.empty} />
           </p>
         )}
 
@@ -143,11 +141,9 @@ export function CareerScreen() {
               <header className="tier-head">
                 <span className="tier-order">{tier.order}</span>
                 <span>
-                  <strong>{tier.name}</strong>
+                  <strong>{tier.name ?? t.career.tour(tier.order)}</strong>
                   <span className="song-artist">
-                    {locked
-                      ? `Abre com ${tier.unlockAtStars} estrelas`
-                      : `${tier.songs.length} música${tier.songs.length === 1 ? '' : 's'}`}
+                    {locked ? t.career.tierLocked(tier.unlockAtStars) : t.career.tierSongs(tier.songs.length)}
                   </span>
                 </span>
               </header>
@@ -167,8 +163,8 @@ export function CareerScreen() {
                       artist={meta.artist + (meta.year ? `, ${meta.year}` : '')}
                       meta={
                         chart
-                          ? `${chart.notes.length} notas`
-                          : `sem ${difficultyName(settings.difficulty)}`
+                          ? t.career.notes(chart.notes.length)
+                          : t.career.missingLevel(t.difficulty[settings.difficulty])
                       }
                       stars={record ? record.stars : null}
                       score={record ? record.score : null}
@@ -190,8 +186,7 @@ export function CareerScreen() {
 
         {waiting > 0 && (
           <p className="empty" style={{ marginTop: 24 }}>
-            {waiting} pasta{waiting === 1 ? '' : 's'} com chart mas sem áudio, esperando o arquivo.
-            Elas aparecem na biblioteca, não na carreira.
+            {t.career.waiting(waiting)}
           </p>
         )}
       </div>
@@ -201,10 +196,10 @@ export function CareerScreen() {
             mixer.play('back')
             setScreen('menu')
           }}>
-          ← Voltar
+          {t.common.back}
         </button>
         <button className="btn" onClick={() => setScreen('songs')}>
-          Ver a biblioteca inteira
+          {t.career.fullLibrary}
         </button>
       </footer>
     </div>

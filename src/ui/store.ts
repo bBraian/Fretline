@@ -25,6 +25,7 @@ import {
 } from '../input/bindings'
 import { DEFAULT_NOTE_SPEED } from '../render/layout'
 import type { Quality } from '../render/gameScene'
+import { isLanguage, type Language } from '../i18n'
 
 export type Screen =
   | 'boot'
@@ -38,16 +39,6 @@ export type Screen =
   | 'play'
   | 'results'
 
-/**
- * Idioma da interface.
- *
- * Por enquanto é só estado: nada lê este valor para escolher texto, e as
- * telas continuam em português. Ele existe para que a tradução, quando
- * vier, encontre a escolha já feita, gravada e restaurada entre sessões —
- * e não precise inventar onde ela mora no meio do trabalho.
- */
-export type Language = 'en' | 'pt'
-
 export interface Record_ {
   score: number
   stars: number
@@ -56,7 +47,10 @@ export interface Record_ {
 
 export interface Settings {
   difficulty: Difficulty
-  /** Idioma da interface. Inglês é o padrão. Ver `Language`. */
+  /**
+   * Idioma da interface. Inglês é o padrão; as telas leem o texto por
+   * `useT`, e trocar aqui troca todas na hora. Ver `i18n/`.
+   */
   language: Language
   noteSpeed: number
   /** Calibração de áudio: desloca o julgamento. */
@@ -202,7 +196,12 @@ function load(): Persisted {
     // por não conhecer um ajuste que passou a existir depois.
     const settings = { ...DEFAULT_SETTINGS, ...parsed.settings }
     return {
-      settings: { ...settings, keyboard: migrateKeyboard(settings.keyboard) },
+      settings: {
+        ...settings,
+        keyboard: migrateKeyboard(settings.keyboard),
+        // Um idioma que o jogo não tem mais não pode deixar a tela sem texto.
+        language: isLanguage(settings.language) ? settings.language : DEFAULT_SETTINGS.language,
+      },
       // O save não sabe do elenco de hoje: um equipado que saiu da loja, ou
       // um gratuito que entrou depois, precisam ser conferidos na leitura.
       profile: reconcileLoadout({ ...DEFAULT_PROFILE, ...parsed.profile }),
@@ -220,7 +219,25 @@ function save(state: Persisted) {
   }
 }
 
-const initial = load()
+/**
+ * `?lang=pt` (ou `en`) no endereço abre o jogo nesse idioma. Não grava
+ * nada sozinho: vai para o save junto com os outros ajustes, na próxima
+ * vez que algum mudar.
+ *
+ * Os scripts de navegador abrem com `?lang=pt`: eles acham os botões pelo
+ * texto em português, e o padrão é inglês.
+ */
+function languageFromUrl(): Language | null {
+  if (typeof location === 'undefined') return null
+  const pedido = new URLSearchParams(location.search).get('lang')
+  return isLanguage(pedido) ? pedido : null
+}
+
+const loaded = load()
+const initial: Persisted = {
+  ...loaded,
+  settings: { ...loaded.settings, language: languageFromUrl() ?? loaded.settings.language },
+}
 
 export const useGame = create<State>((set, get) => ({
   screen: 'boot',

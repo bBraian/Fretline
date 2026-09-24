@@ -8,6 +8,7 @@
  */
 
 import type { BodyShape } from '../render/guitar/shapes'
+import type { Localized } from '../i18n'
 
 export type { BodyShape }
 
@@ -22,8 +23,10 @@ export type Finish = 'solid' | 'sunburst' | 'flame'
 
 export interface Guitar {
   id: string
+  /** Nome próprio: igual em todo idioma. */
   name: string
-  brandless: string
+  /** O instrumento descrito pela forma e pelas cores, sem marca. */
+  brandless: Localized
   unlockAtStars: number
   price: number
   shape: BodyShape
@@ -100,7 +103,7 @@ const BLACK_HW = 0x2a2a30
 export const BASS_PROP: Guitar = {
   id: 'bass-prop',
   name: 'Baixo',
-  brandless: 'Quatro cordas, escala longa',
+  brandless: { pt: 'Quatro cordas, escala longa', en: 'Four strings, long scale' },
   unlockAtStars: 0,
   price: 0,
   shape: 'sg',
@@ -147,18 +150,42 @@ const IMPORTED: Guitar[] = ([
   // para o resto do jogo, não o desenham.
   //
   // arquivo, nome, descrição, silhueta, corpo, ferragem, escudo, estrelas, preço, ajuste
-  ['electric_guitar', 'Stratos', 'Corte duplo, sunburst marrom com o miolo claro', 'super-strat', 0x8a4a22, CHROME, 0xf2e6cf, 0, 0, undefined],
-  ['electric_guitar_dragons_v1.2', 'Dragão', 'Corte duplo preto, miolo branco e entalhe no corpo', 'super-strat', 0x15161a, CHROME, 0xf4f4f2, 8, 4000, undefined],
-  ['guitar', 'Oficina', 'Chifres duplos em marrom, escudo claro', 'sg', 0x7a3f1d, CHROME, 0xf0e8da, 16, 8000, { flip: false }],
-  ['flying-v_electric_guitar', 'Flecha', 'O V preto com filete branco', 'v', 0x121214, CHROME, 0xf5f5f5, 26, 13000, { flip: false, roll: HALF_TURN }],
-  ['electric_guitar_explorer', 'Angular XR', 'Corpo angular preto, escudo branco', 'explorer', 0x141417, CHROME, 0xfafafa, 36, 18000, { roll: HALF_TURN }],
-  ['white_electric_guitar', 'Alvorada', 'Branca inteira, da ponta ao headstock', 'offset', 0xf0efec, CHROME, 0xe8e6e1, 48, 24000, undefined],
-  ['electric_guitar-1', 'Vanguarda', 'Corte simples preto com ferragem dourada', 'single-cut', 0x101013, GOLD, 0xc9a227, 60, 32000, undefined],
-  ['electric_guitar_lowpoly_model', 'Prisma', 'Feita sob medida: preta com nervuras vermelhas', 'super-strat', 0x141416, BLACK_HW, 0xb2231f, 75, 42000, { flip: false }],
+  ['electric_guitar', 'Stratos', {
+    pt: 'Corte duplo, sunburst marrom com o miolo claro',
+    en: 'Double cut, brown sunburst with a light center',
+  }, 'super-strat', 0x8a4a22, CHROME, 0xf2e6cf, 0, 0, undefined],
+  ['electric_guitar_dragons_v1.2', 'Dragão', {
+    pt: 'Corte duplo preto, miolo branco e entalhe no corpo',
+    en: 'Black double cut, white center and a carved body',
+  }, 'super-strat', 0x15161a, CHROME, 0xf4f4f2, 8, 4000, undefined],
+  ['guitar', 'Oficina', {
+    pt: 'Chifres duplos em marrom, escudo claro',
+    en: 'Brown twin horns, light pickguard',
+  }, 'sg', 0x7a3f1d, CHROME, 0xf0e8da, 16, 8000, { flip: false }],
+  ['flying-v_electric_guitar', 'Flecha', {
+    pt: 'O V preto com filete branco',
+    en: 'The black V with white binding',
+  }, 'v', 0x121214, CHROME, 0xf5f5f5, 26, 13000, { flip: false, roll: HALF_TURN }],
+  ['electric_guitar_explorer', 'Angular XR', {
+    pt: 'Corpo angular preto, escudo branco',
+    en: 'Black angular body, white pickguard',
+  }, 'explorer', 0x141417, CHROME, 0xfafafa, 36, 18000, { roll: HALF_TURN }],
+  ['white_electric_guitar', 'Alvorada', {
+    pt: 'Branca inteira, da ponta ao headstock',
+    en: 'White all over, from the tip to the headstock',
+  }, 'offset', 0xf0efec, CHROME, 0xe8e6e1, 48, 24000, undefined],
+  ['electric_guitar-1', 'Vanguarda', {
+    pt: 'Corte simples preto com ferragem dourada',
+    en: 'Black single cut with gold hardware',
+  }, 'single-cut', 0x101013, GOLD, 0xc9a227, 60, 32000, undefined],
+  ['electric_guitar_lowpoly_model', 'Prisma', {
+    pt: 'Feita sob medida: preta com nervuras vermelhas',
+    en: 'Made to order: black with red ribs',
+  }, 'super-strat', 0x141416, BLACK_HW, 0xb2231f, 75, 42000, { flip: false }],
 ] as const).map(([file, name, brandless, shape, body, hardware, pickguard, unlockAtStars, price, modelAdjust]) => ({
   id: `glb-${file}`,
   name: name as string,
-  brandless: brandless as string,
+  brandless: brandless as Localized,
   unlockAtStars,
   price,
   shape: shape as BodyShape,
@@ -179,17 +206,4 @@ GUITARS.push(...IMPORTED)
 
 export function guitarById(id: string): Guitar {
   return GUITARS.find((g) => g.id === id) ?? GUITARS[0]
-}
-
-export const SHAPE_NAMES: Record<BodyShape, string> = {
-  'single-cut': 'Corte simples',
-  'double-cut': 'Corte duplo',
-  sg: 'Chifres duplos',
-  tele: 'Prancha',
-  offset: 'Contorno deslocado',
-  v: 'Formato V',
-  explorer: 'Angular',
-  'super-strat': 'Corte duplo esticado',
-  'swept-wing': 'Asa varrida',
-  mustang: 'Escala curta',
 }

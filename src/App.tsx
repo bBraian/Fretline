@@ -24,6 +24,7 @@ import { GamepadToast } from './ui/GamepadToast'
 import { BootScreen } from './ui/screens/BootScreen'
 import { useBackgroundPreviews } from './ui/useBackgroundPreviews'
 import { useGamepadNav } from './ui/gamepadNav'
+import { useT } from './ui/useT'
 
 export function App() {
   const screen = useGame((s) => s.screen)
@@ -31,6 +32,7 @@ export function App() {
   const volume = useGame((s) => s.settings.volume)
   const menuMusic = useGame((s) => s.settings.menuMusic)
   const attempt = useGame((s) => s.attempt)
+  const { locale } = useT()
 
   // A biblioteca e os efeitos descem na abertura (`ui/boot.ts`); os
   // previews, depois dela, um por vez.
@@ -50,6 +52,12 @@ export function App() {
   useEffect(() => {
     mixer.setMenuTracks(menuTracks(library))
   }, [library])
+
+  // O `lang` do documento acompanha o idioma escolhido: é por ele que o
+  // leitor de tela escolhe a pronúncia, e o navegador, a hifenização.
+  useEffect(() => {
+    document.documentElement.lang = locale
+  }, [locale])
 
   // A mesa de som nasce com o que estava salvo. Dois efeitos, e não um:
   // juntos, mexer no volume — que a pausa também faz — religava a música de

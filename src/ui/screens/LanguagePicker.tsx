@@ -1,10 +1,9 @@
 /**
  * O seletor de idioma do menu principal.
  *
- * Só escolhe e grava: **nada ainda lê essa escolha**. As telas continuam em
- * português, e a tradução é trabalho separado — o que existe aqui é o lugar
- * onde ela vai encontrar a preferência já feita, em vez de ter que inventar
- * um no meio do caminho. Ver `Language`, em `ui/store.ts`.
+ * Grava `settings.language`, e as telas, que leem o texto por `useT`,
+ * desenham de novo na outra língua na hora — sem recarregar e sem sair do
+ * menu. Ver `i18n/`.
  *
  * As bandeiras são SVG desenhado, não arquivo. É a mesma regra do resto do
  * projeto — nenhum bitmap na interface —, e num corpo de vinte pixels um
@@ -12,27 +11,32 @@
  */
 
 import type { ReactElement } from 'react'
-import { useGame, type Language } from '../store'
+import { useGame } from '../store'
 import { mixer } from '../../audio/mixer'
+import type { Language } from '../../i18n'
+import { useT } from '../useT'
 
 interface Option {
   code: Language
   /** O nome do idioma na própria língua: quem procura não lê o atual. */
   label: string
+  /** O `lang` do rótulo, para o leitor de tela pronunciar na língua dele. */
+  tag: string
   flag: () => ReactElement
 }
 
 const OPTIONS: Option[] = [
-  { code: 'en', label: 'English', flag: UsaFlag },
-  { code: 'pt', label: 'Português', flag: BrazilFlag },
+  { code: 'en', label: 'English', tag: 'en', flag: UsaFlag },
+  { code: 'pt', label: 'Português', tag: 'pt-BR', flag: BrazilFlag },
 ]
 
 export function LanguagePicker() {
   const language = useGame((s) => s.settings.language)
   const updateSettings = useGame((s) => s.updateSettings)
+  const t = useT()
 
   return (
-    <div className="lang-picker" role="group" aria-label="Idioma">
+    <div className="lang-picker" role="group" aria-label={t.menu.language}>
       {OPTIONS.map((option) => {
         const active = option.code === language
         const Flag = option.flag
@@ -55,7 +59,9 @@ export function LanguagePicker() {
             <span className="lang-flag" aria-hidden>
               <Flag />
             </span>
-            <span className="lang-label">{option.label}</span>
+            <span className="lang-label" lang={option.tag}>
+              {option.label}
+            </span>
           </button>
         )
       })}

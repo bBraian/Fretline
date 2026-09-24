@@ -42,7 +42,7 @@ page.on('console', (message) => {
 })
 page.on('pageerror', (error) => problems.push(`exceção: ${error.message}`))
 
-await page.goto(`${BASE}/?debug&lowfx`, { waitUntil: 'networkidle' })
+await page.goto(`${BASE}/?lang=pt&debug&lowfx`, { waitUntil: 'networkidle' })
 await passarAbertura(page)
 
 await page.getByRole('heading', { name: 'FRETLINE' }).waitFor({ timeout: 15000 })

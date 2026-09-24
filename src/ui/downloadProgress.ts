@@ -42,7 +42,11 @@ export function downloadProgress(items: readonly DownloadItem[]): DownloadProgre
   return { phase: 'downloading', fraction: prontos / items.length, loaded, total: null }
 }
 
-/** Bytes em megabytes para ler: `12,4`. */
-export function mb(bytes: number): string {
-  return (bytes / 1024 / 1024).toFixed(1).replace('.', ',')
+/** Bytes em megabytes para ler, com uma casa: `12,4` em português, `12.4` em inglês. */
+export function mb(bytes: number, locale: string): string {
+  return (bytes / 1024 / 1024).toLocaleString(locale, {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+    useGrouping: false,
+  })
 }

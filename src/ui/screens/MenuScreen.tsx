@@ -25,6 +25,8 @@ import { LanguagePicker } from './LanguagePicker'
 import { CoffeeCard } from './CoffeeCard'
 import { mixer } from '../../audio/mixer'
 import type { Screen } from '../store'
+import { useT } from '../useT'
+import { Rich } from '../Rich'
 
 type ItemSize = 'lg' | 'md' | 'sm'
 
@@ -42,31 +44,22 @@ export function MenuScreen() {
   const library = useGame((s) => s.library)
   const totalStars = useGame((s) => s.totalStars())
   const difficulty = useGame((s) => s.settings.difficulty)
+  const t = useT()
 
   const character = characterById(profile.characterId)
   const guitar = guitarById(profile.guitarId)
 
   const entries: MenuEntry[] = [
-    {
-      screen: 'career',
-      label: 'Carreira',
-      size: 'lg',
-      hint: 'Os tiers na ordem original, preenchidos pela sua biblioteca',
-    },
+    { screen: 'career', label: t.menu.career, size: 'lg', hint: t.menu.careerHint },
     {
       screen: 'songs',
-      label: 'Tocar',
+      label: t.menu.play,
       size: 'lg',
-      hint: `${library.length} música${library.length === 1 ? '' : 's'} na biblioteca · ${difficultyName(difficulty)}`,
+      hint: t.menu.playHint(library.length, t.difficulty[difficulty]),
     },
-    { screen: 'characters', label: 'Personagem', size: 'md', hint: character.name },
-    { screen: 'guitars', label: 'Guitarra', size: 'md', hint: guitar.name },
-    {
-      screen: 'settings',
-      label: 'Ajustes',
-      size: 'lg',
-      hint: 'Dificuldade, velocidade, controles e calibração',
-    },
+    { screen: 'characters', label: t.menu.character, size: 'md', hint: character.name },
+    { screen: 'guitars', label: t.menu.guitar, size: 'md', hint: guitar.name },
+    { screen: 'settings', label: t.menu.settings, size: 'lg', hint: t.menu.settingsHint },
   ]
 
   const [selected, setSelected] = useState(0)
@@ -111,7 +104,7 @@ export function MenuScreen() {
               line
             </span>
           </h1>
-          <p className="wordmark-sub">Cinco trastes, sem palhetada</p>
+          <p className="wordmark-sub">{t.brand.tagline}</p>
         </div>
 
         <nav className="menu-actions">
@@ -154,26 +147,27 @@ export function MenuScreen() {
       </div>
 
       <footer className="menu-foot">
-        <div className="menu-version">Versão {__APP_VERSION__}</div>
+        <div className="menu-version">{t.menu.version(__APP_VERSION__)}</div>
         <div className="menu-prompts">
           <span className="prompt">
             <span className="prompt-key prompt-key-round" aria-hidden />
-            Selecionar
+            {t.menu.select}
           </span>
           <span className="prompt">
             <span className="prompt-key prompt-key-bar" aria-hidden />
-            Cima/Baixo
+            {t.menu.upDown}
           </span>
         </div>
         <div className="menu-foot-stats">
-          <b>{totalStars}</b> estrelas · <b>${profile.money.toLocaleString('pt-BR')}</b> no bolso ·{' '}
-          <b>{profile.ownedCharacters.length + profile.ownedGuitars.length}</b> itens
+          <Rich
+            text={t.menu.stats(
+              totalStars,
+              profile.money,
+              profile.ownedCharacters.length + profile.ownedGuitars.length,
+            )}
+          />
         </div>
       </footer>
     </div>
   )
-}
-
-export function difficultyName(difficulty: string) {
-  return { easy: 'Fácil', medium: 'Médio', hard: 'Difícil', expert: 'Expert' }[difficulty] ?? difficulty
 }

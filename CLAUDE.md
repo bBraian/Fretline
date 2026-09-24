@@ -187,6 +187,33 @@ Mudança visual se confere olhando: rode `npm run menus` (ou `shots`,
 aperta Enter. Script novo que abra o jogo precisa da mesma linha, senão
 para na primeira tela.
 
+**E todo script abre com `?lang=pt`.** O jogo abre em inglês, e os seletores
+dos scripts são em português. Sem o parâmetro, `passarAbertura` falha na
+hora dizendo isso, em vez de esperar dois minutos por um "Pressione".
+
+## Idioma
+
+A interface fala inglês (o padrão) e português, e troca na hora pelo
+seletor do menu. **Texto de tela nunca vai direto no JSX**: entra nos dois
+dicionários, `src/i18n/pt.ts` e `src/i18n/en.ts`, e a tela o lê por
+`useT()`. O português define o tipo (`Messages`), então uma chave que falte
+no inglês não compila; frase com número é função, porque o plural e a ordem
+das palavras mudam. `src/i18n/i18n.test.ts` acusa texto do inglês com
+acento do português — é o que pega um esquecimento.
+
+- **Conteúdo descritivo é `Localized`** (`{ pt, en }`), escrito ao lado da
+  entrada: a descrição do personagem, a da guitarra. **Nome próprio não se
+  traduz** — personagem, guitarra, tier, música.
+- **Quem não é tela não escolhe frase.** Módulo puro recebe o dicionário
+  (`bootView(estado, t)`) ou devolve o motivo e deixa a tela dizer
+  (`loadErrorView` → `play.errors`). O `render/` devolve chave, não nome
+  (`StageAsset` → `play.assets`), porque não pode depender da interface.
+- **Código e negrito dentro de uma frase** vão como marcação no próprio
+  texto — crases e `**` —, desenhada por `ui/Rich.tsx`. Partir a frase em
+  pedaços amarraria o inglês à ordem das palavras do português.
+- **Texto muda de comprimento com a língua.** "Tocar" vira "Quickplay",
+  "Tela cheia" vira "Fullscreen". Mudança de tela se confere nas duas.
+
 ## Documentos
 
 | | |

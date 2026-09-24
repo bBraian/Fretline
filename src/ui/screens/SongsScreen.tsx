@@ -10,7 +10,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useGame } from '../store'
-import { difficultyName } from './MenuScreen'
 import { DIFFICULTIES } from '../../engine/types'
 import {
   catalogue,
@@ -27,6 +26,8 @@ import { blockable } from '../blocked'
 import { DifficultyPicker, useStepDifficulty } from './DifficultyPicker'
 import { useListSelection } from '../useListSelection'
 import { previewOf, useSongPreview } from '../useSongPreview'
+import { useT } from '../useT'
+import { Rich } from '../Rich'
 
 /**
  * Quanto o jogador precisa ficar parado numa música antes de ela tocar.
@@ -55,6 +56,7 @@ export function SongsScreen() {
   const difficulty = useGame((s) => s.settings.difficulty)
   const refreshLocalLibrary = useGame((s) => s.refreshLocalLibrary)
   const loadingLibrary = useGame((s) => s.loadingLibrary)
+  const t = useT()
   useBackToMenu()
 
   const inputRef = useRef<HTMLInputElement>(null)
@@ -139,21 +141,24 @@ export function SongsScreen() {
   const previewIndex = resting !== null && previewOf(playableSongs[resting]) ? resting : null
   useSongPreview(previewIndex === null ? null : playableSongs[previewIndex])
 
+  const describeImport = (count: number) =>
+    count === 0 ? t.songs.noCharts : t.songs.imported(count)
+
   const handlePicker = async () => {
     try {
-      setStatus('Lendo a pasta…')
+      setStatus(t.songs.readingFolder)
       const entries = await importFromDirectoryPicker()
       addSongs(entries)
       setStatus(describeImport(entries.length))
     } catch (error) {
       // Cancelar o seletor cai aqui e não é erro.
-      setStatus(error instanceof DOMException ? null : 'Não consegui ler essa pasta.')
+      setStatus(error instanceof DOMException ? null : t.songs.folderError)
     }
   }
 
   const handleFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return
-    setStatus('Lendo os arquivos…')
+    setStatus(t.songs.readingFiles)
     const entries = await importFromFileList(files)
     addSongs(entries)
     setStatus(describeImport(entries.length))
@@ -169,11 +174,11 @@ export function SongsScreen() {
     // ano: a folha só tem duas linhas por música, e abrir uma terceira
     // desmancharia o ritmo da lista.
     const detalhes = [
-      chart ? `${chart.notes.length} notas` : 'sem este nível',
+      chart ? t.songs.notes(chart.notes.length) : t.songs.noLevel,
       formatDuration(meta.length),
-      entry.synthesized ? 'faixa gerada pelo jogo' : null,
+      entry.synthesized ? t.songs.generated : null,
       entry.format === 'gerada' ? null : entry.format === 'midi' ? '.mid' : '.chart',
-      !waiting && entry.tracks.some((t) => t.role === 'guitar') ? 'faixas separadas' : null,
+      !waiting && entry.tracks.some((track) => track.role === 'guitar') ? t.songs.separateTracks : null,
     ].filter(Boolean)
 
     return (
@@ -200,10 +205,9 @@ export function SongsScreen() {
     <div className="screen screen-paper">
       <header className="screen-head">
         <div>
-          <h1 className="screen-title">Escolha a música</h1>
+          <h1 className="screen-title">{t.songs.title}</h1>
           <p className="screen-subtitle">
-            Uma pasta por música, com o chart e o áudio dentro — o mesmo arranjo do Clone Hero.
-            Largue as pastas em <code>songs/</code> dentro do projeto e elas entram sozinhas.
+            <Rich text={t.songs.subtitle} />
           </p>
         </div>
         <DifficultyPicker />
@@ -218,10 +222,9 @@ export function SongsScreen() {
         {waitingSongs.length > 0 && (
           <>
             <h2 className="list-heading">
-              Esperando áudio
+              {t.songs.waitingHeading}
               <span>
-                {waitingSongs.length} pasta{waitingSongs.length === 1 ? '' : 's'} com o chart, sem
-                o arquivo de som. Coloque um <code>song.ogg</code> dentro e a música entra.
+                <Rich text={t.songs.waitingNote(waitingSongs.length)} />
               </span>
             </h2>
             <div className="song-list">{waitingSongs.map(renderRow)}</div>
@@ -230,16 +233,16 @@ export function SongsScreen() {
 
         {selected && !hasAudio && (
           <p className="screen-subtitle" style={{ marginTop: 16 }}>
-            <b>{selected.song.meta.name}</b> tem o chart, mas nenhum arquivo de áudio na pasta. Use{' '}
-            <code>tools/gh3/place-audio.mjs</code> para preencher várias de uma vez, ou{' '}
-            <code>tools/prune-library.mjs</code> para tirá-las da lista.
+            <b>{selected.song.meta.name}</b> <Rich text={t.songs.noAudio} />
           </p>
         )}
 
         {selected && hasAudio && available.length > 0 && !hasChart && (
           <p className="screen-subtitle" style={{ marginTop: 16 }}>
-            Essa música não tem o nível {difficultyName(difficulty)}. Disponíveis:{' '}
-            {available.map(difficultyName).join(', ')}.
+            {t.songs.missingLevel(
+              t.difficulty[difficulty],
+              available.map((d) => t.difficulty[d]).join(', '),
+            )}
           </p>
         )}
 
@@ -255,7 +258,7 @@ export function SongsScreen() {
             mixer.play('back')
             setScreen('menu')
           }}>
-          ← Voltar
+          {t.common.back}
         </button>
 
         {/* Na versão hospedada não existe pasta para reler: a biblioteca é
@@ -266,14 +269,10 @@ export function SongsScreen() {
             disabled={loadingLibrary}
             onClick={async () => {
               const added = await refreshLocalLibrary()
-              setStatus(
-                added > 0
-                  ? `${added} música${added === 1 ? '' : 's'} nova${added === 1 ? '' : 's'} na pasta songs/.`
-                  : 'Nada novo na pasta songs/.',
-              )
+              setStatus(added > 0 ? t.songs.newSongs(added) : t.songs.nothingNew)
             }}
           >
-            {loadingLibrary ? 'Lendo songs/…' : 'Reler a pasta songs/'}
+            {loadingLibrary ? t.songs.rereading : t.songs.reread}
           </button>
         )}
 
@@ -281,7 +280,7 @@ export function SongsScreen() {
           className="btn"
           onClick={() => (supportsDirectoryPicker() ? handlePicker() : inputRef.current?.click())}
         >
-          Importar pasta de fora
+          {t.songs.importFolder}
         </button>
 
         <input
@@ -298,14 +297,9 @@ export function SongsScreen() {
         <span style={{ flex: 1 }} />
 
         <button className="btn btn-primary btn-lg" {...blockable(!playable, () => setScreen('play'))}>
-          Tocar em {difficultyName(difficulty)}
+          {t.songs.playOn(t.difficulty[difficulty])}
         </button>
       </footer>
     </div>
   )
-}
-
-function describeImport(count: number) {
-  if (count === 0) return 'Nenhum chart encontrado aí.'
-  return `${count} música${count === 1 ? '' : 's'} importada${count === 1 ? '' : 's'}.`
 }

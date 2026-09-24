@@ -9,7 +9,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { owns, useGame } from '../store'
 import { ShopActions, ShopTag } from './ShopActions'
-import { BUILD_NAMES, SHOP_CHARACTERS, characterById } from '../../content/characters'
+import { SHOP_CHARACTERS, characterById } from '../../content/characters'
 import { loadCharacterGlb } from '../../render/character/characterGlb'
 import type { StageCharacter } from '../../render/character/stageCharacter'
 import { CharacterModel } from '../../render/character/characterModel'
@@ -27,6 +27,7 @@ import { ModelPreview } from '../../render/preview'
 import { Backdrop } from '../Backdrop'
 import { mixer } from '../../audio/mixer'
 import { useBackToMenu } from '../useBackKey'
+import { useT } from '../useT'
 
 function hex(color: number) {
   return `#${color.toString(16).padStart(6, '0')}`
@@ -36,6 +37,7 @@ export function CharactersScreen() {
   const { profile, setScreen, chooseCharacter, buyCharacter, previewCharacter } = useGame()
   const totalStars = useGame((s) => s.totalStars())
   const previewId = useGame((s) => s.previewCharacterId)
+  const t = useT()
   useBackToMenu()
 
   /**
@@ -204,19 +206,17 @@ export function CharactersScreen() {
       <Backdrop variant="content" />
       <header className="screen-head">
         <div>
-          <h1 className="screen-title">Quem sobe no palco</h1>
-          <p className="screen-subtitle">
-            Personagens novos abrem por estrelas e são comprados com o dinheiro dos shows.
-          </p>
+          <h1 className="screen-title">{t.characters.title}</h1>
+          <p className="screen-subtitle">{t.characters.subtitle}</p>
         </div>
         <div className="menu-stats">
           <div>
-            <b>${profile.money.toLocaleString('pt-BR')}</b>
-            no bolso
+            <b>{t.money(profile.money)}</b>
+            {t.common.inPocket}
           </div>
           <div>
             <b>{totalStars}</b>
-            estrelas
+            {t.starsWord(totalStars)}
           </div>
         </div>
       </header>
@@ -227,16 +227,16 @@ export function CharactersScreen() {
             <canvas ref={canvasRef} />
             {/* O véu fica montado: cobre na hora, e sai devagar. */}
             <div className="picker-loading" data-hidden={!carregando} aria-hidden={!carregando}>
-              <b>Carregando</b>
+              <b>{t.common.loading}</b>
               <div className="loading-bar">
                 <i />
               </div>
             </div>
-            {!carregando && <span className="picker-hint">arraste para girar</span>}
+            {!carregando && <span className="picker-hint">{t.common.dragToRotate}</span>}
             <div className="picker-caption">
               <h2>{shown.name}</h2>
               <p>
-                {shown.subtitle} · {BUILD_NAMES[shown.build]}
+                {shown.subtitle[t.language]} · {t.builds[shown.build]}
               </p>
             </div>
 
@@ -274,7 +274,7 @@ export function CharactersScreen() {
                   />
                   <span>
                     <strong>{character.name}</strong>
-                    <span>{character.subtitle}</span>
+                    <span>{character.subtitle[t.language]}</span>
                   </span>
                   <span>
                     <ShopTag
@@ -298,12 +298,9 @@ export function CharactersScreen() {
             mixer.play('back')
             setScreen('menu')
           }}>
-          ← Voltar
+          {t.common.back}
         </button>
-        <span className="screen-subtitle">
-          Clique em qualquer personagem para vê-lo tocando. Comprar e equipar são os botões no
-          visor.
-        </span>
+        <span className="screen-subtitle">{t.characters.footer}</span>
       </footer>
     </div>
   )

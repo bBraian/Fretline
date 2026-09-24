@@ -123,7 +123,7 @@ console.log('\nMENUS')
     money: 999999,
     records: { 'fretline-demo:medium': { score: 1, stars: 99, accuracy: 1 } },
   })
-  await page.goto(BASE, { waitUntil: 'domcontentloaded' })
+  await page.goto(`${BASE}/?lang=pt`, { waitUntil: 'domcontentloaded' })
   await passarAbertura(page)
   await page.getByRole('heading', { name: 'FRETLINE' }).waitFor({ timeout: 15000 })
 
@@ -197,7 +197,7 @@ console.log('\nAÇÕES BLOQUEADAS')
     money: 0,
     records: { 'fretline-demo:medium': { score: 1, stars: 99, accuracy: 1 } },
   })
-  await page.goto(BASE, { waitUntil: 'domcontentloaded' })
+  await page.goto(`${BASE}/?lang=pt`, { waitUntil: 'domcontentloaded' })
   await passarAbertura(page)
   await page.getByRole('heading', { name: 'FRETLINE' }).waitFor({ timeout: 15000 })
   await page.getByRole('button', { name: /^Guitarra$/ }).first().click()
@@ -225,7 +225,7 @@ console.log('\nAÇÕES BLOQUEADAS')
 
   // Sem estrelas, os itens de progresso aparecem como bloqueados.
   const pobre = await novaPagina({ money: 0, records: {} })
-  await pobre.goto(BASE, { waitUntil: 'domcontentloaded' })
+  await pobre.goto(`${BASE}/?lang=pt`, { waitUntil: 'domcontentloaded' })
   await passarAbertura(pobre)
   await pobre.getByRole('heading', { name: 'FRETLINE' }).waitFor({ timeout: 15000 })
   await pobre.getByRole('button', { name: /^Guitarra$/ }).first().click()
@@ -248,7 +248,7 @@ console.log('\nAÇÕES BLOQUEADAS')
 console.log('\nMÚSICA DE MENU')
 {
   const page = await novaPagina(null)
-  await page.goto(BASE, { waitUntil: 'domcontentloaded' })
+  await page.goto(`${BASE}/?lang=pt`, { waitUntil: 'domcontentloaded' })
   await passarAbertura(page)
   await page.getByRole('heading', { name: 'FRETLINE' }).waitFor({ timeout: 15000 })
   // O gesto da abertura já acordou o áudio; o clique fica como garantia.
@@ -314,7 +314,7 @@ console.log('\nSELETOR E PREVIEW')
     salvo.settings = { ...(salvo.settings ?? {}), menuMusic: false }
     localStorage.setItem('fretline:v1', JSON.stringify(salvo))
   })
-  await page.goto(BASE, { waitUntil: 'domcontentloaded' })
+  await page.goto(`${BASE}/?lang=pt`, { waitUntil: 'domcontentloaded' })
   await passarAbertura(page)
   await page.getByRole('heading', { name: 'FRETLINE' }).waitFor({ timeout: 15000 })
   await page.getByRole('button', { name: /Tocar/ }).first().click()
@@ -387,7 +387,7 @@ console.log('\nSELETOR NA CARREIRA')
     money: 0,
     records: { 'x:medium': { score: 1, stars: 999, accuracy: 1 } },
   })
-  await page.goto(BASE, { waitUntil: 'domcontentloaded' })
+  await page.goto(`${BASE}/?lang=pt`, { waitUntil: 'domcontentloaded' })
   await passarAbertura(page)
   await page.getByRole('heading', { name: 'FRETLINE' }).waitFor({ timeout: 15000 })
   await page.getByRole('button', { name: /^Carreira$/ }).first().click()
@@ -438,7 +438,7 @@ console.log('\nSELETOR NA CARREIRA')
 console.log('\nPADRÕES E NAVEGAÇÃO')
 {
   const page = await novaPagina(null)
-  await page.goto(BASE, { waitUntil: 'domcontentloaded' })
+  await page.goto(`${BASE}/?lang=pt`, { waitUntil: 'domcontentloaded' })
   await passarAbertura(page)
   await page.getByRole('heading', { name: 'FRETLINE' }).waitFor({ timeout: 15000 })
 
@@ -518,7 +518,7 @@ console.log('\nGAMEPLAY — pausa na contagem')
 {
   const ABERTURA = ['highwayRise', 'notesRipple', 'crowdCheer']
   const page = await novaPagina(null, { viewport: { width: 480, height: 270 } })
-  await page.goto(`${BASE}/?debug&lowfx`, { waitUntil: 'domcontentloaded' })
+  await page.goto(`${BASE}/?lang=pt&debug&lowfx`, { waitUntil: 'domcontentloaded' })
   await passarAbertura(page)
   await page.getByRole('button', { name: /Tocar/ }).first().click()
   await page.getByRole('button', { name: /^Tocar em/ }).click()
@@ -570,7 +570,7 @@ console.log('\nGAMEPLAY — pausa na contagem')
 console.log('\nGAMEPLAY — abertura e derrota (sem tocar nada)')
 {
   const page = await novaPagina(null, { viewport: { width: 480, height: 270 } })
-  await page.goto(`${BASE}/?debug&lowfx`, { waitUntil: 'domcontentloaded' })
+  await page.goto(`${BASE}/?lang=pt&debug&lowfx`, { waitUntil: 'domcontentloaded' })
   await passarAbertura(page)
   await page.getByRole('button', { name: /Tocar/ }).first().click()
   await page.getByRole('button', { name: /^Tocar em/ }).click()
@@ -638,7 +638,7 @@ console.log('\nGAMEPLAY — abertura e derrota (sem tocar nada)')
 console.log('\nGAMEPLAY — vitória (piloto automático toca a música)')
 {
   const page = await novaPagina(null, { viewport: { width: 480, height: 270 } })
-  await page.goto(`${BASE}/?debug&lowfx`, { waitUntil: 'domcontentloaded' })
+  await page.goto(`${BASE}/?lang=pt&debug&lowfx`, { waitUntil: 'domcontentloaded' })
   await passarAbertura(page)
   await page.getByRole('button', { name: /Tocar/ }).first().click()
   await page.getByRole('button', { name: /^Tocar em/ }).click()
@@ -699,7 +699,7 @@ console.log('\nGAMEPLAY — vitória (piloto automático toca a música)')
 console.log('\nBOOST')
 {
   const page = await novaPagina(null, { viewport: { width: 480, height: 270 } })
-  await page.goto(`${BASE}/?debug&lowfx`, { waitUntil: 'domcontentloaded' })
+  await page.goto(`${BASE}/?lang=pt&debug&lowfx`, { waitUntil: 'domcontentloaded' })
   await passarAbertura(page)
   await page.getByRole('button', { name: /Tocar/ }).first().click()
   await page.getByRole('button', { name: /^Tocar em/ }).click()

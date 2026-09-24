@@ -34,8 +34,10 @@
 :root {
   /* O canto inferior direito é do botão de tela cheia, que flutua sobre
      todas as telas. Quem tem rodapé reserva esta faixa à direita — sem
-     ela, a ação principal da lista de músicas fica debaixo do botão. */
-  --corner-gutter: 152px;
+     ela, a ação principal da lista de músicas fica debaixo do botão.
+     Medida pelo rótulo mais largo dos idiomas: "Fullscreen" dá 150px de
+     botão, mais 12px de margem do canto e 12px de folga até o vizinho. */
+  --corner-gutter: 176px;
   --bg: #140c05;
   --bg-raised: #241608;
   --bg-card: rgba(32, 20, 9, 0.94);

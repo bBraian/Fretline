@@ -52,24 +52,24 @@ describe('migrateKeyboard', () => {
 
 describe('gamepadName', () => {
   it('tira o sufixo de fabricante do Chrome', () => {
-    expect(gamepadName('Xbox Wireless Controller (STANDARD GAMEPAD Vendor: 045e Product: 0b13)')).toBe(
+    expect(gamepadName('Xbox Wireless Controller (STANDARD GAMEPAD Vendor: 045e Product: 0b13)', 'Controle')).toBe(
       'Xbox Wireless Controller',
     )
-    expect(gamepadName('Guitar Hero X-plorer (Vendor: 1430 Product: 4748)')).toBe('Guitar Hero X-plorer')
-    expect(gamepadName('Xbox 360 Controller (XInput STANDARD GAMEPAD)')).toBe('Xbox 360 Controller')
+    expect(gamepadName('Guitar Hero X-plorer (Vendor: 1430 Product: 4748)', 'Controle')).toBe('Guitar Hero X-plorer')
+    expect(gamepadName('Xbox 360 Controller (XInput STANDARD GAMEPAD)', 'Controle')).toBe('Xbox 360 Controller')
   })
 
   it('tira o prefixo de fabricante do Firefox', () => {
-    expect(gamepadName('045e-028e-Microsoft X-Box 360 pad')).toBe('Microsoft X-Box 360 pad')
+    expect(gamepadName('045e-028e-Microsoft X-Box 360 pad', 'Controle')).toBe('Microsoft X-Box 360 pad')
   })
 
   it('deixa como está um nome que já vem limpo', () => {
-    expect(gamepadName('DualSense Wireless Controller')).toBe('DualSense Wireless Controller')
+    expect(gamepadName('DualSense Wireless Controller', 'Controle')).toBe('DualSense Wireless Controller')
   })
 
   it('não devolve vazio quando o navegador só informa o fabricante', () => {
-    expect(gamepadName('(Vendor: 0079 Product: 0006)')).toBe('Controle')
-    expect(gamepadName('')).toBe('Controle')
+    expect(gamepadName('(Vendor: 0079 Product: 0006)', 'Controle')).toBe('Controle')
+    expect(gamepadName('', 'Controle')).toBe('Controle')
   })
 })
 

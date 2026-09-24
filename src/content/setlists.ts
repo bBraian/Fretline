@@ -22,8 +22,9 @@ const SONGS_PER_TIER = 4
  * Nomes dos tiers, na ordem da carreira.
  *
  * São os do original, porque é a progressão que o jogo conta: começar tocando
- * em bar, terminar num estádio. Se a biblioteca crescer além destes, os tiers
- * seguintes recebem nome numerado.
+ * em bar, terminar num estádio. Ficam em inglês em todo idioma, como no
+ * original. Se a biblioteca crescer além destes, os tiers seguintes ficam
+ * sem nome, e a interface os numera.
  */
 const TIER_NAMES = [
   'Starting Out Small',
@@ -46,7 +47,8 @@ export interface CareerTier {
   id: string
   /** Posição na carreira, a partir de 1. */
   order: number
-  name: string
+  /** Nome do original; `null` além deles — a tela numera, no idioma dela. */
+  name: string | null
   /** Estrelas acumuladas para abrir este tier. */
   unlockAtStars: number
   songs: CareerSong[]
@@ -106,7 +108,7 @@ export function buildCareer(library: SongEntry[]): CareerTier[] {
     tiers.push({
       id: `tier-${index + 1}`,
       order: index + 1,
-      name: TIER_NAMES[index] ?? `Turnê ${index + 1}`,
+      name: TIER_NAMES[index] ?? null,
       unlockAtStars: unlockCost(index),
       songs: slice.map((entry, position) => ({
         // A última de cada tier fecha o show — menos num tier incompleto,

@@ -1,0 +1,335 @@
+/**
+ * English. Has to match `Messages`, which comes from the Portuguese
+ * dictionary — a missing key fails the build.
+ *
+ * The vocabulary follows Guitar Hero III's own: Quickplay, Options, star
+ * power, whammy, streak.
+ */
+
+import type { Messages } from './pt'
+
+const LOCALE = 'en-US'
+const num = (n: number) => n.toLocaleString(LOCALE)
+const s = (n: number) => (n === 1 ? '' : 's')
+
+export const en: Messages = {
+  language: 'en',
+  locale: LOCALE,
+
+  number: num,
+  money: (n) => `$${num(n)}`,
+  starsWord: (n) => (n === 1 ? 'star' : 'stars'),
+  songsWord: (n) => (n === 1 ? 'song' : 'songs'),
+
+  difficulty: {
+    easy: 'Easy',
+    medium: 'Medium',
+    hard: 'Hard',
+    expert: 'Expert',
+  },
+
+  frets: {
+    green: 'green',
+    red: 'red',
+    yellow: 'yellow',
+    blue: 'blue',
+    orange: 'orange',
+  },
+
+  builds: {
+    slim: 'Slim build',
+    regular: 'Medium build',
+    heavy: 'Heavy build',
+  },
+
+  shapes: {
+    'single-cut': 'Single cut',
+    'double-cut': 'Double cut',
+    sg: 'Twin horns',
+    tele: 'Slab body',
+    offset: 'Offset waist',
+    v: 'V shape',
+    explorer: 'Angular',
+    'super-strat': 'Superstrat',
+    'swept-wing': 'Swept wing',
+    mustang: 'Short scale',
+  },
+
+  common: {
+    back: '← Back',
+    loading: 'Loading',
+    dragToRotate: 'drag to rotate',
+    inPocket: 'cash',
+  },
+
+  brand: {
+    tagline: 'Five frets, no strumming',
+  },
+
+  boot: {
+    press: 'Press any key',
+    progressLabel: 'Downloading the game',
+    connecting: 'Connecting…',
+    files: (done, total) => `${done}/${total} files`,
+    readingLibrary: 'Reading the library…',
+    noLibrary: 'No library — the demo track steps in',
+    someSongs: (loaded, total) => `${loaded} of ${total} songs`,
+    libraryPending: 'Library…',
+    libraryProgress: (done, total) => `Library ${done}/${total}`,
+    failures: (n) =>
+      n === 1
+        ? "1 file didn't arrive — it loads when needed"
+        : `${n} files didn't arrive — they load when needed`,
+  },
+
+  menu: {
+    career: 'Career',
+    careerHint: 'The original tiers, filled from your library',
+    play: 'Quickplay',
+    playHint: (songs, difficulty) => `${songs} song${s(songs)} in the library · ${difficulty}`,
+    character: 'Character',
+    guitar: 'Guitar',
+    settings: 'Options',
+    settingsHint: 'Difficulty, speed, controls and calibration',
+    version: (version) => `Version ${version}`,
+    select: 'Select',
+    upDown: 'Up/Down',
+    stats: (stars, money, items) =>
+      `**${num(stars)}** star${s(stars)} · **$${num(money)}** cash · **${num(items)}** item${s(items)}`,
+    language: 'Language',
+  },
+
+  coffee: {
+    label: 'Buy me a coffee, on Buy Me a Coffee (opens in a new tab)',
+    title: 'Buy me a coffee',
+    text: 'Fretline is free and has no ads. If it gave you a good show, a coffee keeps the stage lit.',
+  },
+
+  fullscreen: {
+    enter: 'Fullscreen',
+    exit: 'Exit fullscreen',
+    exitShort: 'Exit',
+  },
+
+  pad: {
+    connected: 'Controller connected',
+    unnamed: 'Controller',
+    frets: (map) => `Frets: ${map}`,
+    pause: (button) => `Pause: ${button}`,
+  },
+
+  input: {
+    keys: { Space: 'Space', ShiftLeft: 'Shift', ShiftRight: 'Right Shift', Enter: 'Enter' },
+    back: 'Back',
+    guide: 'Guide',
+    button: (index) => `Button ${index}`,
+    axisOff: 'off',
+    axes: ['Left stick ↔', 'Left stick ↕', 'Right stick ↔', 'Right stick ↕'],
+    axis: (index) => `Axis ${index}`,
+  },
+
+  songRow: {
+    previewing: 'playing preview',
+    neverPlayed: 'never played',
+    starsOf: (won, max) => `${won} of ${max} stars`,
+  },
+
+  shop: {
+    equipped: 'Equipped',
+    equip: 'Equip',
+    locked: 'Locked',
+    unlockAt: (stars) => `Unlocks at ${stars} career stars.`,
+    buy: (price) => `Buy for $${num(price)}`,
+    short: (missing) => `$${num(missing)} short.`,
+    owned: 'Owned',
+  },
+
+  career: {
+    title: 'Career',
+    subtitle:
+      'The songs in your library, from easiest to hardest. Every new pack slots itself into the tier where it fits.',
+    empty:
+      'No playable songs yet. Put the folders in `songs/` — each with its chart and audio inside — and they show up here.',
+    tierLocked: (stars) => `Unlocks at ${stars} stars`,
+    tierSongs: (n) => `${n} song${s(n)}`,
+    tour: (order) => `Tour ${order}`,
+    notes: (n) => `${num(n)} notes`,
+    missingLevel: (difficulty) => `no ${difficulty}`,
+    waiting: (n) =>
+      `${n} folder${s(n)} with a chart but no audio, waiting for the file. ${n === 1 ? 'It shows' : 'They show'} up in the library, not in the career.`,
+    fullLibrary: 'See the whole library',
+  },
+
+  songs: {
+    title: 'Choose a song',
+    subtitle:
+      'One folder per song, with the chart and the audio inside — the same layout as Clone Hero. Drop the folders into `songs/` inside the project and they come in on their own.',
+    notes: (n) => `${num(n)} notes`,
+    noLevel: 'not at this level',
+    generated: 'track generated by the game',
+    separateTracks: 'separate tracks',
+    waitingHeading: 'Waiting for audio',
+    waitingNote: (n) =>
+      `${n} folder${s(n)} with the chart but no sound file. Put a \`song.ogg\` inside and the song comes in.`,
+    noAudio:
+      'has the chart but no audio file in its folder. Use `tools/gh3/place-audio.mjs` to fill in several at once, or `tools/prune-library.mjs` to take them off the list.',
+    missingLevel: (difficulty, available) =>
+      `This song has no ${difficulty} chart. Available: ${available}.`,
+    readingFolder: 'Reading the folder…',
+    folderError: "Couldn't read that folder.",
+    readingFiles: 'Reading the files…',
+    newSongs: (n) => `${n} new song${s(n)} in the songs/ folder.`,
+    nothingNew: 'Nothing new in the songs/ folder.',
+    rereading: 'Reading songs/…',
+    reread: 'Rescan the songs/ folder',
+    importFolder: 'Import a folder',
+    playOn: (difficulty) => `Play on ${difficulty}`,
+    noCharts: 'No charts found there.',
+    imported: (n) => `${n} song${s(n)} imported.`,
+  },
+
+  characters: {
+    title: 'Who takes the stage',
+    subtitle: 'New characters unlock with stars and are bought with the money from your shows.',
+    footer: 'Click any character to watch them play. Buying and equipping are the buttons on the viewer.',
+  },
+
+  guitars: {
+    title: 'The guitar',
+    subtitle: 'It only changes what you see — none of them plays better than another.',
+    footer: 'Click any guitar to see it up close. Buying and equipping are the buttons on the viewer.',
+  },
+
+  settings: {
+    title: 'Options',
+    subtitle: 'Everything is saved in the browser as soon as you change it.',
+    difficulty: 'Difficulty',
+    noteSpeed: 'Highway speed',
+    noteSpeedHint:
+      "It doesn't change the song, only how much of the screen it takes up. Faster means notes spread further apart, easier to read in dense passages.",
+    volume: 'Volume',
+    menuMusic: 'Menu music',
+    menuMusicHint:
+      "A background loop while you pick songs and characters. It plays at half the master volume, so it doesn't compete with the sound effects.",
+    on: 'On',
+    off: 'Off',
+    quality: 'Graphics quality',
+    qualityHint:
+      "On high, the show gets bloom and cast shadows. On low both go away, which buys back plenty of frames per second on modest machines — gameplay and note timing don't change at all.",
+    high: 'High',
+    low: 'Low',
+    noFail: 'No fail',
+    noFailHint:
+      'The meter keeps moving, but the song never stops. Useful for learning a hard section.',
+    noFailToggle: 'Never fail the song',
+    calibration: 'Calibration',
+    calibrationHint:
+      'Two different numbers: audio shifts how notes are judged, video shifts only how they are drawn. The calibration screen measures both for you.',
+    audio: 'Audio',
+    video: 'Video',
+    measure: 'Measure automatically',
+    keyboard: 'Keyboard',
+    keyboardHint:
+      "There's no strumming: a note is played on the fret. Open notes — the wide bar across the whole highway — are played by letting go of every fret.",
+    fret: (color) => `${color[0].toUpperCase()}${color.slice(1)} fret`,
+    starPower: 'Star power',
+    whammy: 'Whammy',
+    pressKey: 'press…',
+    pressButton: 'press a button…',
+    restore: 'Restore defaults',
+    controller: 'Controller',
+    connected: (name) => `Connected: ${name}. Click a command and press the button you want for it.`,
+    noController:
+      'No controller detected. Plug one in and press a button — the browser only reveals it after that.',
+    strumUp: 'Strum up',
+    strumDown: 'Strum down',
+    whammyOff: 'off',
+    pressedNow: (buttons) => `Pressed now: ${buttons || 'none'}`,
+  },
+
+  calibration: {
+    title: 'Calibration',
+    subtitle:
+      "Tap space along with the reference, about fifteen times. The median is what counts, so missing one or two won't spoil the measurement.",
+    audio: '1. Audio',
+    audioHint:
+      "Listen to the click and tap along without looking at the screen. It measures the sound output delay — that's what shifts how notes are judged.",
+    video: '2. Video',
+    videoHint:
+      'No sound: tap along with the pulse on screen. It measures the display delay — it shifts only how notes are drawn, never how they are judged.',
+    start: 'Start',
+    measuring: 'Measuring…',
+    current: (ms) => `current: ${ms} ms`,
+    progress: (taps, needed) => `${taps} of ${needed} taps · median offset`,
+    apply: (ms) => `Apply ${ms} ms`,
+    cancel: 'Cancel',
+  },
+
+  results: {
+    booed: 'The crowd walked out',
+    verdict: (stars) =>
+      stars >= 6
+        ? 'Flawless'
+        : ["Didn't make it", 'Survived', 'Barely made it', 'Passed', 'Great', 'Outstanding'][stars],
+    starsOf: (stars) => `${stars} of 6 stars`,
+    score: 'Score',
+    accuracy: 'Notes hit',
+    streak: 'Best streak',
+    money: 'Payout',
+    fullCombo: 'The whole song without missing a note.',
+    menu: 'Menu',
+    anotherSong: 'Another song',
+    playAgain: 'Play again',
+  },
+
+  play: {
+    tuning: 'Tuning up',
+    preparingStage: 'Setting up the stage…',
+    buildingStage: (done, total) => `Building the stage (${done}/${total || '…'})`,
+    synthesizing: 'Synthesizing the demo track…',
+    connecting: 'Connecting…',
+    downloading: (loaded, total) => `Downloading the song ${loaded} / ${total} MB`,
+    downloadingTracks: (done, total) => `Downloading the song (${done}/${total} tracks)`,
+    decoding: 'Decoding the audio…',
+    assets: {
+      scenery: 'Scenery',
+      drums: 'Drum kit',
+      bass: 'Bass',
+      mic: 'Microphone',
+      character: 'Character',
+      guitar: 'Guitar',
+      bassist: 'Bassist',
+      singer: 'Singer',
+      drummer: 'Drummer',
+    },
+    back: 'Back',
+    errorTitle: 'No luck',
+    errors: {
+      noChart: 'This song has no chart for the chosen difficulty.',
+      missing: "This song's audio isn't on the server.",
+      network: "Couldn't download the song. Check your connection and try again.",
+      decode: "Couldn't decode this song's audio.",
+    },
+    tryAgain: 'Try again',
+    paused: 'Paused',
+    pausedHint: 'Esc returns to the game — B on a controller.',
+    resume: 'Resume',
+    restart: 'Restart',
+    quit: 'Quit song',
+    volume: 'Volume',
+    booedTitle: 'You got booed',
+    booedText:
+      'The meter hit zero. You can try again, lower the difficulty, or turn on no fail in the options.',
+    retry: 'Retry',
+    seeResults: 'See results',
+  },
+
+  hud: {
+    perfect: 'on time',
+    early: 'early',
+    late: 'late',
+    rockMeter: (rock, starPower) => `Rock meter at ${rock}%, star power at ${starPower}%`,
+    multiplier: (n) => `Multiplier ${n}×`,
+    streak: (n) => `${n}-note streak`,
+  },
+}

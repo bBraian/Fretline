@@ -61,6 +61,23 @@ const BAND_FEET: Array<[string, number, number]> = [
   ['baterista', 0, -4.35],
 ]
 
+/**
+ * O que a tela de espera lista, um item por carregamento.
+ *
+ * Chave, não frase: o palco não sabe o idioma da tela, e quem põe o nome
+ * na lista é ela (`play.assets`, no dicionário).
+ */
+export type StageAsset =
+  | 'scenery'
+  | 'drums'
+  | 'bass'
+  | 'mic'
+  | 'character'
+  | 'guitar'
+  | 'bassist'
+  | 'singer'
+  | 'drummer'
+
 export class Stage {
   readonly group = new THREE.Group()
 
@@ -118,7 +135,7 @@ export class Stage {
   private pending: Array<Promise<unknown>> = []
 
   /** O que já chegou, para a tela de espera listar. */
-  private loadingLabels = new Map<string, boolean>()
+  private loadingLabels = new Map<StageAsset, boolean>()
 
   /**
    * Registra um carregamento.
@@ -126,7 +143,7 @@ export class Stage {
    * Nunca rejeita para quem espera: uma peça que falha deixa o provisório no
    * lugar, e a música precisa começar de qualquer jeito.
    */
-  private awaitAsset<T>(label: string, promise: Promise<T>): Promise<T> {
+  private awaitAsset<T>(label: StageAsset, promise: Promise<T>): Promise<T> {
     if (!this.loadingLabels.has(label)) this.loadingLabels.set(label, false)
     this.pending.push(
       promise.then(
@@ -250,7 +267,7 @@ export class Stage {
   private buildSceneryModel(model: StageModel) {
     this.sceneryLoading = true
     void this.awaitAsset(
-      'Cenário',
+      'scenery',
       loadStageModel(model)
         .then((scenery) => {
           // Duas condições, não uma: a tela pode ter saído, e o painel pode
@@ -684,7 +701,7 @@ export class Stage {
     // O kit fica **à frente** do baterista, que senta em z = -4,1: a plateia
     // está em +z, então um kit mais ao fundo ficaria atrás de quem toca.
     void this.awaitAsset(
-      'Bateria',
+      'drums',
       loadProp({ url: STAGE_PROPS.drums, size: 1, anchor: 'bottom' }).then((prop) => {
         if (this.destroyed) {
           prop.dispose()
@@ -834,7 +851,7 @@ export class Stage {
     model.group.position.set(-2.6, 0, -0.6)
     model.group.rotation.y = 0.3
     this.group.add(model.group)
-    if (character.model) void this.awaitAsset('Personagem', this.swapInImportedCharacter(character))
+    if (character.model) void this.awaitAsset('character', this.swapInImportedCharacter(character))
     return model
   }
 
@@ -885,7 +902,7 @@ export class Stage {
     const model = buildGuitar(guitar)
     this.poseInstrument(model.group, 'guitar')
     this.guitarist.instrumentAnchor.add(model.group)
-    if (guitar.model) void this.awaitAsset('Guitarra', this.swapInImported(guitar))
+    if (guitar.model) void this.awaitAsset('guitar', this.swapInImported(guitar))
     return model
   }
 
@@ -1031,7 +1048,7 @@ export class Stage {
     // Um baixo é uma guitarra, então reaproveita a normalização dela; o
     // `scale` compensa o corpo e o braço maiores.
     void this.awaitAsset(
-      'Baixo',
+      'bass',
       loadGuitarGlb(STAGE_PROPS.bass, BASS_PROP, { scale: 1.15 }).then((imported) => {
         if (this.destroyed) {
           imported.dispose()
@@ -1045,7 +1062,7 @@ export class Stage {
     ).catch((erro) => console.error(`não deu para carregar ${STAGE_PROPS.bass}`, erro))
     this.group.add(bassist.group)
     this.bandmates.push(bassist)
-    void this.awaitAsset('Baixista', this.swapInBandMember(0, 'bass', 'bassist'))
+    void this.awaitAsset('bassist', this.swapInBandMember(0, 'bass', 'bassist'))
 
     const singer = new CharacterModel(others[1] ?? CHARACTERS[2])
     singer.setRole('vocals')
@@ -1053,12 +1070,12 @@ export class Stage {
     singer.group.rotation.y = 0.1
     this.group.add(singer.group)
     this.bandmates.push(singer)
-    void this.awaitAsset('Vocalista', this.swapInBandMember(1, 'vocals', 'singer'))
+    void this.awaitAsset('singer', this.swapInBandMember(1, 'vocals', 'singer'))
 
     // Microfone na mão, não num pedestal à parte: assim ele acompanha o
     // gesto do braço em vez de ficar parado enquanto a mão se mexe.
     void this.awaitAsset(
-      'Microfone',
+      'mic',
       loadProp({ url: STAGE_PROPS.mic, size: 1, anchor: 'center' }).then((prop) => {
         if (this.destroyed) {
           prop.dispose()
@@ -1082,7 +1099,7 @@ export class Stage {
     drummer.group.position.set(0, 0.42, -4.1)
     this.group.add(drummer.group)
     this.bandmates.push(drummer)
-    void this.awaitAsset('Baterista', this.swapInBandMember(2, 'drums', 'drummer'))
+    void this.awaitAsset('drummer', this.swapInBandMember(2, 'drums', 'drummer'))
 
     // Sem banquinho construído em código: o kit importado traz o seu, e os
     // dois no mesmo lugar deixavam um cilindro claro solto atrás da banda.

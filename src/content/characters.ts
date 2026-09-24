@@ -11,6 +11,8 @@
  * acrescentar uma entrada nesta lista.
  */
 
+import type { Localized } from '../i18n'
+
 export type BodyBuild = 'slim' | 'regular' | 'heavy'
 
 export type HairStyle =
@@ -34,8 +36,9 @@ export type Footwear = 'boots' | 'sneakers' | 'dress'
 
 export interface Character {
   id: string
+  /** Nome próprio: igual em todo idioma. */
   name: string
-  subtitle: string
+  subtitle: Localized
   /** Estrelas acumuladas na carreira para liberar; 0 é inicial. */
   unlockAtStars: number
   price: number
@@ -110,7 +113,10 @@ export const CHARACTERS: Character[] = [
     id: 'rane',
     hidden: true,
     name: 'Rane Kowalczyk',
-    subtitle: 'Franzino, e ninguém aguenta o ritmo dele',
+    subtitle: {
+      pt: 'Franzino, e ninguém aguenta o ritmo dele',
+      en: 'Scrawny, and nobody can keep up with him',
+    },
     unlockAtStars: 0,
     price: 0,
     build: 'slim',
@@ -143,7 +149,10 @@ export const CHARACTERS: Character[] = [
     id: 'valdo',
     hidden: true,
     name: 'Valdo Serra',
-    subtitle: 'Cartola, cachos e um solo que não acaba',
+    subtitle: {
+      pt: 'Cartola, cachos e um solo que não acaba',
+      en: 'Top hat, curls and a solo that never ends',
+    },
     unlockAtStars: 0,
     price: 0,
     build: 'slim',
@@ -175,7 +184,10 @@ export const CHARACTERS: Character[] = [
     id: 'skarlet',
     hidden: true,
     name: 'Skarlet Vey',
-    subtitle: 'Toca descalça quando o palco deixa',
+    subtitle: {
+      pt: 'Toca descalça quando o palco deixa',
+      en: 'Plays barefoot when the stage allows',
+    },
     unlockAtStars: 3,
     price: 2000,
     build: 'slim',
@@ -227,18 +239,42 @@ const IMPORTED: Character[] = ([
   // que não é a da progressão faz o preço parecer aleatório.
   //
   // arquivo, nome, descrição, estrelas, preço, tem esqueleto, giro
-  ['douxie_tales_of_arcadia', 'Douglas', 'Jaqueta, franja e um alaúde antigo', 0, 0, true, undefined],
-  ['fortnite_darth_vader_advanced_rig', 'Dartes Vale', 'Capa preta e um riff que respira', 6, 3500, true, undefined],
-  ['dead_pool', 'Vermelhão', 'Fala demais entre uma música e outra', 10, 5000, true, undefined],
-  ['kratos', 'Kairos', 'Barba de cinzas, olhar de quem já viu pior', 14, 7000, true, undefined],
-  ['lara_croft_-_shorts_style', 'Lara Cruz', 'Aprendeu os acordes numa tumba', 18, 8500, true, undefined],
-  ['spiderman_brand_new_day_from_fortnite', 'Teixeira', 'Sobe na caixa de som todo show', 26, 12500, true, undefined],
-  ['soldier_boy', 'Soldado Bené', 'Toca marcha e chama de rock', 30, 14500, true, undefined],
-  ['goku', 'Gokê Ramos', 'Cabelo em pé desde o primeiro acorde', 34, 17000, true, undefined],
+  ['douxie_tales_of_arcadia', 'Douglas', {
+    pt: 'Jaqueta, franja e um alaúde antigo',
+    en: 'A jacket, bangs and an ancient lute',
+  }, 0, 0, true, undefined],
+  ['fortnite_darth_vader_advanced_rig', 'Dartes Vale', {
+    pt: 'Capa preta e um riff que respira',
+    en: 'A black cape and a riff that breathes',
+  }, 6, 3500, true, undefined],
+  ['dead_pool', 'Vermelhão', {
+    pt: 'Fala demais entre uma música e outra',
+    en: 'Talks too much between songs',
+  }, 10, 5000, true, undefined],
+  ['kratos', 'Kairos', {
+    pt: 'Barba de cinzas, olhar de quem já viu pior',
+    en: 'An ash-gray beard and the look of someone who has seen worse',
+  }, 14, 7000, true, undefined],
+  ['lara_croft_-_shorts_style', 'Lara Cruz', {
+    pt: 'Aprendeu os acordes numa tumba',
+    en: 'Learned her chords in a tomb',
+  }, 18, 8500, true, undefined],
+  ['spiderman_brand_new_day_from_fortnite', 'Teixeira', {
+    pt: 'Sobe na caixa de som todo show',
+    en: 'Climbs the speaker stack every show',
+  }, 26, 12500, true, undefined],
+  ['soldier_boy', 'Soldado Bené', {
+    pt: 'Toca marcha e chama de rock',
+    en: 'Plays marches and calls it rock',
+  }, 30, 14500, true, undefined],
+  ['goku', 'Gokê Ramos', {
+    pt: 'Cabelo em pé desde o primeiro acorde',
+    en: 'Hair standing on end since the first chord',
+  }, 34, 17000, true, undefined],
 ] as const).map(([file, name, subtitle, unlockAtStars, price, animated, turn]) => ({
   id: `glb-${file}`,
   name: name as string,
-  subtitle: subtitle as string,
+  subtitle: subtitle as Localized,
   unlockAtStars,
   price,
   build: 'regular' as BodyBuild,
@@ -268,10 +304,4 @@ export const SHOP_CHARACTERS: Character[] = CHARACTERS.filter((c) => !c.hidden)
 
 export function characterById(id: string): Character {
   return CHARACTERS.find((c) => c.id === id) ?? CHARACTERS[0]
-}
-
-export const BUILD_NAMES: Record<BodyBuild, string> = {
-  slim: 'Magro',
-  regular: 'Médio',
-  heavy: 'Encorpado',
 }

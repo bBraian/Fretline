@@ -46,7 +46,7 @@ for (const shot of SHOTS) {
 
   // Palco fixo: o jogo sorteia um por música, e as fotos só se comparam
   // umas com as outras no mesmo cenário.
-  await page.goto(`${BASE}/?debug&shot=${shot}&stage=club`, { waitUntil: 'networkidle' })
+  await page.goto(`${BASE}/?lang=pt&debug&shot=${shot}&stage=club`, { waitUntil: 'networkidle' })
   await passarAbertura(page)
   await page.getByRole('button', { name: /Tocar/ }).first().click()
   await page.getByRole('button', { name: /^Tocar em/ }).click()

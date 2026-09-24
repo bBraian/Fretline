@@ -13,6 +13,7 @@
  */
 
 import { blockable } from '../blocked'
+import { useT } from '../useT'
 
 interface SongRowProps {
   name: string
@@ -60,6 +61,7 @@ export function SongRow({
   waiting,
   onClick,
 }: SongRowProps) {
+  const t = useT()
   return (
     <button
       className="song-row"
@@ -73,7 +75,7 @@ export function SongRow({
           quando o destaque chega. É o retorno de que os dois segundos
           fecharam — sem ele, o som sai sem nada na tela explicando de onde. */}
       {previewing && (
-        <span className="song-row-eq" aria-label="tocando prévia">
+        <span className="song-row-eq" aria-label={t.songRow.previewing}>
           <i aria-hidden />
           <i aria-hidden />
           <i aria-hidden />
@@ -96,7 +98,7 @@ export function SongRow({
       <span className="song-row-side">
         <Stars value={stars} />
         <span className="song-score">
-          {score == null ? '—' : score.toLocaleString('pt-BR')}
+          {score == null ? '—' : t.number(score)}
         </span>
       </span>
     </button>
@@ -110,9 +112,10 @@ export function SongRow({
  * apagadas, e é isso que deixa ver de longe o quanto falta.
  */
 function Stars({ value }: { value: number | null }) {
+  const t = useT()
   const won = value ?? 0
   return (
-    <span className="stars" aria-label={value == null ? 'nunca tocada' : `${won} de ${MAX_STARS} estrelas`}>
+    <span className="stars" aria-label={value == null ? t.songRow.neverPlayed : t.songRow.starsOf(won, MAX_STARS)}>
       {Array.from({ length: MAX_STARS }, (_, i) => (
         <span key={i} className={i < won ? undefined : 'off'} aria-hidden>
           ★

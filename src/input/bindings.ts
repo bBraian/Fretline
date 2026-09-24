@@ -113,17 +113,36 @@ export function whammyFromAxis(raw: number, rest: number): number {
   return value < 0.15 ? 0 : Math.min(1, value)
 }
 
+/**
+ * As palavras dos rótulos abaixo, que mudam com o idioma.
+ *
+ * Vêm do dicionário (`input`, em `i18n/`); aqui fica só o que é igual em
+ * toda língua — as letras dos botões, as setas, o "D-pad".
+ */
+export interface InputWords {
+  keys: Record<string, string>
+  /** O botão 8, que o XInput chama de Back. */
+  back: string
+  /** O botão 16, o do logotipo. */
+  guide: string
+  button: (index: number) => string
+  axisOff: string
+  /** Os dois analógicos, eixo a eixo, na ordem do layout padrão. */
+  axes: string[]
+  axis: (index: number) => string
+}
+
 /** Nome legível de um botão de controle, no layout padrão do XInput. */
-export function gamepadButtonLabel(index: number): string {
+export function gamepadButtonLabel(index: number, words: InputWords): string {
   if (index < 0) return '—'
   const nomes: Record<number, string> = {
     0: 'A', 1: 'B', 2: 'X', 3: 'Y',
     4: 'LB', 5: 'RB', 6: 'LT', 7: 'RT',
-    8: 'Voltar', 9: 'Menu', 10: 'L3', 11: 'R3',
+    8: words.back, 9: 'Menu', 10: 'L3', 11: 'R3',
     12: 'D-pad ↑', 13: 'D-pad ↓', 14: 'D-pad ←', 15: 'D-pad →',
-    16: 'Guia',
+    16: words.guide,
   }
-  return nomes[index] ?? `Botão ${index}`
+  return nomes[index] ?? words.button(index)
 }
 
 /**
@@ -132,29 +151,28 @@ export function gamepadButtonLabel(index: number): string {
  * Cada navegador embrulha o nome de um jeito: o Chrome acrescenta
  * fabricante e produto entre parênteses, o Firefox os antepõe em
  * hexadecimal. Nenhum dos dois diz nada a quem acabou de ligar o controle.
+ *
+ * Quando não sobra nome nenhum, vale `unnamed` — a palavra genérica, no
+ * idioma da tela.
  */
-export function gamepadName(id: string): string {
+export function gamepadName(id: string, unnamed: string): string {
   const nome = id
     .replace(/\s*\([^)]*(?:STANDARD GAMEPAD|Vendor:)[^)]*\)\s*$/i, '')
     .replace(/^[0-9a-f]{1,4}-[0-9a-f]{1,4}-/i, '')
     .trim()
-  return nome || 'Controle'
+  return nome || unnamed
 }
 
 /** Nome legível de um eixo. */
-export function gamepadAxisLabel(index: number): string {
-  if (index < 0) return 'desligado'
-  const nomes: Record<number, string> = {
-    0: 'Analógico esq. ↔', 1: 'Analógico esq. ↕',
-    2: 'Analógico dir. ↔', 3: 'Analógico dir. ↕',
-  }
-  return nomes[index] ?? `Eixo ${index}`
+export function gamepadAxisLabel(index: number, words: InputWords): string {
+  if (index < 0) return words.axisOff
+  return words.axes[index] ?? words.axis(index)
 }
 
 /** Nomes legíveis para a tela de configuração. */
-export function keyLabel(code: string): string {
+export function keyLabel(code: string, words: InputWords): string {
   if (code.startsWith('Key')) return code.slice(3)
   if (code.startsWith('Digit')) return code.slice(5)
   if (code.startsWith('Arrow')) return { Up: '↑', Down: '↓', Left: '←', Right: '→' }[code.slice(5)] ?? code
-  return { Space: 'Espaço', ShiftLeft: 'Shift', ShiftRight: 'Shift D', Enter: 'Enter' }[code] ?? code
+  return words.keys[code] ?? code
 }

@@ -9,6 +9,7 @@
  */
 
 import { blockable } from '../blocked'
+import { useT } from '../useT'
 
 export interface ShopItemState {
   owned: boolean
@@ -35,10 +36,12 @@ export function ShopActions({
   onBuy,
   onEquip,
 }: ShopActionsProps) {
+  const t = useT()
+
   if (equipped) {
     return (
       <div className="shop-actions">
-        <span className="tag tag-own">Em uso</span>
+        <span className="tag tag-own">{t.shop.equipped}</span>
       </div>
     )
   }
@@ -47,7 +50,7 @@ export function ShopActions({
     return (
       <div className="shop-actions">
         <button className="btn btn-primary btn-lg" onClick={onEquip}>
-          Equipar
+          {t.shop.equip}
         </button>
       </div>
     )
@@ -59,9 +62,9 @@ export function ShopActions({
         {/* Bloqueio de estrelas é coisa que só a interface sabe — a loja
             nem chega a ser consultada. Então é aqui que a recusa soa. */}
         <button className="btn btn-lg" {...blockable(true, () => {})}>
-          Bloqueado
+          {t.shop.locked}
         </button>
-        <span className="shop-note">Abre com {unlockAtStars} estrelas na carreira.</span>
+        <span className="shop-note">{t.shop.unlockAt(unlockAtStars)}</span>
       </div>
     )
   }
@@ -72,21 +75,18 @@ export function ShopActions({
       {/* Sem saldo o clique passa mesmo assim: quem recusa é a loja, que é
           quem conhece o preço e o bolso — e é ela que toca a recusa. */}
       <button className="btn btn-primary btn-lg" aria-disabled={!affordable || undefined} onClick={onBuy}>
-        Comprar por ${price.toLocaleString('pt-BR')}
+        {t.shop.buy(price)}
       </button>
-      {!affordable && (
-        <span className="shop-note">
-          Faltam ${(price - money).toLocaleString('pt-BR')}.
-        </span>
-      )}
+      {!affordable && <span className="shop-note">{t.shop.short(price - money)}</span>}
     </div>
   )
 }
 
 /** Etiqueta curta para a linha da lista. */
 export function ShopTag({ owned, equipped, unlocked, price, unlockAtStars }: ShopItemState) {
-  if (equipped) return <span className="tag tag-own">Em uso</span>
-  if (owned) return <span className="tag">Sua</span>
+  const t = useT()
+  if (equipped) return <span className="tag tag-own">{t.shop.equipped}</span>
+  if (owned) return <span className="tag">{t.shop.owned}</span>
   if (!unlocked) return <span className="tag tag-locked">{unlockAtStars} ★</span>
-  return <span className="tag">${price.toLocaleString('pt-BR')}</span>
+  return <span className="tag">{t.money(price)}</span>
 }

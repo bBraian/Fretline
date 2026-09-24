@@ -14,6 +14,7 @@ import { Backdrop } from '../Backdrop'
 import { useGame } from '../store'
 import { getBootState, startBoot } from '../boot'
 import { bootView, contaComoTecla } from '../bootView'
+import { useT } from '../useT'
 
 export function BootScreen() {
   const setScreen = useGame((s) => s.setScreen)
@@ -30,7 +31,8 @@ export function BootScreen() {
     return () => window.clearInterval(leitura)
   }, [refreshLocalLibrary])
 
-  const view = bootView(estado)
+  const t = useT()
+  const view = bootView(estado, t)
 
   useEffect(() => {
     if (!view.ready) return
@@ -91,7 +93,7 @@ export function BootScreen() {
               line
             </span>
           </h1>
-          <p className="wordmark-sub">Cinco trastes, sem palhetada</p>
+          <p className="wordmark-sub">{t.brand.tagline}</p>
         </div>
 
         {/* Só o "Pressione" é anunciado: a linha de MB muda a cada 120 ms, e
@@ -100,7 +102,7 @@ export function BootScreen() {
           {view.ready ? (
             <>
               <p className="boot-press" role="status">
-                Pressione qualquer tecla
+                {t.boot.press}
               </p>
               <p className="boot-line boot-line-dim">{view.library}</p>
               {view.failures && <p className="boot-line boot-line-dim">{view.failures}</p>}
@@ -110,7 +112,7 @@ export function BootScreen() {
               <div
                 className={view.bar === null ? 'loading-bar is-waiting' : 'loading-bar'}
                 role="progressbar"
-                aria-label="Baixando o jogo"
+                aria-label={t.boot.progressLabel}
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={view.bar === null ? undefined : Math.round(view.bar * 100)}
