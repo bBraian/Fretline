@@ -1,17 +1,25 @@
 # Hospedagem e telas de carregamento — Design
 
 Data: 2026-09-22
-Status: aprovado; **no ar pelo atalho desde 2026-09-23**, código do plano
-ainda não implementado (ver *Estado em 2026-09-23*)
+Status: aprovado; **parte 1 feita em 2026-09-24** (publicação com
+previews); partes 2 a 4 pendentes (ver *Estado*)
 
-## Estado em 2026-09-23
+## Estado
 
-O jogo foi publicado antes da implementação, aproveitando o que o código
-atual já fazia: ele lê `/library/remote.json` com um `base` absoluto, e
-reescreve `/models/...` pela `VITE_ASSETS_BASE`.
+Em 2026-09-23 o jogo foi publicado antes da implementação, aproveitando o
+que o código de então já fazia: lia `/library/remote.json` com um `base`
+absoluto, e reescrevia `/models/...` pela `VITE_ASSETS_BASE`.
 
 **Feito:**
 
+- **Parte 1 (2026-09-24):** `upload-assets` reescrito (hard links, previews
+  gerados para as 25 músicas, `library.json` e `_headers`, publicação pelo
+  wrangler), cliente lendo `${VITE_ASSETS_BASE}/library.json` seis pastas
+  por vez, música de menu pelos previews, "Reler a pasta" escondido no
+  hospedado, `npm run hosted`. O `remote.json` saiu. Plano:
+  `docs/superpowers/plans/2026-09-24-hospedagem-parte-1-publicacao.md`.
+- Node 22 como padrão (o wrangler 4.138 exige), `wrangler` como
+  devDependency, `@vercel/blob` removido.
 - Conta na Cloudflare, `wrangler login` e subdomínio `bbraian`. O Worker
   `fretline-assets` está em `https://fretline-assets.bbraian.workers.dev`.
 - `tools/assets-worker/wrangler.jsonc` como descrito abaixo, e `.gitignore`
@@ -22,20 +30,17 @@ reescreve `/models/...` pela `VITE_ASSETS_BASE`.
   os 214 arquivos da primeira leva foram conferidos contra os locais, um
   por um.
 - `public/library/remote.json` gerado à mão a partir de `.assets-dist/songs`,
-  com `base` absoluto, e versionado.
+  com `base` absoluto — substituído pelo `library.json` na parte 1.
 - `ffmpeg` e `ffprobe` instalados.
 - Vercel: repositório importado (Vite), `VITE_ASSETS_BASE` definida como
   *Config*, não segredo. O nome precisa do prefixo `VITE_` — o aviso de
   segredo que a Vercel mostra não se aplica a uma URL pública.
 
-**O que o atalho não tem** é o que falta implementar: a abertura, o
-progresso e o cancelamento do Afinando, os previews gerados para todas as
-músicas, o `library.json` publicado junto com os assets e os créditos. E
-música nova, por enquanto, exige refazer o `remote.json` e fazer commit.
+**Falta implementar:** o progresso e o cancelamento do Afinando, a
+abertura (com os previews baixados em segundo plano) e os créditos.
 
-**Ordem sugerida**, uma parte por sessão: publicação com previews (script +
-`library.json` + cliente lendo o índice do host) → Afinando → abertura →
-créditos.
+**Ordem sugerida**, uma parte por sessão: ~~publicação com previews~~
+(feita) → Afinando → abertura → créditos.
 
 **Pendente de decisão — créditos.** Proposto e não confirmado: o script
 avisa sobre GLB sem entrada em vez de recusar, e os campos ficam só autor,
@@ -372,8 +377,7 @@ autorize redistribuir, e a publicação foi decidida sabendo disso (ver
 1. ~~Conta gratuita na Cloudflare e `npx wrangler login`.~~ Feito.
 2. ~~`sudo apt install ffmpeg`.~~ Feito.
 3. Preencher `src/content/credits.json`. Pendente (ver *Estado*).
-4. `npm run upload-assets` — imprime a URL do host de assets. Feito à mão
-   por enquanto; o script ainda não existe.
+4. `npm run upload-assets` — imprime a URL do host de assets. Feito.
 5. ~~Na Vercel: importar o repositório (framework Vite), definir
    `VITE_ASSETS_BASE` com a URL do passo 4, publicar.~~ Feito.
 
