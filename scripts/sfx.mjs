@@ -6,6 +6,7 @@
 
 import { chromium } from 'playwright'
 import { serve } from './serve.mjs'
+import { passarAbertura } from './abertura.mjs'
 
 const server = await serve()
 const BASE = server.url
@@ -123,6 +124,7 @@ console.log('\nMENUS')
     records: { 'fretline-demo:medium': { score: 1, stars: 99, accuracy: 1 } },
   })
   await page.goto(BASE, { waitUntil: 'domcontentloaded' })
+  await passarAbertura(page)
   await page.getByRole('heading', { name: 'FRETLINE' }).waitFor({ timeout: 15000 })
 
   confere(
@@ -196,6 +198,7 @@ console.log('\nAÇÕES BLOQUEADAS')
     records: { 'fretline-demo:medium': { score: 1, stars: 99, accuracy: 1 } },
   })
   await page.goto(BASE, { waitUntil: 'domcontentloaded' })
+  await passarAbertura(page)
   await page.getByRole('heading', { name: 'FRETLINE' }).waitFor({ timeout: 15000 })
   await page.getByRole('button', { name: /^Guitarra$/ }).first().click()
   await page.waitForTimeout(400)
@@ -223,6 +226,7 @@ console.log('\nAÇÕES BLOQUEADAS')
   // Sem estrelas, os itens de progresso aparecem como bloqueados.
   const pobre = await novaPagina({ money: 0, records: {} })
   await pobre.goto(BASE, { waitUntil: 'domcontentloaded' })
+  await passarAbertura(pobre)
   await pobre.getByRole('heading', { name: 'FRETLINE' }).waitFor({ timeout: 15000 })
   await pobre.getByRole('button', { name: /^Guitarra$/ }).first().click()
   await pobre.waitForTimeout(400)
@@ -245,8 +249,9 @@ console.log('\nMÚSICA DE MENU')
 {
   const page = await novaPagina(null)
   await page.goto(BASE, { waitUntil: 'domcontentloaded' })
+  await passarAbertura(page)
   await page.getByRole('heading', { name: 'FRETLINE' }).waitFor({ timeout: 15000 })
-  // O primeiro gesto é o que acorda o áudio no navegador.
+  // O gesto da abertura já acordou o áudio; o clique fica como garantia.
   await page.mouse.click(5, 5)
 
   const tocou = await page
@@ -263,10 +268,12 @@ console.log('\nMÚSICA DE MENU')
     console.log(
       `✓ menu tocou "${arquivo}" (${faixa.dur.toFixed(0)}s) a partir de ${faixa.at.toFixed(1)}s`,
     )
-    // O elemento não sabe a duração de um `.opus`; quem sabe é o `song.ini`,
-    // e o teste não o lê. Então a conferência possível aqui é que o trecho
-    // não começou do início — que era exatamente o defeito.
-    if (Number.isFinite(faixa.dur)) {
+    // Com preview, o menu toca o clipe de 30 s desde o início: o host de
+    // assets não atende byte range, e pular para o meio de um arquivo
+    // transmitido não funciona. Sem preview, vale a regra antiga — o meio.
+    if (/\/preview\.[a-z0-9]+$/i.test(decodeURIComponent(faixa.src))) {
+      if (faixa.at > 1) problems.push(`o preview começou em ${faixa.at.toFixed(1)}s, e não do início`)
+    } else if (Number.isFinite(faixa.dur)) {
       const esperado = faixa.dur > 30 ? (faixa.dur - 30) / 2 : 0
       if (Math.abs(faixa.at - esperado) > 1) {
         problems.push(
@@ -308,6 +315,7 @@ console.log('\nSELETOR E PREVIEW')
     localStorage.setItem('fretline:v1', JSON.stringify(salvo))
   })
   await page.goto(BASE, { waitUntil: 'domcontentloaded' })
+  await passarAbertura(page)
   await page.getByRole('heading', { name: 'FRETLINE' }).waitFor({ timeout: 15000 })
   await page.getByRole('button', { name: /Tocar/ }).first().click()
   await page.locator('.song-row').nth(4).waitFor({ timeout: 30000 })
@@ -380,6 +388,7 @@ console.log('\nSELETOR NA CARREIRA')
     records: { 'x:medium': { score: 1, stars: 999, accuracy: 1 } },
   })
   await page.goto(BASE, { waitUntil: 'domcontentloaded' })
+  await passarAbertura(page)
   await page.getByRole('heading', { name: 'FRETLINE' }).waitFor({ timeout: 15000 })
   await page.getByRole('button', { name: /^Carreira$/ }).first().click()
   await page.locator('.song-row').nth(4).waitFor({ timeout: 30000 })
@@ -430,6 +439,7 @@ console.log('\nPADRÕES E NAVEGAÇÃO')
 {
   const page = await novaPagina(null)
   await page.goto(BASE, { waitUntil: 'domcontentloaded' })
+  await passarAbertura(page)
   await page.getByRole('heading', { name: 'FRETLINE' }).waitFor({ timeout: 15000 })
 
   // Perfil novo: quem está equipado por padrão.
@@ -509,6 +519,7 @@ console.log('\nGAMEPLAY — pausa na contagem')
   const ABERTURA = ['highwayRise', 'notesRipple', 'crowdCheer']
   const page = await novaPagina(null, { viewport: { width: 480, height: 270 } })
   await page.goto(`${BASE}/?debug&lowfx`, { waitUntil: 'domcontentloaded' })
+  await passarAbertura(page)
   await page.getByRole('button', { name: /Tocar/ }).first().click()
   await page.getByRole('button', { name: /^Tocar em/ }).click()
   await page.waitForFunction(() => !document.body.innerText.includes('Afinando'), null, {
@@ -560,6 +571,7 @@ console.log('\nGAMEPLAY — abertura e derrota (sem tocar nada)')
 {
   const page = await novaPagina(null, { viewport: { width: 480, height: 270 } })
   await page.goto(`${BASE}/?debug&lowfx`, { waitUntil: 'domcontentloaded' })
+  await passarAbertura(page)
   await page.getByRole('button', { name: /Tocar/ }).first().click()
   await page.getByRole('button', { name: /^Tocar em/ }).click()
   await page.waitForFunction(() => !document.body.innerText.includes('Afinando'), null, {
@@ -627,6 +639,7 @@ console.log('\nGAMEPLAY — vitória (piloto automático toca a música)')
 {
   const page = await novaPagina(null, { viewport: { width: 480, height: 270 } })
   await page.goto(`${BASE}/?debug&lowfx`, { waitUntil: 'domcontentloaded' })
+  await passarAbertura(page)
   await page.getByRole('button', { name: /Tocar/ }).first().click()
   await page.getByRole('button', { name: /^Tocar em/ }).click()
   await page.waitForFunction(() => !document.body.innerText.includes('Afinando'), null, {
@@ -687,6 +700,7 @@ console.log('\nBOOST')
 {
   const page = await novaPagina(null, { viewport: { width: 480, height: 270 } })
   await page.goto(`${BASE}/?debug&lowfx`, { waitUntil: 'domcontentloaded' })
+  await passarAbertura(page)
   await page.getByRole('button', { name: /Tocar/ }).first().click()
   await page.getByRole('button', { name: /^Tocar em/ }).click()
   await page.waitForFunction(() => !document.body.innerText.includes('Afinando'), null, {

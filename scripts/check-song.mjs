@@ -9,6 +9,7 @@
 
 import { chromium } from 'playwright'
 import { serve } from './serve.mjs'
+import { passarAbertura } from './abertura.mjs'
 
 const args = process.argv.slice(2)
 const wanted = (args.find((a) => !a.startsWith('--')) ?? 'Barracuda').toLowerCase()
@@ -24,6 +25,7 @@ const page = await browser.newPage({ viewport: { width: 900, height: 600 } })
 page.on('pageerror', (e) => console.log('[erro]', e.message))
 
 await page.goto(`${BASE}/?debug`, { waitUntil: 'networkidle' })
+await passarAbertura(page)
 
 // A varredura da pasta roda ao abrir; esperar a biblioteca crescer.
 await page.waitForFunction(

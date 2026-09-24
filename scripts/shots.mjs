@@ -8,6 +8,7 @@
 
 import { chromium } from 'playwright'
 import { serve } from './serve.mjs'
+import { passarAbertura } from './abertura.mjs'
 
 const external = process.env.BASE_URL
 const server = external ? null : await serve()
@@ -44,6 +45,7 @@ for (const shot of SHOTS) {
   })
 
   await page.goto(`${BASE}/?debug&shot=${shot}`, { waitUntil: 'networkidle' })
+  await passarAbertura(page)
   await page.getByRole('button', { name: /Tocar/ }).first().click()
   await page.getByRole('button', { name: /^Tocar em/ }).click()
   await page.waitForFunction(() => !document.body.innerText.includes('Afinando'), null, {

@@ -2432,6 +2432,72 @@ button {
   text-shadow: 0 1px 3px rgba(20, 12, 5, 0.9);
 }
 
+/* --- abertura ------------------------------------------------------------ */
+
+/* O logo do menu, sozinho no meio do cartaz, e embaixo dele o que falta.
+   As medidas verticais em `vh`: numa janela baixa (480×270) o logo e a
+   barra precisam caber juntos — armadilha 2. */
+.boot {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(14px, 7vh, 64px);
+  padding: 16px;
+  text-align: center;
+}
+
+.boot-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.boot-status {
+  width: min(560px, 90vw);
+  min-height: clamp(56px, 16vh, 96px);
+}
+
+.boot-line {
+  margin: 2px 0 0;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+  color: var(--gh-ochre);
+  text-shadow: 0 1px 3px rgba(20, 12, 5, 0.9);
+}
+
+.boot-line-dim {
+  color: var(--gh-ochre-dim);
+}
+
+.boot-press {
+  margin: 0 0 10px;
+  font-family: var(--gh-display);
+  font-size: clamp(15px, 2.1vw, 26px);
+  letter-spacing: 0.18em;
+  white-space: nowrap;
+  text-transform: uppercase;
+  color: var(--gh-bone);
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.85);
+  animation: boot-press 1.4s ease-in-out infinite;
+}
+
+@keyframes boot-press {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boot-press {
+    animation: none;
+  }
+}
+
 /* --- tela de espera antes do palco ------------------------------------- */
 
 .loading-panel {
@@ -2479,6 +2545,30 @@ button {
   height: 100%;
   background: linear-gradient(90deg, var(--gh-ochre), var(--gh-bone));
   transition: width 180ms ease;
+}
+
+/* Sem total ainda (conectando, ou a demo sintetizando): um trecho que vai e
+   volta, em vez de uma barra parada em zero que parece travada. */
+.loading-bar.is-waiting i {
+  width: 30%;
+  animation: loading-wait 1.1s ease-in-out infinite alternate;
+}
+
+@keyframes loading-wait {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(233%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-bar.is-waiting i {
+    width: 100%;
+    opacity: 0.35;
+    animation: none;
+  }
 }
 
 /* Véu do encerramento. A opacidade sobe devagar e só fecha de vez no fim,

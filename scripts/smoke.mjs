@@ -16,6 +16,7 @@
 
 import { chromium } from 'playwright'
 import { serve } from './serve.mjs'
+import { passarAbertura } from './abertura.mjs'
 
 // Sem BASE_URL, o script constrói e sobe o próprio servidor.
 const external = process.env.BASE_URL
@@ -42,6 +43,7 @@ page.on('console', (message) => {
 page.on('pageerror', (error) => problems.push(`exceção: ${error.message}`))
 
 await page.goto(`${BASE}/?debug&lowfx`, { waitUntil: 'networkidle' })
+await passarAbertura(page)
 
 await page.getByRole('heading', { name: 'FRETLINE' }).waitFor({ timeout: 15000 })
 console.log('✓ menu carregou')

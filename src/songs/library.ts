@@ -24,6 +24,7 @@ import { parseSongIni } from './songIni'
 import type { StemRole } from '../audio/songPlayer'
 import { filePrefix, libraryIndexUrl, type LibraryIndex } from './libraryIndex'
 import { mapInOrder } from './mapInOrder'
+import { retry } from '../net/retry'
 
 export interface AudioTrack {
   url: string
@@ -402,9 +403,18 @@ export function catalogue(entries: SongEntry[]): SongEntry[] {
 async function fetchLibraryIndex(): Promise<{ index: LibraryIndex; url: string } | null> {
   const url = libraryIndexUrl(import.meta.env.VITE_ASSETS_BASE)
   try {
-    const response = await fetch(url)
-    if (!response.ok) return null
-    return { index: (await response.json()) as LibraryIndex, url }
+    // O índice é o arquivo que decide se há biblioteca: vale a mesma
+    // insistência dos modelos da abertura. Um 404 não insiste.
+    const index = await retry(async () => {
+      const response = await fetch(url)
+      if (!response.ok) {
+        throw Object.assign(new Error(`${url} respondeu ${response.status}`), {
+          status: response.status,
+        })
+      }
+      return (await response.json()) as LibraryIndex
+    })
+    return { index, url }
   } catch {
     return null
   }

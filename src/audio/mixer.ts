@@ -29,6 +29,7 @@
 
 import { MenuPlaylist, type MenuTrack } from './menuPlaylist'
 import { SampleBank, ShuffleBag, VoiceGroup, type SampleName } from './sfx'
+import type { TrackProgress } from './download'
 
 /** Quanto a música de menu toca abaixo do volume geral. */
 const MENU_MUSIC_RATIO = 0.5
@@ -262,8 +263,8 @@ class Mixer {
    * jogador, e adiantar isso para a abertura da aba é o que evita o primeiro
    * clique sair mudo.
    */
-  warm() {
-    this.bank.prefetch()
+  warm(onProgress?: (items: TrackProgress[]) => void): Promise<void> {
+    return this.bank.prefetch(onProgress)
   }
 
   /** Um efeito curto de menu. */

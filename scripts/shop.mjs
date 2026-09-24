@@ -1,6 +1,7 @@
 /** Fotografa a loja: um item já comprado e um ainda bloqueado. */
 import { chromium } from 'playwright'
 import { serve } from './serve.mjs'
+import { passarAbertura } from './abertura.mjs'
 
 const server = await serve()
 const browser = await chromium.launch({
@@ -14,6 +15,7 @@ await page.addInitScript(() => {
   localStorage.setItem('fretline:v1', JSON.stringify({ profile: { money: 4000 } }))
 })
 await page.goto(`${server.url}/?still`, { waitUntil: 'networkidle' })
+await passarAbertura(page)
 
 await page.getByRole('button', { name: /Guitarra/ }).first().click()
 await page.locator('.picker-row').first().waitFor()

@@ -244,6 +244,55 @@ Os quadros se conferem pausando as animações pela Web Animations API
 (`document.getAnimations()`, `currentTime`), não por captura em sequência —
 ver a armadilha 6.
 
+## 6e. A espera antes do palco ("Afinando")
+
+`src/ui/PlayScreen.tsx`, fase `loading`. Painel sobre o palco ainda vazio,
+na linguagem de cartaz dos menus.
+
+- **Nome e artista** logo abaixo do título: quem escolheu a música confere
+  que é a certa enquanto espera.
+- **A barra mede o download do áudio em MB**, lendo o corpo das faixas aos
+  pedaços. Sem total ainda (conectando, ou a demo sintetizando) ela vira um
+  trecho que vai e volta — `.loading-bar.is-waiting`, modificador sobre a
+  classe compartilhada, que não se redefine. Movimento reduzido: barra cheia
+  e apagada, parada.
+- **Uma linha de fase** embaixo: `Conectando…` → `Baixando a música
+  12,4 / 31,0 MB` → `Decodificando o áudio…` → `Montando o palco (3/7)`. Sem
+  `Content-Length`, conta faixas em vez de MB.
+- **A lista do palco** só aparece depois do áudio: um item por arquivo, com
+  ✓ quando chega. A barra fica cheia nesse trecho; é a lista que anda.
+- **Voltar, ou Esc, desiste**: a tela desmonta e o download é abortado.
+- **No erro**, "Tentar de novo" em destaque e "Voltar" ao lado, com a
+  mensagem dizendo se foi rede ou decodificação — tentar de novo só adianta
+  na primeira.
+
+`npm run menus` captura as duas coisas: `menu-afinando.png` com a rede
+estrangulada pelo CDP, e `menu-afinando-erro.png` com as faixas bloqueadas.
+
+## 6f. A abertura
+
+`src/ui/screens/BootScreen.tsx`, a primeira tela. O fundo `poster` e o
+mesmo wordmark do menu — as classes `.wordmark`/`.wordmark-sub` são as dele,
+reaproveitadas sem redefinir, e o título partido leva `aria-label`
+(armadilha 3).
+
+- **Embaixo do logo, o que falta**: a `.loading-bar` compartilhada (com o
+  `is-waiting` enquanto nem todo arquivo disse o próprio tamanho), a linha
+  `21,6 / 35,2 MB` e a linha da biblioteca, `Biblioteca 12/25`, mais
+  apagada.
+- **Pronta, vira "Pressione qualquer tecla"**, numa linha só
+  (`white-space: nowrap`, a coluna tem até 560px), piscando devagar —
+  parado com movimento reduzido —, com o tamanho da biblioteca embaixo e,
+  se algo não veio, `N arquivos não vieram — carregam quando precisar`.
+- **Sai ao soltar**, não ao apertar: tecla, clique fora de botão, ou botão
+  do controle. O gesto cria o áudio, e o menu entra já com música e com o
+  som de abrir.
+- As medidas verticais são em `vh`: a 480×270 do teste de fumaça, logo e
+  letreiro cabem juntos.
+
+`npm run menus` captura a abertura pronta (`menu-abertura.png`) e, com a
+rede estrangulada e sem cache, no meio da barra (`menu-abertura-baixando.png`).
+
 ## 7. Navegação
 
 O menu principal é **dirigido por seleção**, não por ponteiro:

@@ -21,6 +21,8 @@ import { useGame } from './store'
 import { Hud } from './hud/Hud'
 import { YouRock } from './hud/YouRock'
 import { mixer } from '../audio/mixer'
+import { TrackLoadError, type TrackProgress } from '../audio/download'
+import { downloadProgress, mb } from './downloadProgress'
 
 const LEAD_IN = 3
 
@@ -76,6 +78,12 @@ export function PlayScreen() {
     total: number
   }>({ itens: [], done: 0, total: 0 })
   const [error, setError] = useState<string | null>(null)
+  /** O download das faixas, faixa a faixa; vazio na demo. */
+  const [download, setDownload] = useState<TrackProgress[]>([])
+  /** Em que parte da espera está: o áudio, ou o palco depois dele. */
+  const [loadStep, setLoadStep] = useState<'audio' | 'stage'>('audio')
+  /** O erro veio de um carregamento, e tentar de novo faz sentido. */
+  const [retryable, setRetryable] = useState(false)
   const [countdown, setCountdown] = useState(LEAD_IN)
   const [hudState, setHudState] = useState<SessionState | null>(null)
   const [verdict, setVerdict] = useState<{ verdict: Verdict; delta: number } | null>(null)
@@ -123,6 +131,11 @@ export function PlayScreen() {
     const canvas = canvasRef.current
     finishedRef.current = false
 
+    // Sair da tela no meio do download cancela o download. Com 31 MB numa
+    // conexão lenta, deixar correndo seria gastar a banda do jogador numa
+    // música que ele já desistiu de tocar.
+    const controller = new AbortController()
+
     // Nada de menu nem de preview sobre a partida. O roteador já manda
     // parar ao trocar de tela; isto é a garantia de quem vai tocar, e não
     // depende de a ordem das montagens sair certa.
@@ -169,26 +182,46 @@ export function PlayScreen() {
         chartOffset: entry.song.meta.offset,
       })
 
+      // O progresso chega a cada pedaço; a tela lê a cada 120 ms, como
+      // faz com os itens do palco logo abaixo.
+      let recebido: TrackProgress[] = []
+      const relatorioAudio = window.setInterval(() => setDownload(recebido), 120)
+
       try {
         if (entry.synthesized) {
           player.useBuffers([await renderDemoTrack(player.context.sampleRate)])
         } else if (entry.tracks.length > 0) {
-          await player.load(entry.tracks)
+          await player.load(entry.tracks, {
+            signal: controller.signal,
+            onProgress: (itens) => {
+              recebido = itens
+            },
+          })
         }
       } catch (loadError) {
+        // Cancelado é a tela saindo: nada de painel de erro no caminho.
         if (!cancelled) {
           console.error(loadError)
-          setError('Não consegui decodificar o áudio dessa música.')
+          setError(
+            loadError instanceof TrackLoadError && loadError.kind === 'network'
+              ? 'Não consegui baixar a música. Confira a conexão e tente de novo.'
+              : 'Não consegui decodificar o áudio dessa música.',
+          )
+          setRetryable(true)
           setPhase('error')
         }
         await player.dispose()
         return
+      } finally {
+        window.clearInterval(relatorioAudio)
+        if (!cancelled) setDownload(recebido)
       }
 
       if (cancelled) {
         await player.dispose()
         return
       }
+      setLoadStep('stage')
 
       player.setVolume(mixer.getVolume())
       // O controle da tela de ajustes vale durante a partida, não só no
@@ -268,6 +301,7 @@ export function PlayScreen() {
     void boot()
 
     return () => {
+      controller.abort()
       cancelled = true
       // O que era do palco — o grito da abertura, a plateia do boost — não
       // vem junto para o menu, nem fica pausado esperando uma volta que
@@ -431,7 +465,10 @@ export function PlayScreen() {
     const onKey = (event: KeyboardEvent) => {
       if (event.code !== 'Escape') return
       event.preventDefault()
-      if (phase === 'paused') resume()
+      // Esperando o palco, Esc é desistir: sai, e a desmontagem aborta o
+      // download. Não há o que pausar ainda.
+      if (phase === 'loading') quit()
+      else if (phase === 'paused') resume()
       else pause()
     }
     window.addEventListener('keydown', onKey)
@@ -449,6 +486,35 @@ export function PlayScreen() {
     // desvio é pela tela de origem, para que ela continue sendo a origem.
     setScreen(playedFrom)
     requestAnimationFrame(() => setScreen('play'))
+  }
+
+  // A linha de fase e a barra do Afinando. A barra mede o download do
+  // áudio, em bytes; depois dele fica cheia, e o que falta do palco aparece
+  // na lista, item a item.
+  const baixado = downloadProgress(download)
+  let barra: number | null
+  let fase: string
+  if (loadStep === 'stage') {
+    barra = 1
+    fase =
+      assets.total && assets.done >= assets.total
+        ? 'Preparando o palco…'
+        : `Montando o palco (${assets.done}/${assets.total || '…'})`
+  } else if (entry?.synthesized) {
+    barra = null
+    fase = 'Sintetizando a faixa de demonstração…'
+  } else if (baixado.phase === 'connecting') {
+    barra = null
+    fase = 'Conectando…'
+  } else if (baixado.phase === 'downloading') {
+    barra = baixado.fraction
+    fase =
+      baixado.total !== null
+        ? `Baixando a música ${mb(baixado.loaded)} / ${mb(baixado.total)} MB`
+        : `Baixando a música (${Math.round((baixado.fraction ?? 0) * download.length)}/${download.length} faixas)`
+  } else {
+    barra = 1
+    fase = 'Decodificando o áudio…'
   }
 
   return (
@@ -475,15 +541,21 @@ export function PlayScreen() {
         <div className="overlay">
           <div className="overlay-panel loading-panel">
             <h2>Afinando</h2>
-            <p className="screen-subtitle">
-              {entry?.synthesized
-                ? 'Sintetizando a faixa de demonstração…'
-                : 'Decodificando o áudio…'}
-            </p>
+            {entry && (
+              <p className="screen-subtitle">
+                <b>{entry.song.meta.name}</b>
+                {entry.song.meta.artist ? ` — ${entry.song.meta.artist}` : ''}
+              </p>
+            )}
+
+            <div className={barra === null ? 'loading-bar is-waiting' : 'loading-bar'}>
+              <i style={barra === null ? undefined : { width: `${barra * 100}%` }} />
+            </div>
+            <p className="screen-subtitle">{fase}</p>
 
             {/* Progresso de verdade: cada linha é um arquivo que o palco
                 está esperando, e some da lista só quando chega. */}
-            {assets.total > 0 && (
+            {loadStep === 'stage' && assets.total > 0 && (
               <ul className="loading-list">
                 {assets.itens.map((item) => (
                   <li key={item.label} data-done={item.done}>
@@ -494,14 +566,9 @@ export function PlayScreen() {
               </ul>
             )}
 
-            <div className="loading-bar">
-              <i style={{ width: `${assets.total ? (assets.done / assets.total) * 100 : 8}%` }} />
-            </div>
-            <p className="screen-subtitle">
-              {assets.total && assets.done >= assets.total
-                ? 'Preparando o palco…'
-                : `Carregando o palco (${assets.done}/${assets.total || '…'})`}
-            </p>
+            <button className="btn btn-ghost" onClick={quit}>
+              Voltar
+            </button>
           </div>
         </div>
       )}
@@ -511,7 +578,12 @@ export function PlayScreen() {
           <div className="overlay-panel">
             <h2>Não deu</h2>
             <p className="screen-subtitle">{error}</p>
-            <button className="btn btn-primary" onClick={quit}>
+            {retryable && (
+              <button className="btn btn-primary" onClick={restart}>
+                Tentar de novo
+              </button>
+            )}
+            <button className={retryable ? 'btn btn-ghost' : 'btn btn-primary'} onClick={quit}>
               Voltar
             </button>
           </div>

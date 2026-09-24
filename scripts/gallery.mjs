@@ -7,6 +7,7 @@
 
 import { chromium } from 'playwright'
 import { serve } from './serve.mjs'
+import { passarAbertura } from './abertura.mjs'
 
 const external = process.env.BASE_URL
 const server = external ? null : await serve()
@@ -37,6 +38,7 @@ page.on('pageerror', (error) => console.log('[pageerror]', error.message))
 page.on('console', (m) => m.type() === 'error' && console.log('[console]', m.text().slice(0, 300)))
 
 await page.goto(`${BASE}/?still`, { waitUntil: 'networkidle' })
+await passarAbertura(page)
 
 async function shootList(screenButton, prefix) {
   await page.getByRole('button', { name: screenButton }).first().click()

@@ -21,26 +21,18 @@ import { ResultsScreen } from './ui/screens/ResultsScreen'
 import { PlayScreen } from './ui/PlayScreen'
 import { FullscreenButton } from './ui/FullscreenButton'
 import { GamepadToast } from './ui/GamepadToast'
+import { BootScreen } from './ui/screens/BootScreen'
+import { useBackgroundPreviews } from './ui/useBackgroundPreviews'
 
 export function App() {
   const screen = useGame((s) => s.screen)
   const library = useGame((s) => s.library)
-  const refreshLocalLibrary = useGame((s) => s.refreshLocalLibrary)
   const volume = useGame((s) => s.settings.volume)
   const menuMusic = useGame((s) => s.settings.menuMusic)
 
-  // A pasta `songs/` é lida uma vez ao abrir. Falhar aqui não é erro: num
-  // build estático, sem o servidor local, simplesmente não há pasta.
-  useEffect(() => {
-    void refreshLocalLibrary()
-  }, [refreshLocalLibrary])
-
-  // Os efeitos começam a baixar com a aba, não com o primeiro clique:
-  // baixar não depende de gesto, e adiantar isso é o que faz o primeiro som
-  // de menu sair no tempo em vez de chegar atrasado.
-  useEffect(() => {
-    mixer.warm()
-  }, [])
+  // A biblioteca e os efeitos descem na abertura (`ui/boot.ts`); os
+  // previews, depois dela, um por vez.
+  useBackgroundPreviews()
 
   /**
    * A música de fundo dos menus são as próprias músicas da biblioteca.
@@ -67,6 +59,9 @@ export function App() {
    * — o que mantém uma instância só no ar o tempo todo.
    */
   useEffect(() => {
+    // Na abertura ainda não houve gesto: tocar agora só faria a trilha ter
+    // o `play()` recusado faixa por faixa. Quem a liga é a saída dela.
+    if (screen === 'boot') return
     if (screen === 'play') mixer.stopMenuMusic()
     else mixer.startMenuMusic()
   }, [screen])
@@ -78,10 +73,12 @@ export function App() {
    * teclado e o que vier depois sem que nenhuma tela precise lembrar de
    * tocar nada — e sem risco de duas telas tocarem o mesmo som.
    *
-   * Três silêncios de propósito: a primeira tela não *abriu*, ela já estava
-   * lá; o palco tem a própria abertura; e sair do palco já é anunciado pelo
-   * fim da música, ganhou ou perdeu. O quarto caso, o de voltar, é a própria
-   * mesa que resolve — `play('back')` cala o `enter` seguinte.
+   * Três silêncios de propósito: a primeira tela — a abertura — não
+   * *abriu*, ela já estava lá (sair dela toca, e é o primeiro som que o
+   * gesto libera); o palco tem a própria entrada; e sair do palco já é
+   * anunciado pelo fim da música, ganhou ou perdeu. O quarto caso, o de
+   * voltar, é a própria mesa que resolve — `play('back')` cala o `enter`
+   * seguinte.
    */
   const previousScreen = useRef<Screen | null>(null)
   useEffect(() => {
@@ -91,18 +88,6 @@ export function App() {
     if (screen === 'play' || anterior === 'play') return
     mixer.play('enter')
   }, [screen])
-
-  // O navegador só deixa tocar som depois de um gesto. O primeiro clique ou
-  // tecla é o que acorda a mesa.
-  useEffect(() => {
-    const acordar = () => mixer.startMenuMusic()
-    window.addEventListener('pointerdown', acordar, { once: true })
-    window.addEventListener('keydown', acordar, { once: true })
-    return () => {
-      window.removeEventListener('pointerdown', acordar)
-      window.removeEventListener('keydown', acordar)
-    }
-  }, [])
 
   return (
     <>
@@ -117,6 +102,8 @@ export function App() {
 
 function renderScreen(screen: Screen) {
   switch (screen) {
+    case 'boot':
+      return <BootScreen />
     case 'career':
       return <CareerScreen />
     case 'songs':

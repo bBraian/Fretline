@@ -10,6 +10,7 @@
 
 import { chromium } from 'playwright'
 import { serve } from './serve.mjs'
+import { passarAbertura } from './abertura.mjs'
 
 // Sem BASE_URL, o script constrói e sobe o próprio servidor.
 const external = process.env.BASE_URL
@@ -38,6 +39,7 @@ await page.addInitScript(() => {
 })
 
 await page.goto(`${BASE}/?debug`, { waitUntil: 'networkidle' })
+await passarAbertura(page)
 
 await page.getByRole('heading', { name: 'FRETLINE' }).waitFor({ timeout: 20000 })
 await page.screenshot({ path: 'scripts/shot-menu.png' })

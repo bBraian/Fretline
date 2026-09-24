@@ -18,6 +18,20 @@ absoluto, e reescrevia `/models/...` pela `VITE_ASSETS_BASE`.
   por vez, música de menu pelos previews, "Reler a pasta" escondido no
   hospedado, `npm run hosted`. O `remote.json` saiu. Plano:
   `docs/superpowers/plans/2026-09-24-hospedagem-parte-1-publicacao.md`.
+- **Parte 2 (2026-09-24):** Afinando com nome e artista, barra em MB do
+  download (`audio/download.ts`, `ui/downloadProgress.ts`), fase por
+  extenso, Esc/Voltar cancelando o download, erro com "Tentar de novo" e
+  distinção entre rede e decodificação. A barra mede só o áudio; o palco
+  continua na lista de itens (ver *Mudou na implementação* na seção
+  *Afinando*). Plano:
+  `docs/superpowers/plans/2026-09-24-hospedagem-parte-2-afinando.md`.
+- **Parte 3 (2026-09-24):** abertura (`ui/screens/BootScreen.tsx`,
+  `ui/boot.ts`, `ui/bootView.ts`) baixando palco ativo, banda, props,
+  animações, personagens, guitarras e efeitos com barra em MB, linha da
+  biblioteca, novas tentativas (`net/retry.ts`) e "Pressione qualquer
+  tecla"; previews em segundo plano (`ui/useBackgroundPreviews.ts`);
+  `passarAbertura` nos scripts. Plano:
+  `docs/superpowers/plans/2026-09-24-hospedagem-parte-3-abertura.md`.
 - Node 22 como padrão (o wrangler 4.138 exige), `wrangler` como
   devDependency, `@vercel/blob` removido.
 - Conta na Cloudflare, `wrangler login` e subdomínio `bbraian`. O Worker
@@ -36,11 +50,11 @@ absoluto, e reescrevia `/models/...` pela `VITE_ASSETS_BASE`.
   *Config*, não segredo. O nome precisa do prefixo `VITE_` — o aviso de
   segredo que a Vercel mostra não se aplica a uma URL pública.
 
-**Falta implementar:** o progresso e o cancelamento do Afinando, a
-abertura (com os previews baixados em segundo plano) e os créditos.
+**Falta implementar:** os créditos.
 
 **Ordem sugerida**, uma parte por sessão: ~~publicação com previews~~
-(feita) → Afinando → abertura → créditos.
+(feita) → ~~Afinando~~ (feito) → ~~abertura~~ (feita) →
+créditos.
 
 **Pendente de decisão — créditos.** Proposto e não confirmado: o script
 avisa sobre GLB sem entrada em vez de recusar, e os campos ficam só autor,
@@ -240,13 +254,15 @@ publicado — na ordem inversa, a versão no ar fica sem músicas.
      controle levam ao menu. **Esse gesto é o que cria o `AudioContext`**
      (hoje criado no primeiro gesto, de todo jogo): os efeitos decodificam
      em milissegundos e o menu abre já com música e som, em vez de mudo até
-     o primeiro clique.
+     o primeiro clique. *Na implementação:* sai-se ao **soltar** a tecla ou
+     o botão, para o mesmo gesto não acionar o primeiro item do menu.
 - **Nunca é beco sem saída.** Cada arquivo tenta de novo duas vezes (0,5 s
   e 2 s de espera). Falhando de vez, a abertura segue sem ele, e o `pronto`
   mostra "N arquivos não vieram — carregam quando precisar". Esse arquivo é
   pedido de novo sob demanda, como hoje. Se o índice da biblioteca falhar,
   entra-se com a faixa de demonstração — a rede de segurança que
-  `catalogue()` já é.
+  `catalogue()` já é. *Na implementação:* só falha transitória tenta de
+  novo (rede, 5xx, 408, 429) — um 404 não muda com a espera.
 - **Baixar não é decodificar.** A abertura enche o cache HTTP do navegador
   e descarta os bytes; nada fica decodificado em memória nem na placa de
   vídeo. Abrir um personagem na loja interpreta 1–3 MB já locais, em menos
@@ -304,6 +320,10 @@ arquivo), cai no comportamento atual — faixa inteira a partir de
   palco) e a linha de fase: `Baixando a música 12,4 / 31,0 MB` →
   `Decodificando o áudio…` → `Montando o palco…`. A lista de itens do palco
   que já existe continua; com a abertura, eles chegam do cache.
+  *Mudou na implementação:* a barra mede só o áudio. Os itens do palco não
+  têm tamanho à vista sem mexer nos loaders do `render/`, e com a abertura
+  eles vêm do cache em fração de segundo; a lista de itens com ✓ continua
+  mostrando o que falta deles.
 - **Esc/Voltar durante o carregamento cancela:** aborta os downloads
   (`AbortController`) e volta. Com 31 MB numa conexão lenta, isso importa.
 - A fase `error` ganha **"Tentar de novo"** ao lado de "Voltar" (remonta a

@@ -11,6 +11,7 @@
 
 import type { Clock } from '../engine/clock'
 import { groupStems } from './stems'
+import { loadTrack, type TrackProgress } from './download'
 
 export interface SongPlayerOptions {
   /** Segundos de aproximação antes do áudio começar, para as notas entrarem. */
@@ -201,14 +202,31 @@ export class SongPlayer implements Clock {
    * memória e pressão na thread de áudio sem que nada soubesse usá-las; ver
    * `stems.ts`.
    */
-  async load(tracks: Array<{ url: string; role: StemRole }>) {
+  async load(
+    tracks: Array<{ url: string; role: StemRole }>,
+    {
+      signal,
+      onProgress,
+    }: { signal?: AbortSignal; onProgress?: (items: TrackProgress[]) => void } = {},
+  ) {
     this.disconnectStems()
 
+    // Um item por faixa, na ordem delas. Cada faixa decodifica assim que
+    // chega, sem esperar as outras — é a ordem de antes, agora com o
+    // progresso de cada uma à vista.
+    const itens: TrackProgress[] = tracks.map(() => ({ state: 'waiting', loaded: 0 }))
+    const relatar = () => onProgress?.(itens.map((item) => ({ ...item })))
+    relatar()
+
     const decoded = await Promise.all(
-      tracks.map(async ({ url, role }) => {
-        const response = await fetch(url)
-        if (!response.ok) throw new Error(`Falha ao carregar ${url}: ${response.status}`)
-        const buffer = await this.ctx.decodeAudioData(await response.arrayBuffer())
+      tracks.map(async ({ url, role }, index) => {
+        const buffer = await loadTrack(url, (data) => this.ctx.decodeAudioData(data), {
+          signal,
+          onProgress: (progresso) => {
+            itens[index] = progresso
+            relatar()
+          },
+        })
         return { role, buffer }
       }),
     )

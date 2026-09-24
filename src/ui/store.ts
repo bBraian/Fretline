@@ -27,6 +27,7 @@ import { DEFAULT_NOTE_SPEED } from '../render/layout'
 import type { Quality } from '../render/gameScene'
 
 export type Screen =
+  | 'boot'
   | 'menu'
   | 'career'
   | 'songs'
@@ -113,7 +114,7 @@ interface State {
   previewGuitar: (id: string) => void
   selectSong: (id: string) => void
   addSongs: (entries: SongEntry[]) => void
-  refreshLocalLibrary: () => Promise<number>
+  refreshLocalLibrary: (onProgress?: (done: number, total: number) => void) => Promise<number>
   updateSettings: (patch: Partial<Settings>) => void
   finishSong: (performance: Performance) => void
   setLastPerformance: (performance: Performance | null) => void
@@ -201,7 +202,7 @@ function save(state: Persisted) {
 const initial = load()
 
 export const useGame = create<State>((set, get) => ({
-  screen: 'menu',
+  screen: 'boot',
   playedFrom: 'songs',
   previewCharacterId: null,
   previewGuitarId: null,
@@ -268,10 +269,10 @@ export const useGame = create<State>((set, get) => ({
     }),
 
   /** Relê a pasta `songs/` e devolve quantas músicas novas entraram. */
-  refreshLocalLibrary: async () => {
+  refreshLocalLibrary: async (onProgress) => {
     set({ loadingLibrary: true })
     try {
-      const entries = await loadLocalLibrary()
+      const entries = await loadLocalLibrary(onProgress)
       const before = get().library.length
       get().addSongs(entries)
       return get().library.length - before

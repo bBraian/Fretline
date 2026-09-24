@@ -8,6 +8,7 @@
 
 import { chromium } from 'playwright'
 import { serve } from './serve.mjs'
+import { passarAbertura } from './abertura.mjs'
 
 const external = process.env.BASE_URL
 const server = external ? null : await serve()
@@ -27,6 +28,7 @@ page.on('console', (m) => m.type() === 'error' && problems.push(`console: ${m.te
 page.on('pageerror', (e) => problems.push(`exceção: ${e.message}`))
 
 await page.goto(`${BASE}/?debug&lowfx`, { waitUntil: 'networkidle' })
+await passarAbertura(page)
 
 // Na conferência hospedada (`npm run hosted`) o índice vem do host de
 // assets, pelo mesmo caminho que o jogo faz.

@@ -20,6 +20,9 @@
  * milissegundos.
  */
 
+import { loadTrack, type TrackProgress } from './download'
+import { retry } from '../net/retry'
+
 /** Nome lógico → arquivo em `public/sfx/`. */
 const FILES = {
   cash: 'cash.wav',
@@ -251,9 +254,28 @@ export class SampleBank {
   /**
    * Começa a baixar tudo. Não precisa de contexto nem de gesto — é só rede,
    * e são menos de dois megabytes no total.
+   *
+   * Resolve quando todo efeito chegou ou desistiu, e relata um item por
+   * efeito — é o que a abertura soma na barra. Chamado de novo, reaproveita
+   * os pedidos em andamento e só relata o fim de cada um.
    */
-  prefetch() {
-    for (const name of SAMPLE_NAMES) this.fetchBytes(name)
+  prefetch(onProgress?: (items: TrackProgress[]) => void): Promise<void> {
+    const itens: TrackProgress[] = SAMPLE_NAMES.map(() => ({ state: 'waiting', loaded: 0 }))
+    const relatar = () => onProgress?.(itens.map((item) => ({ ...item })))
+    relatar()
+
+    return Promise.all(
+      SAMPLE_NAMES.map(async (name, index) => {
+        const bytes = await this.fetchBytes(name, (progresso) => {
+          itens[index] = progresso
+          relatar()
+        })
+        // Chegou ou desistiu: nos dois casos, este não segura mais a barra.
+        const atual = itens[index]
+        itens[index] = { state: 'done', loaded: bytes?.byteLength ?? atual.loaded, total: atual.total }
+        relatar()
+      }),
+    ).then(() => undefined)
   }
 
   /** Decodifica o que já chegou, para o primeiro efeito não pagar a espera. */
@@ -261,15 +283,15 @@ export class SampleBank {
     for (const name of SAMPLE_NAMES) void this.buffer(ctx, name)
   }
 
-  private fetchBytes(name: SampleName): Promise<ArrayBuffer | null> {
+  private fetchBytes(
+    name: SampleName,
+    onProgress?: (progress: TrackProgress) => void,
+  ): Promise<ArrayBuffer | null> {
     const existente = this.bytes.get(name)
     if (existente) return existente
 
-    const pedido = fetch(BASE + FILES[name])
-      .then((response) => {
-        if (!response.ok) throw new Error(`${response.status}`)
-        return response.arrayBuffer()
-      })
+    const url = BASE + FILES[name]
+    const pedido = retry(() => loadTrack(url, async (data) => data, { onProgress }))
       .catch((erro) => {
         // Um efeito que falta não pode derrubar o jogo. Ele simplesmente
         // não toca, e o console diz qual foi.

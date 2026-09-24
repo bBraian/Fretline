@@ -7,8 +7,9 @@
  * de nota acontece em rajada — a repetição fica óbvia.
  */
 
-import { describe, expect, it } from 'vitest'
-import { ShuffleBag, VoiceGroup } from './sfx'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { SAMPLE_NAMES, SampleBank, ShuffleBag, VoiceGroup } from './sfx'
+import type { TrackProgress } from './download'
 
 /** Gerador determinístico, para o teste não depender da sorte. */
 function seeded(seed: number) {
@@ -198,5 +199,44 @@ describe('VoiceGroup', () => {
     expect(events[0]).toMatchObject({ kind: 'set', at: 10 })
     expect(events[0].value).toBeCloseTo(0.5, 3)
     expect(events.at(-1)).toMatchObject({ kind: 'ramp', at: 10.5 })
+  })
+})
+
+describe('SampleBank.prefetch', () => {
+  afterEach(() => vi.restoreAllMocks())
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('termina com todos os efeitos prontos, até o que falta, sem insistir num 404', async () => {
+    const pedidos: string[] = []
+    let primeiro: string | null = null
+    vi.stubGlobal('fetch', async (url: string) => {
+      pedidos.push(url)
+      primeiro ??= url
+      return url === primeiro ? new Response(null, { status: 404 }) : new Response(new Uint8Array(10))
+    })
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    let ultimo: TrackProgress[] = []
+    await new SampleBank().prefetch((itens) => {
+      ultimo = itens
+    })
+
+    expect(ultimo).toHaveLength(SAMPLE_NAMES.length)
+    expect(ultimo.every((item) => item.state === 'done')).toBe(true)
+    expect(pedidos.filter((url) => url === primeiro)).toHaveLength(1)
+  })
+
+  it('chamado de novo, não pede de novo e ainda termina', async () => {
+    const pedir = vi.fn(async () => new Response(new Uint8Array(10)))
+    vi.stubGlobal('fetch', pedir)
+    const bank = new SampleBank()
+    await bank.prefetch()
+    let ultimo: TrackProgress[] = []
+    await bank.prefetch((itens) => {
+      ultimo = itens
+    })
+    expect(pedir).toHaveBeenCalledTimes(SAMPLE_NAMES.length)
+    expect(ultimo).toHaveLength(SAMPLE_NAMES.length)
+    expect(ultimo.every((item) => item.state === 'done')).toBe(true)
   })
 })

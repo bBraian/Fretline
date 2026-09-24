@@ -165,6 +165,11 @@ As decisões todas — e o porquê de cada uma — estão em
 Mudança visual se confere olhando: rode `npm run menus` (ou `shots`,
 `gallery`) e leia o PNG. Alegar que ficou bom sem ver a imagem não vale.
 
+
+**Todo script de navegador passa pela abertura.** Depois do `page.goto`,
+`passarAbertura(page)` (`scripts/abertura.mjs`) espera o "Pressione" e
+aperta Enter. Script novo que abra o jogo precisa da mesma linha, senão
+para na primeira tela.
 ## Documentos
 
 | | |
@@ -196,6 +201,11 @@ emite clique, e sem clique não há como dizer "não dá" — ver `ui/blocked.ts
 Eles usam `aria-disabled`, e as regras de estilo têm o seletor equivalente
 ao lado do `:disabled`.
 
+
+**O gesto que libera o áudio é o da abertura.** O contexto da mesa nasce ao
+sair dela, e a música de menu não tenta tocar antes — sem gesto, o `play()`
+de cada faixa seria recusado, e a trilha passaria pelas 25 trocando o
+`src`.
 ## Músicas
 
 **O catálogo é a pasta, não uma lista em código.** O jogo lê `songs/` no
