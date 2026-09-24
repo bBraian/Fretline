@@ -41,4 +41,10 @@ describe('stageForShow', () => {
     expect(depois).not.toBe(antes)
     expect(STAGE_MODELS).toContain(depois)
   })
+
+  it('cenário fora do sorteio nunca sai', () => {
+    for (let show = 300; show < 340; show++) {
+      expect(stageForShow(show)?.draw).not.toBe(false)
+    }
+  })
 })

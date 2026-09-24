@@ -23,9 +23,14 @@ export function isTransient(error: unknown): boolean {
   return true
 }
 
+export interface RetryOptions {
+  delays?: number[]
+  wait?: (ms: number) => Promise<void>
+}
+
 export async function retry<T>(
   attempt: () => Promise<T>,
-  { delays = RETRY_DELAYS, wait = esperar }: { delays?: number[]; wait?: (ms: number) => Promise<void> } = {},
+  { delays = RETRY_DELAYS, wait = esperar }: RetryOptions = {},
 ): Promise<T> {
   for (let tentativa = 0; ; tentativa++) {
     try {

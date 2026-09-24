@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { bootView, type BootState } from './bootView'
+import { bootView, contaComoTecla, type BootState } from './bootView'
 
 const MB = 1024 * 1024
-const biblioteca = (done: number, total: number | null, pronta = false) => ({ done, total, pronta })
+const biblioteca = (done: number, total: number | null, pronta = false, carregadas: number | null = null) => ({
+  done,
+  total,
+  pronta,
+  carregadas,
+})
 
 function estado(parcial: Partial<BootState>): BootState {
   return { itens: [], biblioteca: biblioteca(0, null), falhas: 0, ...parcial }
@@ -37,14 +42,21 @@ describe('bootView', () => {
 
   it('tudo pronto: pressione, com o tamanho da biblioteca', () => {
     const v = bootView(
-      estado({ itens: [{ state: 'done', loaded: MB, total: MB }], biblioteca: biblioteca(25, 25, true) }),
+      estado({ itens: [{ state: 'done', loaded: MB, total: MB }], biblioteca: biblioteca(25, 25, true, 25) }),
     )
     expect(v).toMatchObject({ ready: true, library: '25 músicas', failures: null })
   })
 
+  it('conta as músicas que entraram, não o tamanho do índice', () => {
+    const v = bootView(
+      estado({ itens: [{ state: 'done', loaded: MB, total: MB }], biblioteca: biblioteca(25, 25, true, 23) }),
+    )
+    expect(v.library).toBe('23 de 25 músicas')
+  })
+
   it('biblioteca que não veio: entra a demonstração', () => {
     const v = bootView(
-      estado({ itens: [{ state: 'done', loaded: MB, total: MB }], biblioteca: biblioteca(0, null, true) }),
+      estado({ itens: [{ state: 'done', loaded: MB, total: MB }], biblioteca: biblioteca(0, null, true, 0) }),
     )
     expect(v.ready).toBe(true)
     expect(v.library).toBe('Sem biblioteca — entra a faixa de demonstração')
@@ -55,7 +67,7 @@ describe('bootView', () => {
   })
 
   it('avisa o que não veio, no singular e no plural', () => {
-    const pronto = { itens: [{ state: 'done' as const, loaded: MB, total: MB }], biblioteca: biblioteca(1, 1, true) }
+    const pronto = { itens: [{ state: 'done' as const, loaded: MB, total: MB }], biblioteca: biblioteca(1, 1, true, 1) }
     expect(bootView(estado({ ...pronto, falhas: 1 })).failures).toBe(
       '1 arquivo não veio — carrega quando precisar',
     )
@@ -66,5 +78,31 @@ describe('bootView', () => {
 
   it('antes de qualquer item, não está pronta', () => {
     expect(bootView(estado({ biblioteca: biblioteca(0, null, true) })).ready).toBe(false)
+  })
+})
+
+describe('contaComoTecla', () => {
+  const tecla = (key: string, mods: Partial<Record<'ctrlKey' | 'altKey' | 'metaKey', boolean>> = {}) => ({
+    key,
+    ctrlKey: false,
+    altKey: false,
+    metaKey: false,
+    ...mods,
+  })
+
+  it('Enter, Espaço e letras contam', () => {
+    for (const key of ['Enter', ' ', 'a', 'ArrowDown']) expect(contaComoTecla(tecla(key))).toBe(true)
+  })
+
+  it('foco, janela e modificadores sozinhos não contam', () => {
+    for (const key of ['Tab', 'Escape', 'Shift', 'Control', 'Alt', 'Meta', 'F11', 'F12']) {
+      expect(contaComoTecla(tecla(key))).toBe(false)
+    }
+  })
+
+  it('atalho com Ctrl, Alt ou Cmd não conta', () => {
+    expect(contaComoTecla(tecla('+', { ctrlKey: true }))).toBe(false)
+    expect(contaComoTecla(tecla('r', { metaKey: true }))).toBe(false)
+    expect(contaComoTecla(tecla('Enter', { altKey: true }))).toBe(false)
   })
 })

@@ -286,9 +286,11 @@ na linguagem de cartaz dos menus.
 - **A lista do palco** só aparece depois do áudio: um item por arquivo, com
   ✓ quando chega. A barra fica cheia nesse trecho; é a lista que anda.
 - **Voltar, ou Esc, desiste**: a tela desmonta e o download é abortado.
-- **No erro**, "Tentar de novo" em destaque e "Voltar" ao lado, com a
-  mensagem dizendo se foi rede ou decodificação — tentar de novo só adianta
-  na primeira.
+- **No erro**, a mensagem diz o que houve, e "Tentar de novo" só aparece
+  quando pode dar certo (`ui/loadError.ts`): rede caída ou servidor
+  sobrecarregado ganham o botão em destaque, com "Voltar" ao lado; um
+  arquivo que o servidor não tem (404) e um áudio que não decodifica
+  mostram só "Voltar".
 
 `npm run menus` captura as duas coisas: `menu-afinando.png` com a rede
 estrangulada pelo CDP, e `menu-afinando-erro.png` com as faixas bloqueadas.
@@ -306,8 +308,13 @@ reaproveitadas sem redefinir, e o título partido leva `aria-label`
   apagada.
 - **Pronta, vira "Pressione qualquer tecla"**, numa linha só
   (`white-space: nowrap`, a coluna tem até 560px), piscando devagar —
-  parado com movimento reduzido —, com o tamanho da biblioteca embaixo e,
-  se algo não veio, `N arquivos não vieram — carregam quando precisar`.
+  parado com movimento reduzido —, com as músicas que entraram embaixo
+  (`23 de 25 músicas` quando alguma pasta não abriu) e, se algo não veio,
+  `N arquivos não vieram — carregam quando precisar`.
+- **Só o "Pressione" é anunciado** a leitor de tela (`role="status"`). A
+  linha de MB muda a cada 120 ms e não é região viva; a barra é um
+  `progressbar` com o próprio valor.
+- **Atalho não é gesto**: tecla com Ctrl, Alt ou Cmd não sai da abertura.
 - **Sai ao soltar**, não ao apertar: tecla, clique fora de botão, ou botão
   do controle. Por tecla ou clique, o gesto libera o áudio e o menu entra
   já com música e com o som de abrir. Pelo controle, o navegador não conta

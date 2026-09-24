@@ -7,11 +7,16 @@
  */
 
 import { mixer } from '../audio/mixer'
+import { keepProgress } from '../audio/download'
 import { downloadModel, essentialModelUrls } from '../render/essentials'
 import type { DownloadItem } from './downloadProgress'
 import type { BootState } from './bootView'
 
-let estado: BootState = { itens: [], biblioteca: { done: 0, total: null, pronta: false }, falhas: 0 }
+let estado: BootState = {
+  itens: [],
+  biblioteca: { done: 0, total: null, pronta: false, carregadas: null },
+  falhas: 0,
+}
 let comecou = false
 
 export function getBootState(): BootState {
@@ -22,8 +27,12 @@ function publicar(patch: Partial<BootState>) {
   estado = { ...estado, ...patch }
 }
 
+/**
+ * `refreshLibrary` lê a biblioteca relatando pastas lidas contra o total, e
+ * devolve quantas músicas de fato entraram.
+ */
 export function startBoot(
-  refreshLibrary: (onProgress: (done: number, total: number) => void) => Promise<unknown>,
+  refreshLibrary: (onProgress: (done: number, total: number) => void) => Promise<number>,
 ) {
   if (comecou) return
   comecou = true
@@ -38,7 +47,8 @@ export function startBoot(
 
   modelos.forEach((url, index) => {
     void downloadModel(url, (progresso) => {
-      itensModelos[index] = progresso
+      // Uma nova tentativa recomeça do zero; a barra não volta com ela.
+      itensModelos[index] = keepProgress(itensModelos[index], progresso)
       relatarItens()
     }).then((chegou) => {
       itensModelos[index] = { ...itensModelos[index], state: 'done' }
@@ -47,12 +57,18 @@ export function startBoot(
     })
   })
 
-  void mixer.warm((itens) => {
-    itensEfeitos = itens
-    relatarItens()
-  })
+  void mixer
+    .warm((itens) => {
+      itensEfeitos = itens
+      relatarItens()
+    })
+    .then((naoVieram) => {
+      if (naoVieram > 0) publicar({ falhas: estado.falhas + naoVieram })
+    })
 
-  void refreshLibrary((done, total) => publicar({ biblioteca: { done, total, pronta: false } }))
+  void refreshLibrary((done, total) =>
+    publicar({ biblioteca: { ...estado.biblioteca, done, total } }),
+  )
     .catch(() => 0)
-    .finally(() => publicar({ biblioteca: { ...estado.biblioteca, pronta: true } }))
+    .then((carregadas) => publicar({ biblioteca: { ...estado.biblioteca, pronta: true, carregadas } }))
 }

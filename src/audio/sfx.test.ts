@@ -239,4 +239,20 @@ describe('SampleBank.prefetch', () => {
     expect(ultimo).toHaveLength(SAMPLE_NAMES.length)
     expect(ultimo.every((item) => item.state === 'done')).toBe(true)
   })
+
+  it('diz quantos efeitos não vieram, e o que falhou é pedido de novo depois', async () => {
+    const pedidos: string[] = []
+    let primeiro: string | null = null
+    vi.stubGlobal('fetch', async (url: string) => {
+      pedidos.push(url)
+      primeiro ??= url
+      return url === primeiro ? new Response(null, { status: 404 }) : new Response(new Uint8Array(10))
+    })
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const bank = new SampleBank()
+    expect(await bank.prefetch()).toBe(1)
+    await bank.prefetch()
+    expect(pedidos.filter((url) => url === primeiro)).toHaveLength(2)
+  })
 })

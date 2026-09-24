@@ -25,8 +25,8 @@
  * ## Qual cenário entra
  *
  * Cada música sorteia um da tabela (`stageForShow`), sem repetir o da
- * música anterior. Recomeçar e tocar de novo mantêm o palco: é a mesma
- * apresentação.
+ * música anterior e sem os marcados com `draw: false`. Recomeçar e tocar
+ * de novo mantêm o palco: é a mesma apresentação.
  *
  * Sem recompilar, `?stage=<id>` fixa um da tabela e `?stage=classic` volta
  * ao de código — é assim que se comparam os dois no mesmo build, e é o que
@@ -128,6 +128,14 @@ export interface StageModel {
    * tabela.
    */
   hide?: string[]
+
+  /**
+   * `false` tira o cenário do sorteio. Sem ele, entra.
+   *
+   * A entrada continua na tabela — `?stage=<id>` e o painel de `?rig` ainda
+   * a alcançam —, só não cai numa música por acaso.
+   */
+  draw?: boolean
 }
 
 /**
@@ -176,6 +184,8 @@ export const STAGE_MODELS: StageModel[] = [
     crowd: { y: -0.1, z: 4 },
     emissiveCap: 2.2,
     fill: [],
+    // Fora do sorteio por enquanto; fica aqui como referência.
+    draw: false,
   },
   {
     id: 'liveaid',
@@ -236,10 +246,10 @@ export const STAGE_MODELS: StageModel[] = [
     // Todos os materiais são `KHR_materials_unlit`: não respondem a luz
     // nenhuma. A luz de apoio aqui não serve para ele — serve para a banda
     // não ficar no escuro em cima dele.
-    scale: 0.22,
+    scale: 0.77,
     position: [0.01, -0.003, 0.039],
     rotation: [0, 0, 0],
-    replaces: { floor: true, backdrop: true, amps: true },
+    replaces: { floor: true, backdrop: true, amps: true, ledWall: true },
     rigOffset: [0, 1.6, 0],
     crowd: { y: -0.4, z: 4 },
     emissiveCap: 2.2,
@@ -308,7 +318,7 @@ export function stageForShow(show: number): StageModel | null {
   if (sorteio?.show === show) return sorteio.model
 
   const id = drawStageId(
-    STAGE_MODELS.map((m) => m.id),
+    STAGE_MODELS.filter((m) => m.draw !== false).map((m) => m.id),
     sorteio?.model?.id ?? null,
   )
   sorteio = { show, model: stageModelById(id) }

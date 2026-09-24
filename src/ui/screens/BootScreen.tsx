@@ -13,10 +13,7 @@ import { useEffect, useState } from 'react'
 import { Backdrop } from '../Backdrop'
 import { useGame } from '../store'
 import { getBootState, startBoot } from '../boot'
-import { bootView } from '../bootView'
-
-/** Teclas que não contam como "qualquer tecla": foco, janela e modificadores. */
-const IGNORADAS = new Set(['Tab', 'Escape', 'Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'F11', 'F12'])
+import { bootView, contaComoTecla } from '../bootView'
 
 export function BootScreen() {
   const setScreen = useGame((s) => s.setScreen)
@@ -24,7 +21,11 @@ export function BootScreen() {
   const [estado, setEstado] = useState(getBootState)
 
   useEffect(() => {
-    startBoot(refreshLocalLibrary)
+    startBoot(async (onProgress) => {
+      await refreshLocalLibrary(onProgress)
+      // O que entrou de fato, e não o tamanho do índice.
+      return useGame.getState().library.filter((entry) => !entry.synthesized).length
+    })
     const leitura = window.setInterval(() => setEstado(getBootState()), 120)
     return () => window.clearInterval(leitura)
   }, [refreshLocalLibrary])
@@ -37,7 +38,7 @@ export function BootScreen() {
 
     let tecla: string | null = null
     const apertou = (event: KeyboardEvent) => {
-      if (!IGNORADAS.has(event.key)) tecla = event.code
+      if (contaComoTecla(event)) tecla = event.code
     }
     const soltou = (event: KeyboardEvent) => {
       if (event.code !== tecla) return
@@ -93,16 +94,27 @@ export function BootScreen() {
           <p className="wordmark-sub">Cinco trastes, sem palhetada</p>
         </div>
 
-        <div className="boot-status" aria-live="polite">
+        {/* Só o "Pressione" é anunciado: a linha de MB muda a cada 120 ms, e
+            um leitor de tela a leria sem parar. A barra diz o próprio valor. */}
+        <div className="boot-status">
           {view.ready ? (
             <>
-              <p className="boot-press">Pressione qualquer tecla</p>
+              <p className="boot-press" role="status">
+                Pressione qualquer tecla
+              </p>
               <p className="boot-line boot-line-dim">{view.library}</p>
               {view.failures && <p className="boot-line boot-line-dim">{view.failures}</p>}
             </>
           ) : (
             <>
-              <div className={view.bar === null ? 'loading-bar is-waiting' : 'loading-bar'}>
+              <div
+                className={view.bar === null ? 'loading-bar is-waiting' : 'loading-bar'}
+                role="progressbar"
+                aria-label="Baixando o jogo"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={view.bar === null ? undefined : Math.round(view.bar * 100)}
+              >
                 <i style={view.bar === null ? undefined : { width: `${view.bar * 100}%` }} />
               </div>
               <p className="boot-line">{view.line}</p>

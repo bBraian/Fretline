@@ -20,7 +20,7 @@
  * milissegundos.
  */
 
-import { loadTrack, type TrackProgress } from './download'
+import { keepProgress, loadTrack, type TrackProgress } from './download'
 import { retry } from '../net/retry'
 
 /** Nome lógico → arquivo em `public/sfx/`. */
@@ -255,11 +255,12 @@ export class SampleBank {
    * Começa a baixar tudo. Não precisa de contexto nem de gesto — é só rede,
    * e são menos de dois megabytes no total.
    *
-   * Resolve quando todo efeito chegou ou desistiu, e relata um item por
-   * efeito — é o que a abertura soma na barra. Chamado de novo, reaproveita
-   * os pedidos em andamento e só relata o fim de cada um.
+   * Resolve quando todo efeito chegou ou desistiu, com quantos não vieram,
+   * e relata um item por efeito — é o que a abertura soma na barra e no
+   * aviso. Chamado de novo, reaproveita os pedidos em andamento e pede de
+   * novo só os que falharam.
    */
-  prefetch(onProgress?: (items: TrackProgress[]) => void): Promise<void> {
+  prefetch(onProgress?: (items: TrackProgress[]) => void): Promise<number> {
     const itens: TrackProgress[] = SAMPLE_NAMES.map(() => ({ state: 'waiting', loaded: 0 }))
     const relatar = () => onProgress?.(itens.map((item) => ({ ...item })))
     relatar()
@@ -267,15 +268,16 @@ export class SampleBank {
     return Promise.all(
       SAMPLE_NAMES.map(async (name, index) => {
         const bytes = await this.fetchBytes(name, (progresso) => {
-          itens[index] = progresso
+          itens[index] = keepProgress(itens[index], progresso)
           relatar()
         })
         // Chegou ou desistiu: nos dois casos, este não segura mais a barra.
         const atual = itens[index]
         itens[index] = { state: 'done', loaded: bytes?.byteLength ?? atual.loaded, total: atual.total }
         relatar()
+        return bytes === null ? 1 : 0
       }),
-    ).then(() => undefined)
+    ).then((falhas) => falhas.reduce<number>((soma, falhou) => soma + falhou, 0))
   }
 
   /** Decodifica o que já chegou, para o primeiro efeito não pagar a espera. */
@@ -296,6 +298,9 @@ export class SampleBank {
         // Um efeito que falta não pode derrubar o jogo. Ele simplesmente
         // não toca, e o console diz qual foi.
         console.warn(`Efeito sonoro ausente: ${FILES[name]}`, erro)
+        // Fora do cache: a próxima vez que o efeito for pedido, tenta de
+        // novo — "carrega quando precisar", como a abertura promete.
+        this.bytes.delete(name)
         return null
       })
 

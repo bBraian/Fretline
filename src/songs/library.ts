@@ -24,7 +24,7 @@ import { parseSongIni } from './songIni'
 import type { StemRole } from '../audio/songPlayer'
 import { filePrefix, libraryIndexUrl, type LibraryIndex } from './libraryIndex'
 import { mapInOrder } from './mapInOrder'
-import { retry } from '../net/retry'
+import { fetchOk } from '../net/fetchOk'
 
 export interface AudioTrack {
   url: string
@@ -405,15 +405,7 @@ async function fetchLibraryIndex(): Promise<{ index: LibraryIndex; url: string }
   try {
     // O índice é o arquivo que decide se há biblioteca: vale a mesma
     // insistência dos modelos da abertura. Um 404 não insiste.
-    const index = await retry(async () => {
-      const response = await fetch(url)
-      if (!response.ok) {
-        throw Object.assign(new Error(`${url} respondeu ${response.status}`), {
-          status: response.status,
-        })
-      }
-      return (await response.json()) as LibraryIndex
-    })
+    const index = await fetchOk(url, (response) => response.json() as Promise<LibraryIndex>)
     return { index, url }
   } catch {
     return null
@@ -453,8 +445,10 @@ export async function loadLocalLibrary(
         return {
           name,
           url,
-          text: async () => (await fetch(url)).text(),
-          arrayBuffer: async () => (await fetch(url)).arrayBuffer(),
+          // Uma resposta de erro não pode virar conteúdo: um `song.ini`
+          // que respondeu 404 deixava a música sem nome nem dificuldade.
+          text: () => fetchOk(url, (response) => response.text()),
+          arrayBuffer: () => fetchOk(url, (response) => response.arrayBuffer()),
         }
       })
 

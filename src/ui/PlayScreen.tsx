@@ -23,7 +23,8 @@ import { useGame } from './store'
 import { Hud } from './hud/Hud'
 import { YouRock } from './hud/YouRock'
 import { mixer } from '../audio/mixer'
-import { TrackLoadError, type TrackProgress } from '../audio/download'
+import type { TrackProgress } from '../audio/download'
+import { loadErrorView } from './loadError'
 import { downloadProgress, mb } from './downloadProgress'
 import { holdGamepadNav } from './gamepadNav'
 
@@ -207,12 +208,9 @@ export function PlayScreen() {
         // Cancelado é a tela saindo: nada de painel de erro no caminho.
         if (!cancelled) {
           console.error(loadError)
-          setError(
-            loadError instanceof TrackLoadError && loadError.kind === 'network'
-              ? 'Não consegui baixar a música. Confira a conexão e tente de novo.'
-              : 'Não consegui decodificar o áudio dessa música.',
-          )
-          setRetryable(true)
+          const falha = loadErrorView(loadError)
+          setError(falha.message)
+          setRetryable(falha.retryable)
           setPhase('error')
         }
         await player.dispose()

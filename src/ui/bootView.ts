@@ -12,7 +12,13 @@ import { downloadProgress, mb, type DownloadItem } from './downloadProgress'
 export interface BootState {
   /** Modelos e efeitos. Vazio só antes de a abertura começar. */
   itens: DownloadItem[]
-  biblioteca: { done: number; total: number | null; pronta: boolean }
+  biblioteca: {
+    done: number
+    total: number | null
+    pronta: boolean
+    /** Músicas que de fato entraram; só se sabe no fim. */
+    carregadas: number | null
+  }
   /** Arquivos que desistiram depois das novas tentativas. */
   falhas: number
 }
@@ -46,9 +52,14 @@ export function bootView({ itens, biblioteca, falhas }: BootState): BootView {
     line = 'Lendo a biblioteca…'
   }
 
+  // Pronta, conta o que entrou, não o tamanho do índice: uma pasta que não
+  // abriu não está na biblioteca, e dizer "25" seria prometer uma a mais.
+  const carregadas = biblioteca.carregadas ?? 0
   let library: string
-  if (biblioteca.pronta && !biblioteca.total) library = 'Sem biblioteca — entra a faixa de demonstração'
-  else if (biblioteca.pronta) library = `${biblioteca.total} música${biblioteca.total === 1 ? '' : 's'}`
+  if (biblioteca.pronta && carregadas === 0) library = 'Sem biblioteca — entra a faixa de demonstração'
+  else if (biblioteca.pronta && biblioteca.total && carregadas < biblioteca.total)
+    library = `${carregadas} de ${biblioteca.total} músicas`
+  else if (biblioteca.pronta) library = `${carregadas} música${carregadas === 1 ? '' : 's'}`
   else if (biblioteca.total === null) library = 'Biblioteca…'
   else library = `Biblioteca ${biblioteca.done}/${biblioteca.total}`
 
@@ -60,4 +71,22 @@ export function bootView({ itens, biblioteca, falhas }: BootState): BootView {
         : `${falhas} arquivos não vieram — carregam quando precisar`
 
   return { bar, line, library, ready, failures }
+}
+
+/** Teclas que não contam como "qualquer tecla": foco, janela e modificadores. */
+const IGNORADAS = new Set(['Tab', 'Escape', 'Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'F11', 'F12'])
+
+/**
+ * A tecla sai da abertura? Atalho com Ctrl, Alt ou Cmd não: é zoom,
+ * ferramenta de desenvolvedor, troca de aba — nada que queira dizer
+ * "começa".
+ */
+export function contaComoTecla(event: {
+  key: string
+  ctrlKey: boolean
+  altKey: boolean
+  metaKey: boolean
+}): boolean {
+  if (event.ctrlKey || event.altKey || event.metaKey) return false
+  return !IGNORADAS.has(event.key)
 }

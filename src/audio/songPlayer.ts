@@ -11,7 +11,7 @@
 
 import type { Clock } from '../engine/clock'
 import { groupStems } from './stems'
-import { loadTrack, type TrackProgress } from './download'
+import { loadAll, loadTrack, type TrackProgress } from './download'
 
 export interface SongPlayerOptions {
   /** Segundos de aproximação antes do áudio começar, para as notas entrarem. */
@@ -218,17 +218,21 @@ export class SongPlayer implements Clock {
     const relatar = () => onProgress?.(itens.map((item) => ({ ...item })))
     relatar()
 
-    const decoded = await Promise.all(
-      tracks.map(async ({ url, role }, index) => {
+    // Uma faixa que falha cancela as outras: a partida não sai sem ela, e
+    // baixar o resto seria gastar banda para o painel de erro.
+    const decoded = await loadAll(
+      tracks.map((track, index) => ({ ...track, index })),
+      async ({ url, role, index }, sinal) => {
         const buffer = await loadTrack(url, (data) => this.ctx.decodeAudioData(data), {
-          signal,
+          signal: sinal,
           onProgress: (progresso) => {
             itens[index] = progresso
             relatar()
           },
         })
         return { role, buffer }
-      }),
+      },
+      signal,
     )
 
     // Os sete arquivos de um pacote de Rock Band viram as duas faixas que o

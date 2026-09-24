@@ -291,7 +291,7 @@ class Mixer {
    * jogador, e adiantar isso para a abertura da aba é o que evita o primeiro
    * clique sair mudo.
    */
-  warm(onProgress?: (items: TrackProgress[]) => void): Promise<void> {
+  warm(onProgress?: (items: TrackProgress[]) => void): Promise<number> {
     return this.bank.prefetch(onProgress)
   }
 

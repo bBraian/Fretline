@@ -342,6 +342,7 @@ function snippet() {
       // devolver ao palco as peças que o cenário esconde.
       ...(model.albedo !== undefined ? { albedo: n(model.albedo) } : {}),
       ...(model.hide ? { hide: model.hide } : {}),
+      ...(model.draw === false ? { draw: false } : {}),
     },
     null,
     2,

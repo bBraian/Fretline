@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { essentialModelUrls } from './essentials'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { downloadModel, essentialModelUrls } from './essentials'
 import { STAGE_MODELS, activeStageModel } from './stage/stageModel'
 import { BAND } from './character/bandMember'
 import { STAGE_PROPS } from './props'
@@ -35,5 +35,37 @@ describe('essentialModelUrls', () => {
 
   it('não repete URL', () => {
     expect(new Set(urls).size).toBe(urls.length)
+  })
+})
+
+describe('downloadModel', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('um modelo que para de chegar é abandonado, em vez de segurar a abertura', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal(
+      'ProgressEvent',
+      class {
+        constructor(_tipo: string, init: object) {
+          Object.assign(this, init)
+        }
+      },
+    )
+    vi.stubGlobal(
+      'fetch',
+      (pedido: Request) =>
+        new Promise((_, reject) => pedido.signal.addEventListener('abort', () => reject(pedido.signal.reason))),
+    )
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    let resultado: boolean | null = null
+    void downloadModel('http://h/parado.glb', () => {}, { stallMs: 1000 }).then((r) => (resultado = r))
+    // Três tentativas paradas, com as esperas de 0,5 s e 2 s entre elas.
+    await vi.advanceTimersByTimeAsync(1000 + 500 + 1000 + 2000 + 1000)
+    expect(resultado).toBe(false)
   })
 })

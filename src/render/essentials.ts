@@ -13,6 +13,7 @@
 
 import { DefaultLoadingManager, FileLoader } from 'three'
 import { retry } from '../net/retry'
+import { STALL_MS, watchStall } from '../net/stall'
 import { activeStageModel } from './stage/stageModel'
 import { BAND } from './character/bandMember'
 import { STAGE_PROPS } from './props'
@@ -32,34 +33,53 @@ export function essentialModelUrls(): string[] {
   return [...new Set(urls.filter((url): url is string => Boolean(url)))]
 }
 
-const loader = new FileLoader(DefaultLoadingManager)
-loader.setResponseType('arraybuffer')
-
 type ModelProgress = { state: 'receiving' | 'done'; loaded: number; total?: number }
 
-function baixarUmaVez(url: string, onProgress: (p: ModelProgress) => void): Promise<number> {
-  return new Promise((resolve, reject) => {
+/**
+ * Uma tentativa, com o próprio loader: o `abort()` do `FileLoader` vale para
+ * tudo o que ele pediu, e o vigia só pode derrubar este pedido.
+ */
+function baixarUmaVez(
+  url: string,
+  onProgress: (p: ModelProgress) => void,
+  stallMs: number,
+): Promise<number> {
+  const loader = new FileLoader(DefaultLoadingManager)
+  loader.setResponseType('arraybuffer')
+  const vigia = watchStall(stallMs)
+  let parou = false
+  vigia.signal.addEventListener('abort', () => {
+    parou = true
+    loader.abort()
+  })
+
+  return new Promise<number>((resolve, reject) => {
     loader.load(
       url,
       (data) => resolve((data as ArrayBuffer).byteLength),
-      (event) =>
+      (event) => {
+        vigia.touch()
         onProgress({
           state: 'receiving',
           loaded: event.loaded,
           total: event.lengthComputable ? event.total : undefined,
-        }),
-      reject,
+        })
+      },
+      // Parado vira `TimeoutError`, que vale nova tentativa; o `AbortError`
+      // que o loader devolveria não valeria.
+      (erro) => reject(parou ? new DOMException(`${url} parou de chegar`, 'TimeoutError') : erro),
     )
-  })
+  }).finally(() => vigia.stop())
 }
 
 /** Baixa um modelo para o cache. `false` quando desistiu — ele vem sob demanda depois. */
 export async function downloadModel(
   url: string,
   onProgress: (p: ModelProgress) => void,
+  { stallMs = STALL_MS }: { stallMs?: number } = {},
 ): Promise<boolean> {
   try {
-    const bytes = await retry(() => baixarUmaVez(url, onProgress))
+    const bytes = await retry(() => baixarUmaVez(url, onProgress, stallMs))
     onProgress({ state: 'done', loaded: bytes, total: bytes })
     return true
   } catch (error) {

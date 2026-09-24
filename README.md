@@ -198,7 +198,8 @@ sorteio; `npm run shots` fotografa todos.
 **O palco muda a cada música.** O cenário é sorteado entre os de
 `render/stage/stageModel.ts` sempre que uma música começa a partir de um
 menu, sem repetir o da anterior; recomeçar e tocar de novo mantêm o mesmo,
-porque são a mesma apresentação. `?stage=<id>` fixa um, e `?stage=classic`
+porque são a mesma apresentação. Uma entrada com `draw: false` fica fora
+do sorteio, mas continua na tabela. `?stage=<id>` fixa um, e `?stage=classic`
 volta ao palco construído em código.
 
 ## Qualidade gráfica
