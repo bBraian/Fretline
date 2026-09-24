@@ -255,11 +255,11 @@ não são três navegações concorrentes — e o foco do navegador anda com ele
 que é por que `.song-row` não tem anel de foco próprio: o realce da linha *é*
 o indicador de foco.
 
-Nas duas telas o destaque é a escolha, mas o clique difere: na lista de
-músicas ele só seleciona (quem inicia é o botão "Tocar em", o Enter ou o
-controle), e na carreira ele inicia, porque ali não há botão à parte. Como o
-hover já move o seletor, um clique que iniciasse na lista iniciaria sempre a
-primeira música sob o cursor.
+Nas duas telas o destaque é a escolha, e o clique numa linha inicia a
+música; escolher sem iniciar é passar o mouse, as setas ou o direcional. O
+clique passa o índice da linha em vez de ler a música escolhida: num toque
+de tela não há hover antes dele, e a loja ainda aponta para a anterior. A
+lista de músicas mantém o botão "Tocar em" para quem chegou pelo teclado.
 
 **Preview na seleção.** `resting`, do seletor, é o índice onde ele ficou
 parado dois segundos; `ui/useSongPreview.ts` reage a isso. O trecho é um

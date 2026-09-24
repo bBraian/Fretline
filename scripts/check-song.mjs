@@ -27,14 +27,6 @@ page.on('pageerror', (e) => console.log('[erro]', e.message))
 await page.goto(`${BASE}/?debug`, { waitUntil: 'networkidle' })
 await passarAbertura(page)
 
-// A varredura da pasta roda ao abrir; esperar a biblioteca crescer.
-await page.waitForFunction(
-  () => document.body.innerText.includes('músicas na biblioteca') ||
-        document.body.innerText.includes('música na biblioteca'),
-  null,
-  { timeout: 60000 },
-)
-
 const report = await page.evaluate(async (name) => {
   const response = await fetch('/library/index.json')
   const index = await response.json()
@@ -56,6 +48,10 @@ console.log(`alvo: ${report.alvo.id} — arquivos: ${report.alvo.files.join(', '
 
 await page.getByRole('button', { name: /Tocar/ }).first().click()
 await page.getByRole('heading', { name: 'Escolha a música' }).waitFor()
+// A varredura da pasta roda ao abrir; esperar a lista ter alguma coisa.
+// O número de músicas do menu não serve: é a dica de "Tocar", e só aparece
+// com ele em destaque.
+await page.locator('.song-row').first().waitFor({ timeout: 60000 })
 
 // O nome na lista vem do `song.ini`, nao do nome da pasta — os dois
 // raramente coincidem num pack baixado.
@@ -77,7 +73,9 @@ const rowIndex = rowArg ? Number(rowArg.slice('--linha='.length)) : 0
 
 const row = page.locator('.song-row').filter({ hasText: new RegExp(filter, 'i') }).nth(rowIndex)
 await row.waitFor({ timeout: 20000 })
-await row.click()
+// Foco, e não clique: o clique na linha já toca, e aqui ainda se leem os
+// níveis antes. O foco move o seletor, e o "Tocar em" toca a escolhida.
+await row.focus()
 
 for (const level of ['Fácil', 'Médio', 'Difícil', 'Expert']) {
   await page.getByRole('button', { name: level, exact: true }).click()

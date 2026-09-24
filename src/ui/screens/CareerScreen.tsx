@@ -176,9 +176,9 @@ export function CareerScreen() {
                       selected={i >= 0 && i === index}
                       previewing={i >= 0 && i === previewIndex}
                       nav={i >= 0 ? itemProps(i) : undefined}
-                      // Aqui o clique inicia, como sempre iniciou: a
-                      // carreira não tem botão de tocar à parte. Escolher
-                      // sem iniciar é o que o seletor passou a permitir.
+                      // O clique inicia, aqui e na lista de músicas.
+                      // Escolher sem iniciar é passar o mouse, as setas ou
+                      // o direcional.
                       onClick={() => iniciar(i)}
                     />
                   )

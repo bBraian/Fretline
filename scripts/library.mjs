@@ -60,8 +60,8 @@ const text = await row.innerText()
 if (!/\.(chart|mid)\b/i.test(text)) problems.push('o formato detectado não apareceu')
 if (!/·/.test(text)) problems.push('a linha da música saiu sem metadados')
 
+// Clicar na linha já toca, como na carreira.
 await row.click()
-await page.getByRole('button', { name: /^Tocar em/ }).click()
 await page.waitForFunction(() => !document.body.innerText.includes('Afinando'), null, {
   timeout: 45000,
 })

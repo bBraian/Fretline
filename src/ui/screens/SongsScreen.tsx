@@ -79,11 +79,27 @@ export function SongsScreen() {
   const hasAudio = selected ? isPlayable(selected) : false
   const playable = hasChart && hasAudio
 
-  const iniciar = useCallback(() => {
-    if (!playable) return
-    mixer.play('select')
-    setScreen('play')
-  }, [playable, setScreen])
+  /**
+   * Toca a música da linha `i` — do clique, do Enter ou do controle.
+   *
+   * Recebe o índice em vez de ler a escolhida: num toque de tela não há
+   * passagem do mouse antes do clique, e a loja ainda aponta para a música
+   * anterior. A que não tem o nível escolhido fica escolhida, e recusa —
+   * é o que faz aparecer, embaixo da lista, quais níveis ela tem.
+   */
+  const iniciar = useCallback(
+    (i: number) => {
+      const entry = playableSongs[i]
+      if (entry) selectSong(entry.song.meta.id)
+      if (!entry?.song.charts[difficulty]) {
+        mixer.play('blocked')
+        return
+      }
+      mixer.play('select')
+      setScreen('play')
+    },
+    [playableSongs, difficulty, selectSong, setScreen],
+  )
 
   const stepDifficulty = useStepDifficulty()
   const { index, resting, setIndex, itemProps } = useListSelection({
@@ -172,7 +188,9 @@ export function SongsScreen() {
         previewing={i >= 0 && i === previewIndex}
         nav={i >= 0 ? itemProps(i) : undefined}
         waiting={waiting}
-        onClick={() => setIndex(i)}
+        // O clique inicia, como na carreira. A linha em espera não está no
+        // seletor (`i` é −1), e recusa.
+        onClick={() => iniciar(i)}
       />
     )
   }
