@@ -22,12 +22,15 @@
  * painel no canto esquerdo troca de cenário na hora, tem um controle para
  * cada número e devolve o JSON pronto para colar aqui.
  *
- * ## Como voltar atrás
+ * ## Qual cenário entra
  *
- * `PADRAO` é o cenário escolhido; `null` ali devolve o palco de código
- * inteiro. Sem recompilar, `?stage=<id>` escolhe um da tabela e
- * `?stage=classic` volta ao de código — é assim que se comparam os dois no
- * mesmo build.
+ * Cada música sorteia um da tabela (`stageForShow`), sem repetir o da
+ * música anterior. Recomeçar e tocar de novo mantêm o palco: é a mesma
+ * apresentação.
+ *
+ * Sem recompilar, `?stage=<id>` fixa um da tabela e `?stage=classic` volta
+ * ao de código — é assim que se comparam os dois no mesmo build, e é o que
+ * as capturas de conferência usam para sair sempre no mesmo palco.
  */
 
 import * as THREE from 'three'
@@ -244,7 +247,10 @@ export const STAGE_MODELS: StageModel[] = [
   },
 ]
 
-/** O cenário padrão. `null` devolve o palco construído em código. */
+/**
+ * O cenário de quem monta um palco sem sorteio — o painel de `?rig`, por
+ * exemplo. `null` devolveria o palco construído em código.
+ */
 const PADRAO = 'club'
 
 export function stageModelById(id: string | null): StageModel | null {
@@ -252,18 +258,61 @@ export function stageModelById(id: string | null): StageModel | null {
 }
 
 /**
- * Qual cenário usar.
+ * O cenário que a URL pede, ou `undefined` se ela não pede nenhum.
  *
  * `?stage=classic` (ou qualquer id desconhecido) devolve `null`, que é o
  * palco de código — é o caminho de volta sem recompilar.
  */
+function requestedStageModel(): StageModel | null | undefined {
+  if (typeof location === 'undefined') return undefined
+  const pedido = new URLSearchParams(location.search).get('stage')
+  return pedido === null ? undefined : stageModelById(pedido)
+}
+
+/** Qual cenário usar quando ninguém sorteou: o da URL, senão o padrão. */
 export function activeStageModel(): StageModel | null {
-  let escolhido = PADRAO
-  if (typeof location !== 'undefined') {
-    const pedido = new URLSearchParams(location.search).get('stage')
-    if (pedido !== null) escolhido = pedido
-  }
-  return stageModelById(escolhido)
+  const pedido = requestedStageModel()
+  return pedido === undefined ? stageModelById(PADRAO) : pedido
+}
+
+/**
+ * Sorteia um cenário, sem repetir o anterior quando há outro para dar.
+ *
+ * Sorteio puro repete o palco uma vez a cada quatro músicas, e três shows
+ * seguidos no mesmo clube leem como "não é aleatório".
+ */
+export function drawStageId(
+  ids: readonly string[],
+  previous: string | null,
+  random: () => number = Math.random,
+): string | null {
+  const pool = ids.length > 1 ? ids.filter((id) => id !== previous) : ids
+  if (pool.length === 0) return null
+  return pool[Math.min(pool.length - 1, Math.floor(random() * pool.length))]
+}
+
+/** A última apresentação sorteada, para a mesma receber o mesmo palco. */
+let sorteio: { show: number; model: StageModel | null } | null = null
+
+/**
+ * O cenário de uma apresentação.
+ *
+ * `show` é o contador da interface, que sobe a cada música que começa a
+ * partir de um menu. Pedir de novo com o mesmo número — o "recomeçar", o
+ * "tocar de novo" — devolve o mesmo palco; um número novo sorteia outro. A
+ * URL, quando pede um, vence sempre.
+ */
+export function stageForShow(show: number): StageModel | null {
+  const pedido = requestedStageModel()
+  if (pedido !== undefined) return pedido
+  if (sorteio?.show === show) return sorteio.model
+
+  const id = drawStageId(
+    STAGE_MODELS.map((m) => m.id),
+    sorteio?.model?.id ?? null,
+  )
+  sorteio = { show, model: stageModelById(id) }
+  return sorteio.model
 }
 
 export interface LoadedStageModel {

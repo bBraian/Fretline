@@ -93,6 +93,14 @@ export class MenuPlaylist {
    * o que colocar no lugar é a mesa.
    */
   onGiveUp: (() => void) | null = null
+  /**
+   * O navegador recusou o `play()` por falta de gesto. Não é defeito da
+   * faixa, e passar para a próxima só gastaria a lista inteira em recusas:
+   * a trilha para e avisa, e quem a religa é o primeiro gesto de verdade.
+   * Sair da abertura pelo controle é o caso comum — botão de gamepad não
+   * conta como gesto para o navegador.
+   */
+  onBlocked: (() => void) | null = null
 
   setTracks(tracks: MenuTrack[]) {
     const mudou =
@@ -314,10 +322,15 @@ export class MenuPlaylist {
         window.clearTimeout(this.timer)
         void this.advance(ctx, out)
       }
-    } catch {
+    } catch (erro) {
       // Uma faixa que não abre passa a vez. Se nenhuma abrir, o menu não
       // pode ficar tentando para sempre nem em silêncio.
       if (token !== this.token || !this.running) return
+      if ((erro as { name?: string } | null)?.name === 'NotAllowedError') {
+        this.running = false
+        this.onBlocked?.()
+        return
+      }
       // Um preview que não abre simplesmente não toca. Insistir renderia um
       // laço de tentativas sobre uma música que o jogador já pode ter
       // deixado para trás.

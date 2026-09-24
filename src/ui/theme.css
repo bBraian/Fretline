@@ -238,6 +238,28 @@ button {
   font-size: 16px;
 }
 
+/* --- foco de teclado e controle ---------------------------------------- */
+
+/*
+  Onde o foco está, para quem navega sem ponteiro.
+
+  O controle anda pelo foco de verdade do navegador (`ui/gamepadNav.ts`),
+  mas o foco posto por script não acende o `:focus-visible` — o navegador
+  só o acende depois de tecla de verdade. Enquanto se navega de controle a
+  raiz leva `data-nav="pad"`, e o anel vale para qualquer foco.
+
+  Borda de osso, dois pixels, canto reto: a cor da seleção, no traço dos
+  cartazes. O menu principal e as linhas de música ficam de fora — ali o
+  realce do item já é o indicador de foco.
+*/
+.btn:focus-visible,
+.picker-row:focus-visible,
+.segmented button:focus-visible,
+:root[data-nav='pad'] :is(button, a, input, select):focus:not(.menu-item, .song-row) {
+  outline: 2px solid var(--gh-bone);
+  outline-offset: 2px;
+}
+
 /* --- menu principal ----------------------------------------------------
  *
  * O cartaz do Guitar Hero III. As cores ficam escopadas aqui, e não em
@@ -271,6 +293,12 @@ button {
   width: 100%;
   height: 100%;
   pointer-events: none;
+  /* Camada própria. A colagem tem trinta sombras borradas e um grão de
+     `feTurbulence` em tela cheia: dividindo camada com o menu, cada item
+     que acendia sob o ponteiro rasterizava de novo o pedaço de fundo
+     debaixo dele, filtros inclusive — um tranco a cada passo da seleção. */
+  will-change: transform;
+  contain: strict;
 }
 
 .menu {
@@ -754,7 +782,8 @@ button {
   color: var(--gh-bone);
 }
 
-.pad-toast-name {
+.pad-toast-name,
+.pad-toast-hint {
   overflow: hidden;
   max-width: 30ch;
   font-size: 12px;
@@ -770,6 +799,10 @@ button {
   display: flex;
   gap: 4px;
   margin-top: 5px;
+}
+
+.pad-toast-hint {
+  margin-top: 4px;
 }
 
 .pad-toast-fret {
@@ -809,7 +842,8 @@ button {
     font-size: 12px;
   }
 
-  .pad-toast-name {
+  .pad-toast-name,
+  .pad-toast-hint {
     font-size: 10px;
   }
 
@@ -1706,6 +1740,26 @@ button {
 .overlay-panel h2 {
   margin: 0;
   font-size: 26px;
+}
+
+/* O volume no painel da pausa: rótulo, controle e valor numa linha só,
+   separados dos botões por um fio, como um campo dos ajustes. */
+.pause-volume {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.pause-volume input[type='range'] {
+  flex: 1;
+  accent-color: var(--accent);
+}
+
+.pause-volume .field-value {
+  min-width: 44px;
 }
 
 /* --- resultados -------------------------------------------------------- */
@@ -2794,6 +2848,28 @@ button {
   justify-content: center;
   gap: 14px;
   pointer-events: none;
+  /* Véu, não aviso: o fundo do próprio visor, opaco, por cima do canvas.
+     Cobrir é o ponto — o modelo anterior sendo desmontado e o novo
+     chegando pela metade ficam os dois do lado de lá. */
+  background: inherit;
+}
+
+/* Entra de uma vez e sai devagar. Entrar com fade deixaria ver o começo da
+   troca; sair com fade emenda com a animação de entrada do modelo. */
+.picker-loading[data-hidden='true'] {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 200ms ease-out, visibility 0s linear 200ms;
+}
+
+.picker-loading[data-hidden='true'] .loading-bar i {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .picker-loading[data-hidden='true'] {
+    transition: none;
+  }
 }
 
 .picker-loading b {

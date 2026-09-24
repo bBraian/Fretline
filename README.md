@@ -195,6 +195,12 @@ sujeito o colocaria justamente atrás das notas.
 `?shot=<id>` na URL trava um plano, para conferir um ângulo sem esperar o
 sorteio; `npm run shots` fotografa todos.
 
+**O palco muda a cada música.** O cenário é sorteado entre os de
+`render/stage/stageModel.ts` sempre que uma música começa a partir de um
+menu, sem repetir o da anterior; recomeçar e tocar de novo mantêm o mesmo,
+porque são a mesma apresentação. `?stage=<id>` fixa um, e `?stage=classic`
+volta ao palco construído em código.
+
 ## Qualidade gráfica
 
 Nos ajustes, **alta** usa um compositor com brilho difuso, sombras
@@ -245,7 +251,15 @@ primeira leitura em vez de tomá-lo por alavanca puxada.
 
 **A pausa** para tudo: a música, o desenho e os efeitos da mesa — o grito da
 abertura e a plateia do boost continuam de onde pararam. Trocar de aba ou
-minimizar pausa sozinho.
+minimizar pausa sozinho. O painel da pausa tem o volume geral, o mesmo dos
+ajustes.
+
+**O controle anda pelos menus também.** O direcional — ou o analógico
+esquerdo, ou a barra de strum da guitarra — anda; A (X no PlayStation, o
+traste verde na guitarra) confirma; B (bolinha, traste vermelho) volta. Nas
+listas de música, esquerda e direita trocam a dificuldade. Durante a música
+A e B são trastes, e quem pausa é o Start — ou o Select, quando o Start está
+no star power, como no padrão. O aviso de controle conectado diz qual.
 
 ## Testes
 
@@ -256,6 +270,7 @@ npm run capture   # capturas do jogo em andamento
 npm run shots     # um retrato de cada plano de câmera
 npm run gallery   # cada guitarra e cada personagem na tela de seleção
 npm run menus     # as telas de menu
+npm run gamepad   # navega o jogo inteiro com um controle simulado
 npm run library   # confere que a pasta songs/ é lida e tocada
 npm run test-song # escreve uma música de teste em songs/
 ```

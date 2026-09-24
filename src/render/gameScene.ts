@@ -43,6 +43,7 @@ import {
   HIGHWAY_Y,
 } from './layout'
 import { CameraDirector, type ShotMood } from './cameraDirector'
+import type { StageModel } from './stage/stageModel'
 import { guitarById } from '../content/guitars'
 import type { PerformanceState } from './character/characterModel'
 
@@ -132,6 +133,11 @@ export interface GameSceneOptions {
   quality?: Quality
   /** Deslocamento visual da calibração, separado do de áudio. */
   videoOffset?: number
+  /**
+   * O cenário de arquivo; `null` é o palco de código. Sem ele, vale o da
+   * URL ou o padrão — ver `activeStageModel`.
+   */
+  stageModel?: StageModel | null
   /** Chamado a cada evento do engine, para som e para a interface. */
   onEvent?: (event: SessionEvent) => void
 }
@@ -221,6 +227,7 @@ export class GameScene {
     this.effects = new HitEffects()
     this.stage = new Stage(options.characterId, options.guitarId, {
       effects: this.quality === 'alta',
+      stageModel: options.stageModel,
     })
 
     this.playScene.add(this.highway.group, this.notes.group, this.effects.group)

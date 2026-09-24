@@ -10,11 +10,8 @@ const external = process.env.BASE_URL
 const server = external ? null : await serve()
 const BASE = external ?? server.url
 
-// Com autoplay: sem ele, a trilha do menu tem o `play()` recusado e passa
-// pelas 25 faixas trocando o `src`, e os carregamentos cancelados deixam o
-// `networkidle` do Playwright esperando para sempre.
 const browser = await chromium.launch({
-  args: ['--enable-unsafe-swiftshader', '--use-gl=swiftshader', '--autoplay-policy=no-user-gesture-required'],
+  args: ['--enable-unsafe-swiftshader', '--use-gl=swiftshader'],
 })
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } })
 page.on('pageerror', (e) => console.log('[pageerror]', e.message))

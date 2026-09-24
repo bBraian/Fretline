@@ -75,6 +75,25 @@ export const DEFAULT_GAMEPAD: GamepadBindings = {
   strumDown: 13,
 }
 
+/** Menu/Start e Voltar/Select, no layout padrão. */
+const START = 9
+const SELECT = 8
+
+/**
+ * O botão que pausa a música no controle, ou `-1` se não sobrar nenhum.
+ *
+ * Start é o de sempre, mas o padrão daqui já o gasta com o star power — e
+ * uma pausa no mesmo botão do star power seria as duas coisas ao mesmo
+ * tempo. Então vale o primeiro dos dois botões de sistema que nenhum
+ * comando do jogador usa: Start, e senão Select.
+ */
+export function pausePadButton(bindings: GamepadBindings): number {
+  const usados = new Set([...bindings.frets, bindings.starPower, bindings.strumUp, bindings.strumDown])
+  if (!usados.has(START)) return START
+  if (!usados.has(SELECT)) return SELECT
+  return -1
+}
+
 /**
  * A alavanca, de 0 a 1, a partir da leitura de um eixo do controle.
  *

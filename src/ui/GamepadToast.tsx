@@ -20,7 +20,7 @@
 import { useEffect, useState } from 'react'
 import { useGame } from './store'
 import { FRET_NAMES } from '../engine/types'
-import { gamepadButtonLabel, gamepadName } from '../input/bindings'
+import { gamepadButtonLabel, gamepadName, pausePadButton } from '../input/bindings'
 
 /** Quanto o aviso fica inteiro na tela, antes de sair. */
 const VISIBLE_MS = 4200
@@ -42,7 +42,9 @@ interface Notice {
 }
 
 export function GamepadToast() {
-  const frets = useGame((s) => s.settings.gamepad.frets)
+  const bindings = useGame((s) => s.settings.gamepad)
+  const frets = bindings.frets
+  const pausa = pausePadButton(bindings)
   const [notice, setNotice] = useState<Notice | null>(null)
   const [leaving, setLeaving] = useState(false)
 
@@ -95,6 +97,9 @@ export function GamepadToast() {
                 </span>
               ))}
             </span>
+            {/* O botão de pausa depende do mapeamento — o Start costuma ser
+                o star power —, e sem dizer qual é ninguém o acharia. */}
+            {pausa >= 0 && <span className="pad-toast-hint">Pausa: {gamepadButtonLabel(pausa)}</span>}
           </div>
         </div>
       )}

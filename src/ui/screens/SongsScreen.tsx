@@ -24,7 +24,7 @@ import { SongRow } from './SongRow'
 import { mixer } from '../../audio/mixer'
 import { useBackToMenu } from '../useBackKey'
 import { blockable } from '../blocked'
-import { DifficultyPicker } from './DifficultyPicker'
+import { DifficultyPicker, useStepDifficulty } from './DifficultyPicker'
 import { useListSelection } from '../useListSelection'
 import { previewOf, useSongPreview } from '../useSongPreview'
 
@@ -85,10 +85,12 @@ export function SongsScreen() {
     setScreen('play')
   }, [playable, setScreen])
 
+  const stepDifficulty = useStepDifficulty()
   const { index, resting, setIndex, itemProps } = useListSelection({
     count: playableSongs.length,
     restDelay: PREVIEW_DELAY,
     onConfirm: iniciar,
+    onSide: stepDifficulty,
   })
 
   // O destaque é a escolha: o botão de tocar segue o seletor. Quem avisa

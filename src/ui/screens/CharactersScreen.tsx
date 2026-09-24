@@ -39,12 +39,13 @@ export function CharactersScreen() {
   useBackToMenu()
 
   /**
-   * O personagem já está na tela?
+   * O personagem ainda não está pronto na tela.
    *
-   * Vale por personagem mostrado, e não uma vez só: trocar de item na lista
-   * começa um carregamento novo, e o anterior pode chegar depois.
+   * Enquanto for verdade, o véu cobre o visor inteiro: nem o personagem
+   * anterior sendo desmontado, nem o novo chegando pela metade. Começa
+   * verdadeiro porque o visor começa vazio.
    */
-  const [carregando, setCarregando] = useState(false)
+  const [carregando, setCarregando] = useState(true)
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const previewRef = useRef<ModelPreview | null>(null)
@@ -56,7 +57,13 @@ export function CharactersScreen() {
 
   useEffect(() => {
     if (!canvasRef.current) return
-    const preview = new ModelPreview({ canvas: canvasRef.current, entry: 'step', fit: 1.02 })
+    const preview = new ModelPreview({
+      canvas: canvasRef.current,
+      entry: 'step',
+      fit: 1.02,
+      // O personagem toca sem parar: todo quadro é um quadro novo.
+      continuous: true,
+    })
     previewRef.current = preview
 
     // O personagem continua tocando no visor; o relógio vem do próprio
@@ -104,86 +111,89 @@ export function CharactersScreen() {
 
     const escolhido = characterById(shownId)
     const escolhida = guitarById(guitarId)
+    setCarregando(true)
 
     let descartado = false
-    // Corpo e guitarra chegam de arquivos diferentes, cada um no seu tempo.
-    // Guardar os dois em variáveis e reconstruir o vínculo a cada chegada
-    // evita a corrida que havia aqui: quando o corpo chegava primeiro, a
-    // guitarra de arquivo era pendurada na marionete já descartada, e o
-    // personagem ficava com a construída em código na mão.
-    let corpo: StageCharacter = new CharacterModel(escolhido)
-    let guitarra: GuitarModel = buildGuitar(escolhida)
+    /** Entregues à prévia, que passa a cuidar do descarte deles. */
+    let entregues = false
+    let corpo: StageCharacter | null = null
+    let guitarra: GuitarModel | null = null
 
-    /** Põe a guitarra de agora no corpo de agora, na pose da tabela. */
-    const montar = () => {
+    // Corpo e guitarra chegam de arquivos diferentes, cada um no seu tempo,
+    // e o personagem só entra com os dois. Antes cada um aparecia quando
+    // chegava: o corpo com a guitarra construída em código na mão, que
+    // depois trocava pela de arquivo diante do jogador. Um arquivo que
+    // falha cai na versão construída em código — melhor que um visor
+    // coberto para sempre.
+    const corpoPronto: Promise<StageCharacter> = escolhido.model
+      ? loadCharacterGlb({ url: escolhido.model, adjust: escolhido.modelAdjust }).then(
+          (importado) => {
+            importado.setRole('guitar')
+            return importado
+          },
+          (erro) => {
+            console.error(`não deu para carregar ${escolhido.model}`, erro)
+            return new CharacterModel(escolhido)
+          },
+        )
+      : Promise.resolve(new CharacterModel(escolhido))
+
+    const guitarraPronta: Promise<GuitarModel> = escolhida.model
+      ? loadGuitarGlb(escolhida.model, escolhida, escolhida.modelAdjust).catch((erro) => {
+          console.error(`não deu para carregar ${escolhida.model}`, erro)
+          return buildGuitar(escolhida)
+        })
+      : Promise.resolve(buildGuitar(escolhida))
+
+    void Promise.all([corpoPronto, guitarraPronta]).then(async ([c, g]) => {
+      corpo = c
+      guitarra = g
+      if (descartado) {
+        c.dispose()
+        g.dispose()
+        return
+      }
+
+      // A guitarra na pose da tabela; com `?rig`, os controles editam este
+      // encaixe — e a chave do bloco copiado é o personagem que está no
+      // visor.
       const a = attachmentFor('guitar', shownId)
       const aplicar = () => {
-        guitarra.group.scale.setScalar(a.scale)
-        guitarra.group.position.set(...a.position)
-        guitarra.group.rotation.set(...a.rotation)
+        g.group.scale.setScalar(a.scale)
+        g.group.position.set(...a.position)
+        g.group.rotation.set(...a.rotation)
       }
       aplicar()
-      corpo.instrumentAnchor.add(guitarra.group)
-      // Com `?rig`, os controles editam este encaixe — e a chave do bloco
-      // copiado é o personagem que está no visor.
+      c.instrumentAnchor.add(g.group)
       setRigCharacter(shownId)
-      registerAttachment('guitar', a, guitarra.group, aplicar, shownId)
-    }
+      registerAttachment('guitar', a, g.group, aplicar, shownId)
 
-    const mostrar = () => {
-      corpo.setState('playing')
-      corpo.setIntensity(0.8)
-      montar()
-      modelRef.current = corpo
-      preview.setModel(corpo.group, () => {})
-      setCarregando(false)
-    }
+      c.setState('playing')
+      c.setIntensity(0.8)
+      // Uma pose antes de medir: o enquadramento lê a caixa do modelo, e o
+      // esqueleto parado na pose de ligação mede outra coisa.
+      c.update(0, 0)
+      modelRef.current = c
 
-    // A marionete continua sendo construída, porque é nela que a guitarra
-    // pendura enquanto o arquivo não chega — mas ela **não vai para a tela**
-    // quando há um modelo a caminho. Antes ia, e o jogador via um boneco
-    // genérico virar outra pessoa alguns segundos depois: lê como defeito,
-    // não como carregamento.
-    if (escolhido.model) setCarregando(true)
-    else mostrar()
-
-    if (escolhida.model) {
-      void loadGuitarGlb(escolhida.model, escolhida, escolhida.modelAdjust)
-        .then((importada) => {
-          if (descartado) return importada.dispose()
-          corpo.instrumentAnchor.remove(guitarra.group)
-          guitarra.dispose()
-          guitarra = importada
-          montar()
-        })
-        .catch((erro) => console.error(`não deu para carregar ${escolhida.model}`, erro))
-    }
-
-    if (escolhido.model) {
-      void loadCharacterGlb({ url: escolhido.model, adjust: escolhido.modelAdjust })
-        .then((importado) => {
-          if (descartado) return importado.dispose()
-          corpo.instrumentAnchor.remove(guitarra.group)
-          const antigo = corpo
-          corpo = importado
-          corpo.setRole('guitar')
-          antigo.dispose()
-          mostrar()
-        })
-        .catch((erro) => {
-          console.error(`não deu para carregar ${escolhido.model}`, erro)
-          // Falhou: mostra a marionete, que é melhor que um palco vazio
-          // com um aviso de carregamento que nunca termina.
-          if (!descartado) mostrar()
-        })
-    }
+      entregues = true
+      const mostrado = await preview.present(c.group, () => {
+        g.dispose()
+        c.dispose()
+      })
+      if (mostrado && !descartado) setCarregando(false)
+    })
 
     return () => {
       descartado = true
       clearAttachments()
-      guitarra.dispose()
-      corpo.dispose()
-      modelRef.current = null
+      // O que já foi para a prévia continua na tela, sob o véu, até o
+      // próximo tomar o lugar — descartar agora faria o visor redesenhar um
+      // modelo desmontado, e a placa de vídeo subir tudo de novo à toa.
+      preview.cancelPending()
+      if (!entregues) {
+        guitarra?.dispose()
+        corpo?.dispose()
+      }
     }
   }, [shownId, guitarId])
 
@@ -215,16 +225,14 @@ export function CharactersScreen() {
         <div className="picker">
           <div className="picker-stage">
             <canvas ref={canvasRef} />
-            {carregando ? (
-              <div className="picker-loading">
-                <b>Carregando</b>
-                <div className="loading-bar">
-                  <i />
-                </div>
+            {/* O véu fica montado: cobre na hora, e sai devagar. */}
+            <div className="picker-loading" data-hidden={!carregando} aria-hidden={!carregando}>
+              <b>Carregando</b>
+              <div className="loading-bar">
+                <i />
               </div>
-            ) : (
-              <span className="picker-hint">arraste para girar</span>
-            )}
+            </div>
+            {!carregando && <span className="picker-hint">arraste para girar</span>}
             <div className="picker-caption">
               <h2>{shown.name}</h2>
               <p>

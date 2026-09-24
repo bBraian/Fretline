@@ -93,6 +93,25 @@ interface State {
    */
   playedFrom: Screen
   /**
+   * Conta as apresentações: sobe a cada música que começa a partir de um
+   * menu.
+   *
+   * O palco é sorteado por apresentação (`stageForShow`), e é isto que
+   * separa uma música nova de uma tentativa de novo. "Recomeçar" e "tocar
+   * de novo" são a mesma apresentação, no mesmo palco; escolher música na
+   * lista, mesmo que seja a mesma, é outra.
+   */
+  show: number
+  /**
+   * Conta as tentativas dentro da tela de jogo; é a `key` dela no roteador.
+   *
+   * Recomeçar é remontar a tela, que é o único caminho que sabe construir a
+   * partida inteira. Antes a remontagem passava pela tela de origem e
+   * voltava — um quadro de menu no meio, com a música de fundo ligando e
+   * desligando de novo.
+   */
+  attempt: number
+  /**
    * Item em exibição nas telas de seleção.
    *
    * Separado do que está equipado de propósito: olhar a loja não pode
@@ -110,6 +129,8 @@ interface State {
   profile: Profile
 
   setScreen: (screen: Screen) => void
+  /** Recomeça a música em curso, na mesma apresentação. */
+  retry: () => void
   previewCharacter: (id: string) => void
   previewGuitar: (id: string) => void
   selectSong: (id: string) => void
@@ -204,6 +225,8 @@ const initial = load()
 export const useGame = create<State>((set, get) => ({
   screen: 'boot',
   playedFrom: 'songs',
+  show: 0,
+  attempt: 0,
   previewCharacterId: null,
   previewGuitarId: null,
   library: [demoEntry()],
@@ -217,13 +240,18 @@ export const useGame = create<State>((set, get) => ({
     set((state) => {
       // `play` e `results` não contam como origem: são etapas da própria
       // partida, e "de novo" precisa continuar apontando para a tela que
-      // abriu a primeira.
-      const playedFrom =
+      // abriu a primeira. Pelo mesmo motivo, só a entrada vinda de um menu
+      // abre uma apresentação nova.
+      const novaApresentacao =
         screen === 'play' && state.screen !== 'play' && state.screen !== 'results'
-          ? state.screen
-          : state.playedFrom
-      return { screen, playedFrom }
+      return {
+        screen,
+        playedFrom: novaApresentacao ? state.screen : state.playedFrom,
+        show: novaApresentacao ? state.show + 1 : state.show,
+      }
     }),
+
+  retry: () => set((state) => ({ attempt: state.attempt + 1 })),
 
   // Trocar o item em exibição é navegar por um menu, e soa como tal. O som
   // mora aqui, e não nas telas, porque personagens, guitarras e músicas são

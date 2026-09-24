@@ -15,7 +15,9 @@ import type { Verdict } from '../engine/types'
 import { SongPlayer } from '../audio/songPlayer'
 import { renderDemoTrack } from '../audio/demoTrack'
 import { InputManager } from '../input/inputManager'
+import { pausePadButton } from '../input/bindings'
 import { GameScene, highwayRailsAt } from '../render/gameScene'
+import { stageForShow } from '../render/stage/stageModel'
 import { evaluate } from '../content/progression'
 import { useGame } from './store'
 import { Hud } from './hud/Hud'
@@ -23,6 +25,7 @@ import { YouRock } from './hud/YouRock'
 import { mixer } from '../audio/mixer'
 import { TrackLoadError, type TrackProgress } from '../audio/download'
 import { downloadProgress, mb } from './downloadProgress'
+import { holdGamepadNav } from './gamepadNav'
 
 const LEAD_IN = 3
 
@@ -70,6 +73,8 @@ export function PlayScreen() {
   const setScreen = useGame((s) => s.setScreen)
   const playedFrom = useGame((s) => s.playedFrom)
   const finishSong = useGame((s) => s.finishSong)
+  const retry = useGame((s) => s.retry)
+  const updateSettings = useGame((s) => s.updateSettings)
 
   const [phase, setPhase] = useState<Phase>('loading')
   const [assets, setAssets] = useState<{
@@ -237,6 +242,10 @@ export function PlayScreen() {
       input.setBindings(settings.keyboard, settings.gamepad)
       input.attach()
 
+      // Um palco por apresentação: sorteado quando a música começa de um
+      // menu, o mesmo ao recomeçar. Ver `stageForShow`.
+      const stageModel = stageForShow(useGame.getState().show)
+
       const scene = new GameScene({
         canvas,
         session,
@@ -247,6 +256,7 @@ export function PlayScreen() {
         videoOffset: settings.videoOffset,
         // `?lowfx` força a qualidade baixa, para conferência e para os testes.
         quality: new URLSearchParams(location.search).has('lowfx') ? 'baixa' : settings.quality,
+        stageModel,
         onEvent,
       })
 
@@ -264,6 +274,7 @@ export function PlayScreen() {
           player,
           chart,
           scene,
+          stage: stageModel?.id ?? 'classic',
         }
       }
 
@@ -325,10 +336,22 @@ export function PlayScreen() {
   // Laço leve fora do render do Three: lê o controle e espelha os trastes.
   useEffect(() => {
     let frame = 0
+    const botaoDePausa = pausePadButton(settings.gamepad)
+    let pausaApertada = false
     const tick = () => {
       const input = inputRef.current
       const scene = sceneRef.current
-      if (input && scene) {
+
+      // A pausa do controle, no aperto — e só no aperto, senão segurar o
+      // botão pausaria e retomaria a cada quadro.
+      const pad = botaoDePausa < 0 ? null : [...(navigator.getGamepads?.() ?? [])].find((p) => p?.connected)
+      const pausa = pad?.buttons[botaoDePausa]?.pressed ?? false
+      if (pausa && !pausaApertada) alternarPausa.current()
+      pausaApertada = pausa
+
+      // Fora da música o controle é dos menus: um A no painel da pausa não
+      // pode chegar à sessão como traste.
+      if (input && scene && jogando.current) {
         input.pollGamepad()
         scene.setPressed(input.fretMask)
         // A alavanca só faz som e só entorta a cauda com um sustain
@@ -407,7 +430,9 @@ export function PlayScreen() {
     playerRef.current?.pause()
     mixer.pauseStage()
     sceneRef.current?.stop()
-    inputRef.current?.reset()
+    // O teclado sai junto: na pausa as teclas são do painel, e um traste
+    // apertado ali seria julgado contra o relógio parado.
+    inputRef.current?.detach()
     setPhase('paused')
   }, [phase])
 
@@ -416,11 +441,35 @@ export function PlayScreen() {
     // Pausou na contagem, volta para a contagem — senão o número some e a
     // música entra sem aviso.
     const inCountdown = (playerRef.current?.now() ?? 0) < 0
+    inputRef.current?.syncGamepad()
+    inputRef.current?.attach()
     sceneRef.current?.start()
     mixer.resumeStage()
     void playerRef.current?.resume()
     setPhase(inCountdown ? 'countdown' : 'playing')
   }, [phase])
+
+  /**
+   * O que o laço do controle lê a cada quadro sem virar dependência dele.
+   *
+   * `jogando` libera a leitura dos trastes; `alternarPausa` é o botão de
+   * pausa, que pausa tocando e retoma pausado.
+   */
+  const jogando = useRef(false)
+  jogando.current = phase === 'playing' || phase === 'countdown'
+  const alternarPausa = useRef(() => {})
+  alternarPausa.current = () => {
+    if (phase === 'paused') resume()
+    else pause()
+  }
+
+  // Enquanto a música corre, A e B são trastes: a navegação por controle
+  // dos menus fica segurada, e volta no painel de pausa ou de vaia.
+  const musicaCorrendo = phase === 'countdown' || phase === 'playing' || phase === 'outro'
+  useEffect(() => {
+    if (!musicaCorrendo) return
+    return holdGamepadNav()
+  }, [musicaCorrendo])
 
   // Trocar de aba ou minimizar pausa. Sem isto a música seguia tocando com
   // o desenho parado — o navegador não anima aba escondida —, e na volta
@@ -482,10 +531,10 @@ export function PlayScreen() {
 
   const restart = () => {
     // Remontar a tela é mais simples e mais seguro que reiniciar a sessão no
-    // lugar: o caminho de montagem já é o único que sabe construir tudo. O
-    // desvio é pela tela de origem, para que ela continue sendo a origem.
-    setScreen(playedFrom)
-    requestAnimationFrame(() => setScreen('play'))
+    // lugar: o caminho de montagem já é o único que sabe construir tudo. A
+    // tentativa nova é a `key` da tela no roteador; a tela de origem e o
+    // palco continuam os mesmos.
+    retry()
   }
 
   // A linha de fase e a barra do Afinando. A barra mede o download do
@@ -594,8 +643,9 @@ export function PlayScreen() {
         <div className="overlay">
           <div className="overlay-panel">
             <h2>Pausado</h2>
-            <p className="screen-subtitle">Esc volta ao jogo.</p>
-            <button className="btn btn-primary" onClick={resume}>
+            <p className="screen-subtitle">Esc volta ao jogo — no controle, B.</p>
+            {/* Em foco ao abrir: Enter, ou o A do controle, continua. */}
+            <button className="btn btn-primary" data-autofocus autoFocus onClick={resume}>
               Continuar
             </button>
             <button className="btn" onClick={restart}>
@@ -604,6 +654,24 @@ export function PlayScreen() {
             <button className="btn btn-ghost" onClick={quit}>
               Sair da música
             </button>
+
+            {/* O volume geral, o mesmo dos ajustes: a mesa avisa o tocador,
+                e a música obedece assim que a pausa sai. */}
+            <label className="pause-volume">
+              <span className="field-label">Volume</span>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={settings.volume}
+                onChange={(e) => {
+                  updateSettings({ volume: Number(e.target.value) })
+                  mixer.play('tweak')
+                }}
+              />
+              <span className="field-value">{Math.round(settings.volume * 100)}%</span>
+            </label>
           </div>
         </div>
       )}

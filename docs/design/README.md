@@ -219,6 +219,30 @@ Duas coisas que custaram medição:
 Com `?debug`, a prévia fica em `window.__preview` — é como a duração foi
 medida, porque uma captura de tela leva mais tempo que a animação inteira.
 
+### A troca coberta
+
+Trocar de item **cobre o visor na hora** com um véu (`.picker-loading`): o
+fundo do próprio visor, opaco, com "Carregando" e a barra que varre. Nome,
+legenda e botões de compra ficam por cima dele — o que muda é só o modelo.
+
+- **Cobre de uma vez e sai em 200 ms.** Entrar com fade deixaria ver o
+  começo da troca; sair com fade emenda com a animação de entrada.
+- **O véu só sai com o modelo pronto**, não com o arquivo baixado:
+  `ModelPreview.present` compila os shaders e sobe as texturas antes do
+  primeiro desenho. Medido, era o grosso dos ~800 ms de travamento a cada
+  troca de personagem — e acontecia com o modelo já na tela, no meio da
+  entrada.
+- **Personagem e guitarra entram juntos.** Antes o corpo aparecia com a
+  guitarra construída em código na mão e trocava pela de arquivo diante do
+  jogador.
+- O modelo anterior continua vivo sob o véu até o próximo tomar o lugar;
+  desmontá-lo antes fazia o visor redesenhar um modelo descartado.
+- A barra anima por `transform`, que roda fora da thread principal: ela
+  continua andando mesmo enquanto a compilação trava a página.
+
+A prévia de guitarra só desenha quando algo muda (troca, entrada, arrasto,
+tamanho); a de personagem desenha todo quadro, porque ele toca sem parar.
+
 ## 6d. O letreiro "You rock!"
 
 `src/ui/hud/YouRock.tsx`, no fim de uma música **concluída** — quem falhou e
@@ -285,8 +309,10 @@ reaproveitadas sem redefinir, e o título partido leva `aria-label`
   parado com movimento reduzido —, com o tamanho da biblioteca embaixo e,
   se algo não veio, `N arquivos não vieram — carregam quando precisar`.
 - **Sai ao soltar**, não ao apertar: tecla, clique fora de botão, ou botão
-  do controle. O gesto cria o áudio, e o menu entra já com música e com o
-  som de abrir.
+  do controle. Por tecla ou clique, o gesto libera o áudio e o menu entra
+  já com música e com o som de abrir. Pelo controle, o navegador não conta
+  o botão como gesto: o menu entra mudo, e a música começa na primeira
+  tecla ou clique.
 - As medidas verticais são em `vh`: a 480×270 do teste de fumaça, logo e
   letreiro cabem juntos.
 
@@ -314,6 +340,45 @@ faz a tela ler como cartaz em vez de formulário.
 a captura de um comando — vem primeiro; na calibração, ele cancela a medição
 antes de sair. No palco o Esc pausa, que é outra ação, e o gancho não entra
 lá.
+
+### O controle
+
+`src/ui/gamepadNav.ts`, montado no roteador. **O controle fala teclado:** o
+direcional (e o analógico, e a barra de strum da guitarra) vira setas, A
+vira Enter, B vira Esc. Cada tela continua ouvindo só o teclado — o que
+funciona com ele funciona com o controle, e tela nova não precisa de nada.
+
+Tecla sintética não tem efeito padrão, então quando nenhuma tela a trata a
+camada faz o que o teclado faria: clica o botão em foco, **anda o foco para
+o vizinho na direção** (`ui/spatialNav.ts`), mexe no deslizante (um
+vigésimo do curso por toque) ou na lista de opções. É assim que loja,
+ajustes, resultados e a pausa se navegam sem código próprio.
+
+- Sem nada em foco, o primeiro toque só mostra onde se está: o marcado da
+  tela (`data-autofocus`, o selecionado, o ativo, o botão principal).
+- Nas listas de música, esquerda e direita trocam a dificuldade — com o
+  controle na mão, o seletor do cabeçalho não tem outro caminho.
+- O idioma e o cartão do café continuam fora das setas, pelo mesmo motivo
+  de sempre: o menu trata as setas, e eles não abrem tela.
+- **Durante a música A e B são trastes**: a tela de jogo segura a
+  navegação (`holdGamepadNav`), e ela volta no painel de pausa ou de vaia,
+  depois de 400 ms de folga — um traste apertado quando o painel aparece não
+  pode valer como "de novo".
+- A pausa é o Start, ou o Select quando o Start está no star power, como no
+  padrão (`pausePadButton`). O aviso de controle conectado diz qual.
+
+**O anel de foco.** Foco posto por script não acende o `:focus-visible`,
+então enquanto se navega de controle a raiz leva `data-nav="pad"` e o anel
+vale para qualquer foco. É **borda de osso de 2px, canto reto, afastada
+2px** — a cor da seleção, no traço dos cartazes. O menu principal e as
+linhas de música ficam de fora: ali o realce do item já é o foco. Mouse ou
+tecla de verdade tiram o `data-nav`.
+
+### A pausa
+
+Painel sobre o palco, com "Continuar" já em foco — Enter ou A continuam.
+Embaixo, separado por um fio, **o volume geral**: o mesmo dos ajustes, e a
+música obedece assim que a pausa sai.
 
 ### O seletor de idioma
 
@@ -407,6 +472,7 @@ Mudança visual se confere **olhando**, nunca por dedução:
 ```bash
 npm run menus     # menu, carreira, músicas, ajustes
 npm run gallery   # cada guitarra e cada personagem
+npm run gamepad   # o jogo inteiro de controle, com a troca coberta e a pausa
 npm run smoke     # o jogo inteiro num navegador de verdade
 ```
 

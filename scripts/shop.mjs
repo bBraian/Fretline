@@ -26,7 +26,12 @@ for (const [label, index] of [
   ['bloqueada', 8],
 ]) {
   await page.locator('.picker-row').nth(index).click()
-  await page.waitForTimeout(600)
+  // O visor fica coberto até a guitarra estar pronta, e o véu sai em 200 ms.
+  await page.waitForTimeout(50)
+  await page.waitForFunction(() => document.querySelector('.picker-loading')?.dataset.hidden === 'true', null, {
+    timeout: 60000,
+  })
+  await page.waitForTimeout(300)
   await page.screenshot({ path: `scripts/shop-${label}.png` })
   console.log(`  ${label}: ${(await page.locator('.picker-caption h2').innerText()).trim()}`)
 }

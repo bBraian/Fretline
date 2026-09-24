@@ -10,6 +10,7 @@ import { gamepadAxisLabel, gamepadButtonLabel, DEFAULT_GAMEPAD, DEFAULT_KEYBOARD
 import { Backdrop } from '../Backdrop'
 import { mixer } from '../../audio/mixer'
 import { useBackKey } from '../useBackKey'
+import { holdGamepadNav } from '../gamepadNav'
 
 type Listening = { kind: 'fret'; index: number } | { kind: 'starPower' | 'whammy' } | null
 
@@ -50,6 +51,10 @@ export function SettingsScreen() {
     if (!listening) return
 
     const onKey = (event: KeyboardEvent) => {
+      // A tecla sintética é o controle navegando, não alguém escolhendo uma
+      // tecla: gravar a seta do direcional num traste prenderia quem chegou
+      // aqui de controle na mão. Só o Esc dele — o B — vale, e cancela.
+      if (!event.isTrusted && event.code !== 'Escape') return
       event.preventDefault()
       if (event.code === 'Escape') {
         setListening(null)
@@ -89,8 +94,11 @@ export function SettingsScreen() {
       setLivePressed((antes) =>
         antes.length === pressed.length && antes.every((v, i) => v === pressed[i]) ? antes : pressed,
       )
+      // Na precisão que a tela mostra. Um analógico em repouso nunca lê o
+      // mesmo número dois quadros seguidos, e comparar o valor cru
+      // redesenhava a tela inteira a cada quadro com o controle ligado.
       setAxes((antes) => {
-        const atual = pad ? [...pad.axes] : []
+        const atual = pad ? pad.axes.map((v) => Math.round(v * 100) / 100) : []
         return antes.length === atual.length && antes.every((v, i) => v === atual[i]) ? antes : atual
       })
       frame = requestAnimationFrame(tick)
@@ -98,6 +106,13 @@ export function SettingsScreen() {
     frame = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frame)
   }, [])
+
+  // Esperando o botão a gravar, o controle não navega: o B gravado num
+  // traste não pode também sair da tela.
+  useEffect(() => {
+    if (!padListening) return
+    return holdGamepadNav()
+  }, [padListening])
 
   /**
    * Grava o próximo botão apertado no comando escolhido.

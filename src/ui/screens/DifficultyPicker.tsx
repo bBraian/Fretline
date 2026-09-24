@@ -10,6 +10,7 @@
  * O ajuste é global e gravado: é o mesmo que a tela de ajustes escreve.
  */
 
+import { useCallback } from 'react'
 import { DIFFICULTIES } from '../../engine/types'
 import { mixer } from '../../audio/mixer'
 import { useGame } from '../store'
@@ -34,5 +35,28 @@ export function DifficultyPicker() {
         </button>
       ))}
     </div>
+  )
+}
+
+/**
+ * Anda a dificuldade um passo, para o lado pedido.
+ *
+ * É o seletor acima, pelas setas laterais das listas de música — o único
+ * jeito de chegar nele de controle na mão. Para nos extremos, sem dar a
+ * volta: do Expert para o Fácil num toque é um susto, não um atalho.
+ */
+export function useStepDifficulty() {
+  const difficulty = useGame((s) => s.settings.difficulty)
+  const updateSettings = useGame((s) => s.updateSettings)
+
+  return useCallback(
+    (delta: 1 | -1) => {
+      const i = DIFFICULTIES.indexOf(difficulty)
+      const next = DIFFICULTIES[Math.min(DIFFICULTIES.length - 1, Math.max(0, i + delta))]
+      if (next === difficulty) return
+      mixer.play('move')
+      updateSettings({ difficulty: next })
+    },
+    [difficulty, updateSettings],
   )
 }

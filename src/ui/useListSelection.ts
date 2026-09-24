@@ -13,6 +13,10 @@
  * o relógio dos dois segundos é um só. Sem isso, passar o mouse por cima
  * enquanto se navega pelas setas deixaria dois previews disputando.
  *
+ * O controle chega aqui como teclado: a camada de `gamepadNav.ts` traduz o
+ * direcional em setas e o A em Enter. Antes esta lista sondava o controle
+ * num laço próprio, e era a única tela que respondia a ele.
+ *
  * ## O descanso
  *
  * `resting` é o índice onde o seletor ficou parado tempo suficiente. Ele
@@ -29,6 +33,13 @@ export interface ListSelectionOptions {
   restDelay: number
   /** Enter, espaço ou o botão de confirmar do controle. */
   onConfirm?: (index: number) => void
+  /**
+   * Esquerda e direita, que a lista não usa para andar.
+   *
+   * Nas telas de música é a dificuldade: com o controle na mão, o seletor
+   * do cabeçalho não tem como ser alcançado de outro jeito.
+   */
+  onSide?: (delta: 1 | -1) => void
   /** Desliga teclado e controle enquanto algo por cima estiver aberto. */
   enabled?: boolean
 }
@@ -46,21 +57,11 @@ export interface ListSelection {
   }
 }
 
-/** Botão 0 do controle: o de baixo do losango, confirmar por convenção. */
-const CONFIRM_BUTTON = 0
-const DPAD_UP = 12
-const DPAD_DOWN = 13
-/** Analógico esquerdo, eixo vertical. */
-const STICK_Y = 1
-const STICK_THRESHOLD = 0.5
-/** Quanto o direcional segura antes de repetir, e de quanto em quanto repete. */
-const REPEAT_FIRST = 420
-const REPEAT_NEXT = 140
-
 export function useListSelection({
   count,
   restDelay,
   onConfirm,
+  onSide,
   enabled = true,
 }: ListSelectionOptions): ListSelection {
   const [index, setIndexState] = useState(0)
@@ -68,8 +69,8 @@ export function useListSelection({
   const nodes = useRef<Array<HTMLElement | null>>([])
 
   // O que o laço do controle precisa ler sem virar dependência dele.
-  const live = useRef({ index, count, onConfirm, enabled })
-  live.current = { index, count, onConfirm, enabled }
+  const live = useRef({ index, count, onConfirm, onSide })
+  live.current = { index, count, onConfirm, onSide }
 
   /** Move sem mexer no foco: é como o mouse entra. */
   const setIndex = useCallback((next: number) => {
@@ -134,6 +135,12 @@ export function useListSelection({
           event.preventDefault()
           step(-1)
           return
+        case 'ArrowLeft':
+        case 'ArrowRight':
+          if (!live.current.onSide) return
+          event.preventDefault()
+          live.current.onSide(event.key === 'ArrowRight' ? 1 : -1)
+          return
         case 'Enter':
         case ' ':
           // `preventDefault` aqui não é zelo: sem ele o botão em foco
@@ -147,56 +154,6 @@ export function useListSelection({
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [enabled, step])
-
-  // Controle. Um laço de quadro, porque a API de gamepad é de sondagem —
-  // não há evento para "o direcional foi pressionado".
-  useEffect(() => {
-    if (!enabled) return
-    let frame = 0
-    let held = 0
-    let repeatAt = 0
-    let confirmHeld = false
-
-    const tick = () => {
-      frame = requestAnimationFrame(tick)
-      const pads = navigator.getGamepads?.() ?? []
-      const pad = [...pads].find((p) => p && p.connected)
-      if (!pad) {
-        held = 0
-        confirmHeld = false
-        return
-      }
-
-      const eixo = pad.axes[STICK_Y] ?? 0
-      const direcao =
-        pad.buttons[DPAD_DOWN]?.pressed || eixo > STICK_THRESHOLD
-          ? 1
-          : pad.buttons[DPAD_UP]?.pressed || eixo < -STICK_THRESHOLD
-            ? -1
-            : 0
-
-      const agora = performance.now()
-      if (direcao === 0) {
-        held = 0
-      } else if (held !== direcao) {
-        // Primeira pressão: anda um e espera mais antes de repetir, senão
-        // um toque no direcional atravessa a lista inteira.
-        held = direcao
-        repeatAt = agora + REPEAT_FIRST
-        step(direcao)
-      } else if (agora >= repeatAt) {
-        repeatAt = agora + REPEAT_NEXT
-        step(direcao)
-      }
-
-      const confirma = pad.buttons[CONFIRM_BUTTON]?.pressed ?? false
-      if (confirma && !confirmHeld) live.current.onConfirm?.(live.current.index)
-      confirmHeld = confirma
-    }
-
-    frame = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(frame)
   }, [enabled, step])
 
   const itemProps = useCallback(

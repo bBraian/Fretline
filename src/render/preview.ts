@@ -12,6 +12,15 @@
  * sala virtual. Sem ele, o metal das tarraxas e da ponte não teria o que
  * refletir e sairia cinza chapado, que é o que mais entrega modelo 3D
  * montado às pressas.
+ *
+ * ## Trocar de modelo sem tranco
+ *
+ * Arquivo carregado não é modelo pronto. O primeiro desenho de um modelo
+ * novo compila o shader de cada material e sobe cada textura, com a página
+ * parada — medido, era o grosso dos quase 800ms de travamento a cada troca
+ * de personagem, e acontecia com o modelo já na tela, no meio da animação
+ * de entrada. `present` faz esse trabalho antes, atrás do véu de
+ * carregamento da tela, e só então põe o modelo em cena.
  */
 
 import * as THREE from 'three'
@@ -40,9 +49,19 @@ export interface PreviewOptions {
    * vitrine de loja, e impede olhar uma peça de um ângulo escolhido.
    * Arrastar continua girando.
    */
-  entry?: 'dolly' | 'step' | 'none' 
+  entry?: 'dolly' | 'step' | 'none'
   /** Cor de fundo; transparente por padrão. */
   background?: number | null
+  /**
+   * Desenha todo quadro. Sem ele, só quando algo muda: troca de modelo,
+   * entrada, arrasto, tamanho.
+   *
+   * Um personagem se mexe o tempo todo e precisa disso. Uma guitarra
+   * parada, não: redesenhar a mesma imagem sessenta vezes por segundo, com
+   * sombra e mapa de ambiente, era a placa de vídeo trabalhando à toa
+   * enquanto o jogador lia a loja.
+   */
+  continuous?: boolean
 }
 
 export class ModelPreview {
@@ -65,6 +84,13 @@ export class ModelPreview {
   private pointerAngle = 0
   private lastPointerX = 0
   private clock = 0
+  /** O tamanho aplicado ao desenho, para só redimensionar quando mudar. */
+  private width = 0
+  private height = 0
+  /** Algo mudou desde o último desenho; ver `continuous`. */
+  private dirty = true
+  /** Conta as chamadas de `present`, para uma antiga não vencer uma nova. */
+  private presenting = 0
 
   constructor(private options: PreviewOptions) {
     const { canvas } = options
@@ -147,6 +173,63 @@ export class ModelPreview {
     this.turntable.add(object)
     if (frame) this.frameObject(object)
     this.startEntry(object)
+    this.invalidate()
+  }
+
+  /**
+   * Prepara o modelo e só então o põe em cena.
+   *
+   * Compila os shaders — em paralelo, sem travar, onde o navegador deixa —
+   * e sobe as texturas antes do primeiro desenho; depois espera o modelo
+   * sair na tela. Quem chama mantém o véu de carregamento até a promessa
+   * resolver, e o modelo entra pronto, com a animação de entrada inteira.
+   *
+   * Devolve `false` se outro `present` começou no caminho: o modelo deste
+   * é descartado sem nunca aparecer.
+   */
+  async present(object: THREE.Object3D, dispose: () => void, frame = true): Promise<boolean> {
+    const vez = ++this.presenting
+    try {
+      if (this.renderer.extensions.has('KHR_parallel_shader_compile')) {
+        await this.renderer.compileAsync(object, this.camera, this.scene)
+      } else {
+        this.renderer.compile(object, this.camera, this.scene)
+      }
+      object.traverse((node) => {
+        const material = (node as THREE.Mesh).material
+        if (!material) return
+        for (const m of Array.isArray(material) ? material : [material]) {
+          for (const value of Object.values(m)) {
+            if (value instanceof THREE.Texture) this.renderer.initTexture(value)
+          }
+        }
+      })
+    } catch (erro) {
+      // Preparar é adiantamento, não condição: se falhar, o primeiro
+      // desenho faz o trabalho, com o tranco de antes.
+      console.warn('prévia: não deu para preparar o modelo antes', erro)
+    }
+    if (vez !== this.presenting || this.disposed) {
+      dispose()
+      return false
+    }
+    this.setModel(object, dispose, frame)
+    await nextFrames(2)
+    return vez === this.presenting && !this.disposed
+  }
+
+  /**
+   * Abandona o `present` em curso, se houver: o modelo dele é descartado
+   * quando a preparação terminar, sem entrar em cena. É para quem trocou de
+   * item — ou saiu da tela — antes de o anterior ficar pronto.
+   */
+  cancelPending() {
+    this.presenting++
+  }
+
+  /** Pede um desenho novo a uma prévia que não desenha todo quadro. */
+  invalidate() {
+    this.dirty = true
   }
 
   /**
@@ -223,26 +306,40 @@ export class ModelPreview {
     // lado de uma guitarra antes de comprar.
     this.pointerAngle += (event.clientX - this.lastPointerX) * 0.01
     this.lastPointerX = event.clientX
+    this.dirty = true
   }
 
   private onPointerUp = () => {
     this.dragging = false
   }
 
+  /**
+   * Acompanha o tamanho do canvas.
+   *
+   * Roda a cada quadro, mas só redimensiona quando o tamanho muda: `setSize`
+   * reatribui a largura do canvas, e isso realoca o buffer de desenho mesmo
+   * quando o número é o mesmo.
+   */
   resize() {
     const canvas = this.renderer.domElement
     const width = canvas.clientWidth || 1
     const height = canvas.clientHeight || 1
+    if (width === this.width && height === this.height) return
+    this.width = width
+    this.height = height
     this.renderer.setSize(width, height, false)
     this.camera.aspect = width / height
     this.camera.updateProjectionMatrix()
+    this.dirty = true
   }
 
   private frame = () => {
     this.resize()
     this.clock += 1 / 60
-    this.advanceEntry()
+    const entrando = this.advanceEntry()
     this.turntable.rotation.y = this.pointerAngle
+    if (!this.options.continuous && !this.dirty && !entrando) return
+    this.dirty = false
     this.renderer.render(this.scene, this.camera)
   }
 
@@ -253,8 +350,8 @@ export class ModelPreview {
    * e o fim é uma parada macia. O contrário — acelerar até o fim — faria o
    * objeto bater no lugar.
    */
-  private advanceEntry() {
-    if (!this.current || this.entryTime >= ENTRY_SECONDS) return
+  private advanceEntry(): boolean {
+    if (!this.current || this.entryTime >= ENTRY_SECONDS) return false
     // Tempo de relógio, e não um passo fixo de 1/60: a animação tem começo e
     // fim, e contar quadros faria ela durar o triplo numa máquina que
     // desenha a 20 quadros por segundo.
@@ -264,9 +361,13 @@ export class ModelPreview {
     const t = Math.min(1, this.entryTime / ENTRY_SECONDS)
     const eased = 1 - Math.pow(1 - t, 3)
     this.current.position.lerpVectors(this.entryFrom, this.entryTo, eased)
+    return true
   }
 
+  private disposed = false
+
   dispose() {
+    this.disposed = true
     this.renderer.setAnimationLoop(null)
     this.clear()
     const canvas = this.renderer.domElement
@@ -276,4 +377,15 @@ export class ModelPreview {
     this.environment.dispose()
     this.renderer.dispose()
   }
+}
+
+/** Espera o navegador pintar `count` quadros. */
+function nextFrames(count: number) {
+  return new Promise<void>((resolve) => {
+    const step = (left: number) => {
+      if (left <= 0) resolve()
+      else requestAnimationFrame(() => step(left - 1))
+    }
+    step(count)
+  })
 }

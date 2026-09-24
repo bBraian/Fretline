@@ -255,7 +255,10 @@ publicado — na ordem inversa, a versão no ar fica sem músicas.
      (hoje criado no primeiro gesto, de todo jogo): os efeitos decodificam
      em milissegundos e o menu abre já com música e som, em vez de mudo até
      o primeiro clique. *Na implementação:* sai-se ao **soltar** a tecla ou
-     o botão, para o mesmo gesto não acionar o primeiro item do menu.
+     o botão, para o mesmo gesto não acionar o primeiro item do menu. Botão
+     de controle não é gesto para o navegador: saindo por ele, o menu entra
+     mudo, e a trilha — que não trata a recusa como faixa ruim — começa na
+     primeira tecla ou clique.
 - **Nunca é beco sem saída.** Cada arquivo tenta de novo duas vezes (0,5 s
   e 2 s de espera). Falhando de vez, a abertura segue sem ele, e o `pronto`
   mostra "N arquivos não vieram — carregam quando precisar". Esse arquivo é

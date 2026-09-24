@@ -84,6 +84,18 @@ export class InputManager {
     this.previousButtons = []
   }
 
+  /**
+   * Toma o controle como está agora, sem mandar nada à sessão.
+   *
+   * Na volta da pausa, o botão que ainda estiver apertado não pode chegar
+   * como nota: o A que clicou "Continuar" é um traste no padrão.
+   */
+  syncGamepad() {
+    const pads = navigator.getGamepads?.() ?? []
+    const pad = pads.find((p): p is Gamepad => p !== null && p.connected)
+    this.previousButtons = pad ? pad.buttons.map((b) => b.pressed) : []
+  }
+
   /** Estado atual dos trastes, para o render acender os botões. */
   get fretMask() {
     return this.mask

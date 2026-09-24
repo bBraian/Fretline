@@ -23,6 +23,7 @@ npm run menus     # captura as telas de menu em scripts/menu-*.png
 npm run sfx       # confere que cada efeito sonoro toca no ponto certo
 npm run shots     # um retrato de cada plano de câmera
 npm run gallery   # cada guitarra e cada personagem
+npm run gamepad   # navega o jogo inteiro com um controle simulado
 npm run library   # confere que songs/ é lida e tocada
 npm run test-song # escreve uma música de teste em songs/
 npm run upload-assets # publica músicas, modelos e previews no host de assets
@@ -137,6 +138,15 @@ Os arquivos ficam em `public/models/`, **fora do versionamento**: são
 megabytes de binário e têm licença própria, que às vezes proíbe
 redistribuir. `npm run optimize-models <pasta>` prepara os baixados.
 
+**O palco é sorteado por apresentação** (`stageForShow`, em
+`render/stage/stageModel.ts`, contado pelo `show` do store): música nova
+começada de um menu, cenário novo; recomeçar e tocar de novo mantêm o
+mesmo. Captura que compara imagens passa `?stage=club`.
+
+**Modelo novo nas lojas entra por `ModelPreview.present`**, atrás do véu
+da tela — ele compila shaders e sobe texturas antes do primeiro desenho.
+Um `setModel` direto põe na tela um modelo que ainda vai travar a página.
+
 ## Telas e estilo
 
 Todas as telas ficam em `src/ui/screens/`, e todo o estilo em um arquivo
@@ -156,6 +166,13 @@ mexem.
 As decisões todas — e o porquê de cada uma — estão em
 `docs/design/README.md`.
 
+**O controle fala teclado.** `ui/gamepadNav.ts` traduz direcional, A e B
+em setas, Enter e Esc, e anda o foco pelo vizinho quando nenhuma tela trata
+a tecla. Tela nova se navega de controle sem código próprio — desde que
+responda ao teclado. Não sonde `getGamepads()` numa tela de menu; onde A e B
+viram outra coisa (os trastes da música, a captura de botão dos ajustes),
+segure a navegação com `holdGamepadNav()`.
+
 ## Capturas de tela como verificação
 
 `scripts/menus.mjs` acha os botões por regex **case-sensitive**
@@ -165,11 +182,11 @@ As decisões todas — e o porquê de cada uma — estão em
 Mudança visual se confere olhando: rode `npm run menus` (ou `shots`,
 `gallery`) e leia o PNG. Alegar que ficou bom sem ver a imagem não vale.
 
-
 **Todo script de navegador passa pela abertura.** Depois do `page.goto`,
 `passarAbertura(page)` (`scripts/abertura.mjs`) espera o "Pressione" e
 aperta Enter. Script novo que abra o jogo precisa da mesma linha, senão
 para na primeira tela.
+
 ## Documentos
 
 | | |
@@ -201,11 +218,14 @@ emite clique, e sem clique não há como dizer "não dá" — ver `ui/blocked.ts
 Eles usam `aria-disabled`, e as regras de estilo têm o seletor equivalente
 ao lado do `:disabled`.
 
+**O áudio nasce na saída da abertura, e nunca antes.** A música de menu não
+tenta tocar na abertura — sem gesto, o `play()` de cada faixa seria
+recusado. Sair por tecla ou clique já libera o som; **sair pelo controle,
+não**: botão de gamepad não conta como gesto para o navegador. Por isso um
+`play()` recusado (`NotAllowedError`) não é tratado como faixa ruim: a
+trilha para, e a mesa religa a música na primeira tecla ou clique de
+verdade (`religarNoGesto`, em `audio/mixer.ts`).
 
-**O gesto que libera o áudio é o da abertura.** O contexto da mesa nasce ao
-sair dela, e a música de menu não tenta tocar antes — sem gesto, o `play()`
-de cada faixa seria recusado, e a trilha passaria pelas 25 trocando o
-`src`.
 ## Músicas
 
 **O catálogo é a pasta, não uma lista em código.** O jogo lê `songs/` no

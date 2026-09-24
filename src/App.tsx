@@ -23,16 +23,22 @@ import { FullscreenButton } from './ui/FullscreenButton'
 import { GamepadToast } from './ui/GamepadToast'
 import { BootScreen } from './ui/screens/BootScreen'
 import { useBackgroundPreviews } from './ui/useBackgroundPreviews'
+import { useGamepadNav } from './ui/gamepadNav'
 
 export function App() {
   const screen = useGame((s) => s.screen)
   const library = useGame((s) => s.library)
   const volume = useGame((s) => s.settings.volume)
   const menuMusic = useGame((s) => s.settings.menuMusic)
+  const attempt = useGame((s) => s.attempt)
 
   // A biblioteca e os efeitos descem na abertura (`ui/boot.ts`); os
   // previews, depois dela, um por vez.
   useBackgroundPreviews()
+
+  // O controle nos menus. A abertura trata o dela: sai ao soltar qualquer
+  // botão, e o menu não pode receber esse mesmo aperto.
+  useGamepadNav(screen !== 'boot')
 
   /**
    * A música de fundo dos menus são as próprias músicas da biblioteca.
@@ -45,11 +51,16 @@ export function App() {
     mixer.setMenuTracks(menuTracks(library))
   }, [library])
 
-  // A mesa de som nasce com o que estava salvo.
+  // A mesa de som nasce com o que estava salvo. Dois efeitos, e não um:
+  // juntos, mexer no volume — que a pausa também faz — religava a música de
+  // menu por baixo da partida.
   useEffect(() => {
     mixer.setVolume(volume)
+  }, [volume])
+
+  useEffect(() => {
     mixer.setMenuMusicEnabled(menuMusic)
-  }, [volume, menuMusic])
+  }, [menuMusic])
 
   /**
    * A música de fundo acompanha a navegação, não a tela.
@@ -91,7 +102,7 @@ export function App() {
 
   return (
     <>
-      {renderScreen(screen)}
+      {renderScreen(screen, attempt)}
       {/* O canto inferior direito do palco é do HUD, e um controle de
           janela por cima da pista se clica sem querer. */}
       {screen !== 'play' && <FullscreenButton />}
@@ -100,7 +111,7 @@ export function App() {
   )
 }
 
-function renderScreen(screen: Screen) {
+function renderScreen(screen: Screen, attempt: number) {
   switch (screen) {
     case 'boot':
       return <BootScreen />
@@ -117,7 +128,8 @@ function renderScreen(screen: Screen) {
     case 'calibration':
       return <CalibrationScreen />
     case 'play':
-      return <PlayScreen />
+      // Uma tentativa nova remonta a tela inteira; ver `retry` no store.
+      return <PlayScreen key={attempt} />
     case 'results':
       return <ResultsScreen />
     default:

@@ -5,9 +5,11 @@
 
 import { describe, expect, it } from 'vitest'
 import {
+  DEFAULT_GAMEPAD,
   DEFAULT_KEYBOARD,
   gamepadName,
   migrateKeyboard,
+  pausePadButton,
   whammyFromAxis,
   type KeyboardBindings,
 } from './bindings'
@@ -92,5 +94,20 @@ describe('whammyFromAxis', () => {
 
   it('ignora o tremor em volta do repouso', () => {
     expect(whammyFromAxis(-0.9, -1)).toBe(0)
+  })
+})
+
+describe('pausePadButton', () => {
+  it('no padrão, com o Start no star power, pausa no Select', () => {
+    expect(DEFAULT_GAMEPAD.starPower).toBe(9)
+    expect(pausePadButton(DEFAULT_GAMEPAD)).toBe(8)
+  })
+
+  it('com o Start livre, pausa no Start', () => {
+    expect(pausePadButton({ ...DEFAULT_GAMEPAD, starPower: 4 })).toBe(9)
+  })
+
+  it('não pausa num botão que toca: sem os dois livres, não há pausa no controle', () => {
+    expect(pausePadButton({ ...DEFAULT_GAMEPAD, strumUp: 8 })).toBe(-1)
   })
 })

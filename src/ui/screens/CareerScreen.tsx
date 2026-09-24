@@ -13,7 +13,7 @@ import { buildCareer } from '../../content/setlists'
 import { difficultyName } from './MenuScreen'
 import { catalogue, isPlayable } from '../../songs/library'
 import { SongRow } from './SongRow'
-import { DifficultyPicker } from './DifficultyPicker'
+import { DifficultyPicker, useStepDifficulty } from './DifficultyPicker'
 import { useListSelection } from '../useListSelection'
 import { previewOf, useSongPreview } from '../useSongPreview'
 
@@ -73,10 +73,12 @@ export function CareerScreen() {
     [navegaveis, selectSong, setScreen],
   )
 
+  const stepDifficulty = useStepDifficulty()
   const { index, resting, setIndex, itemProps } = useListSelection({
     count: navegaveis.length,
     restDelay: PREVIEW_DELAY,
     onConfirm: iniciar,
+    onSide: stepDifficulty,
   })
 
   // O destaque é a escolha, como na lista de músicas.

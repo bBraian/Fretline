@@ -27,7 +27,8 @@ export function GuitarsScreen() {
   const previewId = useGame((s) => s.previewGuitarId)
   useBackToMenu()
 
-  const [loading, setLoading] = useState(false)
+  /** A guitarra ainda não está pronta na tela; o véu cobre o visor. */
+  const [loading, setLoading] = useState(true)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const previewRef = useRef<ModelPreview | null>(null)
 
@@ -65,39 +66,35 @@ export function GuitarsScreen() {
     if (!preview) return
 
     const guitar = guitarById(shownId)
-
-    if (!guitar.model) {
-      const model = buildGuitar(guitar)
-      model.group.rotation.set(...POSE)
-      preview.setModel(model.group, model.dispose)
-      setLoading(false)
-      return
-    }
+    setLoading(true)
 
     // Guitarra de arquivo chega depois, e o jogador pode ter trocado de item
     // nesse meio-tempo. `cancelado` é o que impede um carregamento antigo de
     // aparecer por cima de um mais novo — sem ele, clicar rápido na lista
     // mostra a guitarra errada.
     let cancelado = false
-    setLoading(true)
-    void loadGuitarGlb(guitar.model, guitar, guitar.modelAdjust)
-      .then((model) => {
-        if (cancelado) {
-          model.dispose()
-          return
-        }
-        model.group.rotation.set(...POSE)
-        preview.setModel(model.group, model.dispose)
-        setLoading(false)
-      })
-      .catch((erro) => {
-        if (cancelado) return
-        console.error(`não deu para carregar ${guitar.model}`, erro)
-        setLoading(false)
-      })
+    const pronta = guitar.model
+      ? loadGuitarGlb(guitar.model, guitar, guitar.modelAdjust).catch((erro) => {
+          console.error(`não deu para carregar ${guitar.model}`, erro)
+          // Melhor a construída em código que um visor coberto para sempre.
+          return buildGuitar(guitar)
+        })
+      : Promise.resolve(buildGuitar(guitar))
+
+    void pronta.then(async (model) => {
+      if (cancelado) {
+        model.dispose()
+        return
+      }
+      model.group.rotation.set(...POSE)
+      // Preparada antes de entrar: ver `ModelPreview.present`.
+      const mostrada = await preview.present(model.group, model.dispose)
+      if (mostrada && !cancelado) setLoading(false)
+    })
 
     return () => {
       cancelado = true
+      preview.cancelPending()
     }
   }, [shownId])
 
@@ -129,7 +126,14 @@ export function GuitarsScreen() {
         <div className="picker">
           <div className="picker-stage">
             <canvas ref={canvasRef} />
-            <span className="picker-hint">{loading ? 'carregando modelo…' : 'arraste para girar'}</span>
+            {/* O mesmo véu da tela de personagens: cobre na hora, sai devagar. */}
+            <div className="picker-loading" data-hidden={!loading} aria-hidden={!loading}>
+              <b>Carregando</b>
+              <div className="loading-bar">
+                <i />
+              </div>
+            </div>
+            {!loading && <span className="picker-hint">arraste para girar</span>}
             <div className="picker-caption">
               <h2>{shown.name}</h2>
               <p>{shown.brandless}</p>

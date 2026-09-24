@@ -21,6 +21,8 @@
  * afunda a arte e é o padrão para tudo que não seja o menu.
  */
 
+import { memo } from 'react'
+
 type PatternId = 'rays' | 'flames' | 'stars' | 'hatch' | 'bolts' | 'rings'
 
 interface Panel {
@@ -88,7 +90,12 @@ export interface BackdropProps {
   variant?: 'poster' | 'content'
 }
 
-export function Backdrop({ variant = 'poster' }: BackdropProps) {
+/**
+ * Memorizado: o desenho só depende da variante. As telas por cima dele
+ * redesenham a cada item selecionado, e sem isto cada redesenho refazia a
+ * comparação de algumas centenas de nós de SVG que nunca mudam.
+ */
+export const Backdrop = memo(function Backdrop({ variant = 'poster' }: BackdropProps) {
   const poster = variant === 'poster'
   const veil = poster ? 0.42 : 0.88
   return (
@@ -174,7 +181,7 @@ export function Backdrop({ variant = 'poster' }: BackdropProps) {
       {poster && <Frame />}
     </svg>
   )
-}
+})
 
 /**
  * Moldura de cartaz: dois fios de osso em volta da tela e uma voluta em

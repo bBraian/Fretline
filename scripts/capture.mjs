@@ -38,7 +38,9 @@ await page.addInitScript(() => {
   )
 })
 
-await page.goto(`${BASE}/?debug`, { waitUntil: 'networkidle' })
+// Palco fixo: o jogo sorteia um por música, e as capturas só se comparam
+// no mesmo cenário.
+await page.goto(`${BASE}/?debug&stage=club`, { waitUntil: 'networkidle' })
 await passarAbertura(page)
 
 await page.getByRole('heading', { name: 'FRETLINE' }).waitFor({ timeout: 20000 })

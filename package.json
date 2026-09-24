@@ -18,6 +18,7 @@
     "gallery": "node scripts/gallery.mjs",
     "menus": "node scripts/menus.mjs",
     "sfx": "node scripts/sfx.mjs",
+    "gamepad": "node scripts/gamepad.mjs",
     "library": "node scripts/library.mjs",
     "hosted": "node scripts/hosted.mjs",
     "test-song": "node tools/make-test-song.mjs",

@@ -11,6 +11,8 @@ import { MenuPlaylist } from './menuPlaylist'
 /** Um `<audio>` que responde já com metadados e registra cada `src`. */
 class AudioFalso {
   static criados: AudioFalso[] = []
+  /** O navegador recusando o `play()` por falta de gesto. */
+  static recusar = false
   srcs: string[] = []
   readyState = 1
   // Sem byte range, o navegador não sabe a duração de um `.opus` transmitido.
@@ -29,7 +31,9 @@ class AudioFalso {
   }
   load() {}
   play() {
-    return Promise.resolve()
+    return AudioFalso.recusar
+      ? Promise.reject(new DOMException('sem gesto', 'NotAllowedError'))
+      : Promise.resolve()
   }
   pause() {}
   removeAttribute() {}
@@ -54,6 +58,7 @@ function contextoFalso() {
 describe('MenuPlaylist', () => {
   beforeEach(() => {
     AudioFalso.criados = []
+    AudioFalso.recusar = false
     vi.stubGlobal('window', globalThis)
     vi.stubGlobal('Audio', AudioFalso)
     vi.useFakeTimers()
@@ -102,5 +107,26 @@ describe('MenuPlaylist', () => {
     fimDaPrimeira?.()
     await vi.advanceTimersByTimeAsync(0)
     expect(el.srcs).toHaveLength(2)
+  })
+
+  it('recusado por falta de gesto, para e avisa — sem passar pelas faixas nem desistir delas', async () => {
+    const playlist = new MenuPlaylist()
+    const desistiu = vi.fn()
+    const bloqueou = vi.fn()
+    playlist.onGiveUp = desistiu
+    playlist.onBlocked = bloqueou
+    playlist.setTracks([
+      { id: 'a', url: 'a/preview.opus', startAt: 0 },
+      { id: 'b', url: 'b/preview.opus', startAt: 0 },
+      { id: 'c', url: 'c/preview.opus', startAt: 0 },
+    ])
+    AudioFalso.recusar = true
+    playlist.start(contextoFalso(), {} as AudioNode)
+    await vi.advanceTimersByTimeAsync(5000)
+
+    expect(AudioFalso.criados[0].srcs).toHaveLength(1)
+    expect(bloqueou).toHaveBeenCalledTimes(1)
+    expect(desistiu).not.toHaveBeenCalled()
+    expect(playlist.isRunning).toBe(false)
   })
 })

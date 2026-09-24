@@ -103,6 +103,29 @@ class Mixer {
       this.playlist.setTracks([])
       this.startMenuMusic()
     }
+    this.playlist.onBlocked = () => this.religarNoGesto()
+  }
+
+  /** O menu pediu música; a partida pede silêncio. É o que o gesto consulta. */
+  private menuWanted = false
+  private esperandoGesto = false
+
+  /**
+   * A trilha teve o `play()` recusado: espera a primeira tecla ou clique de
+   * verdade e tenta de novo. Só religa se o menu ainda quiser música — o
+   * gesto pode cair no meio de uma partida.
+   */
+  private religarNoGesto() {
+    if (this.esperandoGesto || typeof window === 'undefined') return
+    this.esperandoGesto = true
+    const gesto = () => {
+      window.removeEventListener('pointerdown', gesto)
+      window.removeEventListener('keydown', gesto)
+      this.esperandoGesto = false
+      if (this.menuWanted) this.startMenuMusic()
+    }
+    window.addEventListener('pointerdown', gesto)
+    window.addEventListener('keydown', gesto)
   }
 
   /**
@@ -198,7 +221,10 @@ class Mixer {
     if (this.musicGain && this.ctx) {
       this.musicGain.gain.setTargetAtTime(MENU_MUSIC_RATIO, this.ctx.currentTime, 0.15)
     }
-    this.startMenuMusic()
+    // Sem contexto ainda, não houve gesto: ligar agora faria a trilha ter o
+    // `play()` recusado faixa por faixa até desistir da biblioteca e cair no
+    // laço sintetizado. Quem liga de fato é a saída da abertura.
+    if (this.ctx) this.startMenuMusic()
   }
 
   /**
@@ -212,6 +238,7 @@ class Mixer {
    * nenhuma — cai no laço sintetizado.
    */
   startMenuMusic() {
+    this.menuWanted = true
     if (!this.menuMusicOn) return
     const ctx = this.ensure()
     if (!ctx || !this.musicGain) return
@@ -234,6 +261,7 @@ class Mixer {
 
   /** Desliga a música com um fecho suave, para entrar no palco. */
   stopMenuMusic(fade = 0.4) {
+    this.menuWanted = false
     // A lista tem o próprio controle de ganho e o próprio fecho.
     this.playlist.stop(fade)
 
@@ -369,6 +397,7 @@ class Mixer {
    * garantia de quem vai tocar: nada de menu, nada de preview, agora.
    */
   silenceMenu() {
+    this.menuWanted = false
     this.playlist.stop(0.2)
     this.stopLoop()
   }
