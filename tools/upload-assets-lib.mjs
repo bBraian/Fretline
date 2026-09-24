@@ -96,10 +96,6 @@ function ehPreview(nome) {
   return ehAudio(nome) && semExtensao(nome) === 'preview'
 }
 
-// O critério de `roleOf` em `src/songs/library.ts`: o que não é instrumento
-// separado é a banda já misturada.
-const INSTRUMENTO = /^(guitar|rhythm|bass|drums?|vocals)/i
-
 /**
  * Lê um `song.ini` só no que a publicação precisa.
  *
@@ -117,20 +113,21 @@ export function readIni(texto) {
 }
 
 /**
- * De qual arquivo sai o preview.
+ * De quais arquivos sai o preview.
  *
  * O clipe do pack ganha sempre: é o trecho que o charter escolheu. Sem ele,
- * a faixa de fundo — a banda misturada soa como a música, um instrumento
- * isolado não. Só sem ela vale o primeiro áudio, e a plateia gravada nunca.
+ * a soma de todas as faixas que o jogo toca. Não serve só a faixa de fundo:
+ * num pack com instrumentos separados, o `song.opus` guarda só o que sobrou
+ * — nos da Harmonix, às vezes silêncio. A plateia gravada fica de fora, como
+ * fica da mixagem da partida.
  */
 export function pickPreviewSource(arquivos) {
   const audios = arquivos.filter(ehAudio).sort()
   const pack = audios.find(ehPreview)
-  if (pack) return { name: pack, fromPack: true }
+  if (pack) return { names: [pack], fromPack: true }
 
   const mixagem = audios.filter((nome) => semExtensao(nome) !== 'crowd')
-  const nome = mixagem.find((n) => !INSTRUMENTO.test(semExtensao(n))) ?? mixagem[0]
-  return nome ? { name: nome, fromPack: false } : null
+  return mixagem.length > 0 ? { names: mixagem, fromPack: false } : null
 }
 
 /**
@@ -151,19 +148,29 @@ export function previewClip({ fromPack, previewStartMs, sourceSeconds }) {
 /**
  * Os argumentos do ffmpeg para um clipe.
  *
- * `-ss` e `-t` antes do `-i` cortam na entrada, sem decodificar o começo da
- * faixa. O fade de saída conta do fim do clipe, não dos 30 s: um clipe curto
- * também termina em fade. `bitexact` tira do arquivo o que muda a cada
- * execução (o número de série do Ogg), para que publicar de novo não reenvie
- * previews idênticos.
+ * `-ss` e `-t` antes de cada `-i` cortam na entrada, sem decodificar o
+ * começo das faixas. Várias faixas são somadas sem normalizar: as faixas
+ * separadas de um pack foram feitas para somar na mixagem original, e é
+ * assim que o jogo as toca. O fade de saída conta do fim do clipe, não dos
+ * 30 s: um clipe curto também termina em fade. `bitexact` tira do arquivo o
+ * que muda a cada execução (o número de série do Ogg), para que publicar de
+ * novo não reenvie previews idênticos.
  */
-export function ffmpegPreviewArgs({ input, output, start, length }) {
+export function ffmpegPreviewArgs({ inputs, output, start, length }) {
+  const entradas = inputs.flatMap((input) => [
+    '-ss', start.toFixed(3), '-t', length.toFixed(3), '-i', input,
+  ])
+  const soma =
+    inputs.length > 1
+      ? `${inputs.map((_, i) => `[${i}:a:0]`).join('')}amix=inputs=${inputs.length}:normalize=0:duration=longest,`
+      : '[0:a:0]'
   const fadeOut = Math.max(0, length - 1)
+  const fades = `afade=t=in:d=0.5,afade=t=out:st=${fadeOut.toFixed(3)}:d=1`
   return [
     '-hide_banner', '-v', 'error', '-y',
-    '-ss', start.toFixed(3), '-t', length.toFixed(3), '-i', input,
-    '-map', '0:a:0', '-vn', '-map_metadata', '-1',
-    '-af', `afade=t=in:d=0.5,afade=t=out:st=${fadeOut.toFixed(3)}:d=1`,
+    ...entradas,
+    '-filter_complex', `${soma}${fades}[saida]`,
+    '-map', '[saida]', '-map_metadata', '-1',
     '-c:a', 'libopus', '-b:a', '96k',
     '-fflags', '+bitexact', '-flags:a', '+bitexact',
     output,

@@ -1,5 +1,5 @@
 /**
- * Sobe músicas e modelos para um storage público e escreve o manifesto.
+ * Publica músicas e modelos no host de assets da versão hospedada.
  *
  * ## Por que isto existe
  *
@@ -7,197 +7,215 @@
  * (`tools/songs-plugin.mjs`) e `public/models/` sai do próprio servidor.
  * Nenhuma das duas coisas sobrevive a um deploy estático: o plugin é
  * middleware do Vite e não roda na Vercel, e as duas pastas somam mais de
- * trezentos megabytes — muito além do que cabe num deploy e do que faz
- * sentido versionar.
+ * trezentos megabytes que não fazem sentido no repositório.
  *
- * Então os arquivos vão para um storage, e o jogo aprende a lê-los de lá.
- * O único acréscimo no cliente é um prefixo: `library.ts` aceita um
- * manifesto com `base`, e os modelos passam por um reescritor de URL
- * instalado em `render/assetBase.ts`.
+ * Então elas vão para um Worker só de assets na Cloudflare
+ * (`fretline-assets`), com o índice da biblioteca ao lado. O jogo aprende a
+ * ler de lá por `VITE_ASSETS_BASE` — ver `src/songs/libraryIndex.ts` e
+ * `src/render/assetBase.ts`.
  *
  * ## Como usar
  *
- *     BLOB_READ_WRITE_TOKEN=... node tools/upload-assets.mjs
+ *     npm run upload-assets              monta, gera os previews e publica
+ *     npm run upload-assets -- --dry-run só monta `.assets-dist/`
  *
- * O token sai do painel da Vercel, em Storage → Blob → Tokens. Ao terminar,
- * o script imprime o valor de `VITE_ASSETS_BASE` para pôr nas variáveis de
- * ambiente do projeto na Vercel — é ele que faz o build apontar para lá.
+ * Precisa de `ffmpeg` e `ffprobe` no PATH e de `npx wrangler login` feito
+ * uma vez. O wrangler só envia o que mudou, e cada publicação substitui a
+ * anterior inteira: o que saiu de `songs/` sai do host também.
  *
- * ## Trocar de provedor
+ * ## O que vai para o host
  *
- * Só `enviar()` conhece a Vercel. Para S3, R2 ou qualquer outro, é essa
- * função que muda; o resto é varredura de pasta e escrita de JSON. O
- * requisito do storage é ser público, servir com CORS liberado e preservar
- * o caminho do arquivo — o manifesto e o reescritor de URL montam os
- * endereços a partir de um prefixo só.
+ *     _headers                 CORS aberto
+ *     library.json             o índice — ver `buildManifest`
+ *     songs/<pasta>/…          chart, song.ini, áudio e o preview.opus gerado
+ *     models/…                 public/models/ inteiro
+ *
+ * Os arquivos entram por hard link, não por cópia: são centenas de
+ * megabytes que não precisam existir duas vezes em disco. A exceção é o
+ * preview — ver `gerarPreview`.
  */
 
-import { put } from '@vercel/blob'
-import { createReadStream, promises as fs } from 'node:fs'
+import { execFile, spawn } from 'node:child_process'
+import { promises as fs } from 'node:fs'
 import path from 'node:path'
+import { promisify } from 'node:util'
+import {
+  HEADERS,
+  PREVIEW_FILE,
+  buildManifest,
+  ffmpegPreviewArgs,
+  listar,
+  pickPreviewSource,
+  previewClip,
+  publishedFiles,
+  readIni,
+  varrerMusicas,
+} from './upload-assets-lib.mjs'
 
-const CHART_EXTENSIONS = ['.chart', '.mid', '.midi']
-const AUDIO_EXTENSIONS = ['.ogg', '.mp3', '.opus', '.wav', '.m4a']
+const executar = promisify(execFile)
 
-/** Os mesmos arquivos que o plugin de desenvolvimento considera. */
-function interessa(nome) {
-  const ext = path.extname(nome).toLowerCase()
-  return (
-    CHART_EXTENSIONS.includes(ext) ||
-    AUDIO_EXTENSIONS.includes(ext) ||
-    nome.toLowerCase() === 'song.ini'
-  )
-}
+const DIST = path.resolve('.assets-dist')
+const CONFIG = 'tools/assets-worker/wrangler.jsonc'
 
-function temChart(arquivos) {
-  return arquivos.some((f) => CHART_EXTENSIONS.includes(path.extname(f).toLowerCase()))
-}
-
-/** Percorre `songs/` procurando pastas com chart, como o plugin faz. */
-async function varrerMusicas(raiz, relativo = '', profundidade = 0, achados = []) {
-  if (profundidade > 4) return achados
-
-  let itens
-  try {
-    itens = await fs.readdir(path.join(raiz, relativo), { withFileTypes: true })
-  } catch {
-    return achados
+/** Para com a instrução exata, em vez de falhar no meio da montagem. */
+async function conferirFerramentas() {
+  for (const ferramenta of ['ffmpeg', 'ffprobe']) {
+    try {
+      await executar(ferramenta, ['-version'])
+    } catch {
+      console.error(`Falta o ${ferramenta} no PATH. Instale com: sudo apt install ffmpeg`)
+      process.exit(1)
+    }
   }
-
-  const arquivos = itens.filter((i) => i.isFile()).map((i) => i.name)
-  if (temChart(arquivos)) {
-    const segmentos = relativo.split(path.sep).filter(Boolean)
-    achados.push({
-      id: segmentos.at(-1) ?? 'raiz',
-      path: segmentos.join('/'),
-      files: arquivos.filter(interessa),
-    })
+  const { stdout } = await executar('ffmpeg', ['-hide_banner', '-encoders'])
+  if (!/\blibopus\b/.test(stdout)) {
+    console.error('Este ffmpeg não tem o encoder libopus. Use o do sistema: sudo apt install ffmpeg')
+    process.exit(1)
   }
-
-  for (const item of itens) {
-    if (!item.isDirectory()) continue
-    await varrerMusicas(raiz, path.join(relativo, item.name), profundidade + 1, achados)
-  }
-
-  return achados
-}
-
-/** Lista recursiva de arquivos, para os modelos. */
-async function listar(raiz, relativo = '', achados = []) {
-  let itens
-  try {
-    itens = await fs.readdir(path.join(raiz, relativo), { withFileTypes: true })
-  } catch {
-    return achados
-  }
-  for (const item of itens) {
-    const caminho = path.join(relativo, item.name)
-    if (item.isDirectory()) await listar(raiz, caminho, achados)
-    else achados.push(caminho.split(path.sep).join('/'))
-  }
-  return achados
 }
 
 /**
- * Envia um arquivo e devolve a URL pública.
- *
- * `addRandomSuffix: false` é o que mantém o endereço previsível: o arquivo
- * fica exatamente em `<base>/<destino>`. Sem isso cada envio geraria um
- * nome próprio e o manifesto teria de guardar URL por arquivo, em vez de um
- * prefixo só — e os modelos, que nem passam por manifesto, não teriam como
- * ser encontrados.
+ * Hard link, e cópia quando o link não é possível — `.assets-dist/` noutro
+ * volume, ou um sistema de arquivos que não os aceita.
  */
-async function enviar(origem, destino) {
-  const { url } = await put(destino, createReadStream(origem), {
-    access: 'public',
-    addRandomSuffix: false,
-    allowOverwrite: true,
-    contentType: tipoDe(destino),
+async function linkarOuCopiar(origem, destino) {
+  await fs.mkdir(path.dirname(destino), { recursive: true })
+  try {
+    await fs.link(origem, destino)
+  } catch (erro) {
+    if (erro.code !== 'EXDEV' && erro.code !== 'EPERM') throw erro
+    await fs.copyFile(origem, destino)
+  }
+}
+
+async function duracao(arquivo) {
+  const { stdout } = await executar('ffprobe', [
+    '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', arquivo,
+  ])
+  return Number.parseFloat(stdout)
+}
+
+/**
+ * Gera o `preview.opus` de uma música dentro de `.assets-dist/`.
+ *
+ * Lê de `songs/` e escreve num arquivo que ainda não existe: o destino nunca
+ * é um hard link. Se fosse, o ffmpeg escrevendo por cima truncaria o
+ * original em `songs/` — é por isso que `publishedFiles` deixa o preview do
+ * pack fora dos links.
+ *
+ * A duração vem sempre do `ffprobe` — a da faixa mais longa —, e não do
+ * `song_length` do `.ini`: o fade de saída precisa do tamanho real de
+ * qualquer jeito, e o `.ini` às vezes mente.
+ */
+async function gerarPreview(pastaOrigem, pastaDestino, arquivos) {
+  const fonte = pickPreviewSource(arquivos)
+  if (!fonte) return false
+
+  let previewStartMs = 0
+  const ini = arquivos.find((nome) => nome.toLowerCase() === 'song.ini')
+  if (ini) {
+    const campos = readIni(await fs.readFile(path.join(pastaOrigem, ini), 'utf8'))
+    previewStartMs = Number(campos.preview_start_time) || 0
+  }
+
+  const entradas = fonte.names.map((nome) => path.join(pastaOrigem, nome))
+  const duracoes = (await Promise.all(entradas.map(duracao))).filter(Number.isFinite)
+  const clip = previewClip({
+    fromPack: fonte.fromPack,
+    previewStartMs,
+    sourceSeconds: Math.max(0, ...duracoes),
   })
-  return url
+  if (!clip) return false
+
+  await fs.mkdir(pastaDestino, { recursive: true })
+  const saida = path.join(pastaDestino, PREVIEW_FILE)
+  await executar('ffmpeg', ffmpegPreviewArgs({ inputs: entradas, output: saida, ...clip }))
+  return true
 }
 
-const TIPOS = {
-  '.ogg': 'audio/ogg',
-  '.opus': 'audio/ogg',
-  '.mp3': 'audio/mpeg',
-  '.wav': 'audio/wav',
-  '.m4a': 'audio/mp4',
-  '.chart': 'text/plain; charset=utf-8',
-  '.ini': 'text/plain; charset=utf-8',
-  '.mid': 'application/octet-stream',
-  '.midi': 'application/octet-stream',
-  '.glb': 'model/gltf-binary',
+async function montar() {
+  // Apagar a pasta desfaz só os links; os originais ficam onde estão.
+  await fs.rm(DIST, { recursive: true, force: true })
+  await fs.mkdir(DIST, { recursive: true })
+
+  const raizMusicas = path.resolve('songs')
+  const musicas = await varrerMusicas(raizMusicas)
+  console.log(`${musicas.length} música(s) em songs/`)
+
+  const publicadas = []
+  for (const musica of musicas) {
+    const segmentos = musica.path.split('/').filter(Boolean)
+    const origem = path.join(raizMusicas, ...segmentos)
+    const destino = path.join(DIST, 'songs', ...segmentos)
+
+    for (const arquivo of publishedFiles(musica.files)) {
+      await linkarOuCopiar(path.join(origem, arquivo), path.join(destino, arquivo))
+    }
+
+    let hasPreview = false
+    try {
+      hasPreview = await gerarPreview(origem, destino, musica.files)
+    } catch (erro) {
+      // Um áudio que o ffmpeg não lê não derruba a publicação: a música vai
+      // sem preview, e o menu cai na faixa inteira.
+      console.warn(`  ! ${musica.id}: preview não gerado — ${String(erro.message).split('\n')[0]}`)
+    }
+    publicadas.push({ ...musica, hasPreview })
+    console.log(`  ✓ ${musica.id}${hasPreview ? '' : ' (sem preview)'}`)
+  }
+
+  const raizModelos = path.resolve('public/models')
+  const modelos = await listar(raizModelos)
+  for (const modelo of modelos) {
+    const segmentos = modelo.split('/')
+    await linkarOuCopiar(path.join(raizModelos, ...segmentos), path.join(DIST, 'models', ...segmentos))
+  }
+  console.log(`${modelos.length} arquivo(s) de public/models/`)
+
+  const indice = buildManifest(publicadas)
+  await fs.writeFile(path.join(DIST, 'library.json'), JSON.stringify(indice, null, 2) + '\n')
+  await fs.writeFile(path.join(DIST, '_headers'), HEADERS)
 }
 
-function tipoDe(nome) {
-  return TIPOS[path.extname(nome).toLowerCase()] ?? 'application/octet-stream'
-}
-
-function mb(bytes) {
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+/**
+ * Publica `.assets-dist/` e devolve a URL que o wrangler imprimiu.
+ *
+ * A saída vai para o terminal enquanto chega — o primeiro envio leva
+ * minutos — e fica guardada para achar a URL no fim.
+ */
+function publicar() {
+  return new Promise((resolve, reject) => {
+    const filho = spawn('npx', ['wrangler', 'deploy', '--config', CONFIG], {
+      stdio: ['inherit', 'pipe', 'inherit'],
+    })
+    let saida = ''
+    filho.stdout.on('data', (pedaco) => {
+      process.stdout.write(pedaco)
+      saida += pedaco
+    })
+    filho.on('error', reject)
+    filho.on('close', (codigo) => {
+      if (codigo !== 0) reject(new Error(`o wrangler deploy saiu com código ${codigo}`))
+      else resolve(saida.match(/https:\/\/\S+\.workers\.dev/)?.[0] ?? null)
+    })
+  })
 }
 
 async function main() {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
-    console.error('Falta BLOB_READ_WRITE_TOKEN. Pegue em Storage → Blob → Tokens, na Vercel.')
-    process.exit(1)
+  const ensaio = process.argv.includes('--dry-run')
+
+  await conferirFerramentas()
+  await montar()
+
+  if (ensaio) {
+    console.log('\n--dry-run: .assets-dist/ montado, nada publicado.')
+    return
   }
 
-  const somenteMusicas = process.argv.includes('--songs')
-  const somenteModelos = process.argv.includes('--models')
-  const tudo = !somenteMusicas && !somenteModelos
-
-  let base = null
-  let enviados = 0
-  let bytes = 0
-
-  const subir = async (origem, destino) => {
-    const { size } = await fs.stat(origem)
-    const url = await enviar(origem, destino)
-    enviados++
-    bytes += size
-    // O prefixo é o mesmo para todos: a URL menos o caminho do arquivo.
-    if (!base) base = url.slice(0, url.length - destino.length).replace(/\/$/, '')
-    return url
-  }
-
-  if (tudo || somenteMusicas) {
-    const raiz = path.resolve('songs')
-    const musicas = await varrerMusicas(raiz)
-    console.log(`${musicas.length} música(s) em songs/`)
-
-    for (const musica of musicas) {
-      for (const arquivo of musica.files) {
-        const origem = path.join(raiz, ...musica.path.split('/'), arquivo)
-        await subir(origem, `songs/${musica.path}/${arquivo}`)
-      }
-      console.log(`  ✓ ${musica.id}`)
-    }
-
-    // O manifesto tem a mesma forma do `/library/index.json` do plugin, mais
-    // o prefixo. É o que permite um caminho só no cliente para as duas
-    // origens — ver `loadLocalLibrary`.
-    const manifesto = { base: `${base}/songs`, songs: musicas }
-    await fs.mkdir('public/library', { recursive: true })
-    await fs.writeFile('public/library/remote.json', JSON.stringify(manifesto, null, 2))
-    console.log('→ public/library/remote.json escrito')
-  }
-
-  if (tudo || somenteModelos) {
-    const raiz = path.resolve('public/models')
-    const modelos = await listar(raiz)
-    console.log(`${modelos.length} arquivo(s) em public/models/`)
-    for (const modelo of modelos) {
-      await subir(path.join(raiz, ...modelo.split('/')), `models/${modelo}`)
-      console.log(`  ✓ ${modelo}`)
-    }
-  }
-
-  console.log(`\n${enviados} arquivo(s), ${mb(bytes)} enviados.`)
-  console.log('\nPonha isto nas variáveis de ambiente do projeto na Vercel:')
-  console.log(`  VITE_ASSETS_BASE=${base}`)
-  console.log('\nE comite `public/library/remote.json` — ele é pequeno e vai no build.')
+  const url = await publicar()
+  console.log('\nPublicado. A variável do projeto na Vercel é:')
+  console.log(`  VITE_ASSETS_BASE=${url ?? 'https://fretline-assets.<subdominio>.workers.dev'}`)
+  console.log('Ela só muda se a URL mudar; música nova não pede deploy na Vercel.')
 }
 
 await main()

@@ -160,9 +160,13 @@ de varredura (`varrerMusicas`, `listar`, `interessa`) são reaproveitadas.
 4. **Gera `preview.opus`** para toda música, em 30 s a 96 kbps, com fade de
    0,5 s na entrada e 1 s na saída:
    - com preview no pack: reencoda o do pack, cortado nos primeiros 30 s;
-   - sem preview: corta a faixa de fundo (a que `roleOf` chama `backing`,
-     senão a primeira) a partir de `preview_start_time`; sem ele, a partir de
-     35% da duração (`song_length` do `.ini`, senão `ffprobe`).
+   - sem preview: soma todas as faixas tocáveis (menos a plateia) e corta a
+     partir de `preview_start_time`; sem ele, a partir de 35% da duração
+     (a da faixa mais longa, pelo `ffprobe`). *Mudou na implementação:* o
+     spec dizia "só a faixa de fundo", mas nos packs com instrumentos
+     separados o `song.opus` guarda só as sobras — três previews saíram
+     mudos (-91 dB) e dois quase (-35 dB). Somadas, as faixas dão -11 a
+     -17 dB, o nível dos previews de pack.
    Reencodar os que vieram no pack é o que torna o custo previsível
    (~250 KB cada).
    **O `preview.*` do pack nunca entra por hard link**: o ffmpeg escrevendo

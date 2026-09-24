@@ -24,27 +24,22 @@ describe('readIni', () => {
 describe('pickPreviewSource', () => {
   it('prefere o preview do pack', () => {
     expect(pickPreviewSource(['song.opus', 'preview.ogg', 'guitar.opus'])).toEqual({
-      name: 'preview.ogg',
+      names: ['preview.ogg'],
       fromPack: true,
     })
   })
 
-  it('sem preview, pega a faixa de fundo e não um instrumento', () => {
+  it('sem preview, mistura todas as faixas tocáveis', () => {
+    // Num pack com instrumentos separados, o `song.opus` guarda só o que
+    // sobrou — às vezes silêncio. A música é a soma.
     expect(pickPreviewSource(['guitar.opus', 'song.opus', 'drums_1.opus'])).toEqual({
-      name: 'song.opus',
+      names: ['drums_1.opus', 'guitar.opus', 'song.opus'],
       fromPack: false,
     })
   })
 
-  it('só com instrumentos separados, pega o primeiro em ordem alfabética', () => {
-    expect(pickPreviewSource(['rhythm.ogg', 'guitar.ogg'])).toEqual({
-      name: 'guitar.ogg',
-      fromPack: false,
-    })
-  })
-
-  it('nunca escolhe a plateia gravada', () => {
-    expect(pickPreviewSource(['crowd.ogg', 'guitar.ogg'])?.name).toBe('guitar.ogg')
+  it('nunca mistura a plateia gravada', () => {
+    expect(pickPreviewSource(['crowd.ogg', 'guitar.ogg'])?.names).toEqual(['guitar.ogg'])
     expect(pickPreviewSource(['crowd.ogg', 'notes.mid'])).toBeNull()
   })
 
@@ -100,16 +95,30 @@ describe('previewClip', () => {
 })
 
 describe('ffmpegPreviewArgs', () => {
-  const args = ffmpegPreviewArgs({ input: 'in.opus', output: 'out.opus', start: 45, length: 20 })
+  const args = ffmpegPreviewArgs({ inputs: ['in.opus'], output: 'out.opus', start: 45, length: 20 })
+  const filtro = (a) => a[a.indexOf('-filter_complex') + 1]
 
   it('corta na entrada, antes do -i', () => {
     const i = args.indexOf('-i')
-    expect(args.slice(0, i)).toEqual(expect.arrayContaining(['-ss', '45.000', '-t', '20.000']))
+    expect(args.slice(i - 4, i)).toEqual(['-ss', '45.000', '-t', '20.000'])
     expect(args[i + 1]).toBe('in.opus')
   })
 
   it('o fade de saída termina junto com o clipe', () => {
-    expect(args).toContain('afade=t=in:d=0.5,afade=t=out:st=19.000:d=1')
+    expect(filtro(args)).toContain('afade=t=in:d=0.5,afade=t=out:st=19.000:d=1')
+  })
+
+  it('com uma faixa só, não mistura', () => {
+    expect(filtro(args)).not.toContain('amix')
+  })
+
+  it('com várias faixas, corta cada uma e soma sem reduzir o volume', () => {
+    const varias = ffmpegPreviewArgs({ inputs: ['a.ogg', 'b.ogg', 'c.ogg'], output: 'o.opus', start: 10, length: 30 })
+    for (const nome of ['a.ogg', 'b.ogg', 'c.ogg']) {
+      const i = varias.indexOf(nome)
+      expect(varias.slice(i - 5, i)).toEqual(['-ss', '10.000', '-t', '30.000', '-i'])
+    }
+    expect(filtro(varias)).toContain('[0:a:0][1:a:0][2:a:0]amix=inputs=3:normalize=0')
   })
 
   it('encoda em Opus a 96 kbps e escreve por último a saída', () => {
