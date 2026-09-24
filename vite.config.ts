@@ -19,6 +19,8 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    // `tools/` entra pelas partes puras dos scripts de Node, que não têm
+    // TypeScript e por isso ficam em `.mjs`.
+    include: ['src/**/*.test.ts', 'tools/**/*.test.mjs'],
   },
 })
