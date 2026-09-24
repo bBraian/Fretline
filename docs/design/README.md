@@ -219,6 +219,31 @@ Duas coisas que custaram medição:
 Com `?debug`, a prévia fica em `window.__preview` — é como a duração foi
 medida, porque uma captura de tela leva mais tempo que a animação inteira.
 
+## 6d. O letreiro "You rock!"
+
+`src/ui/hud/YouRock.tsx`, no fim de uma música **concluída** — quem falhou e
+pediu para ver o resultado passa pelo mesmo encerramento, sem letreiro.
+
+É o único pedaço da tela de jogo com a linguagem de cartaz, e pode ter:
+não é HUD, não carrega informação de jogo, e aparece por cima do véu do
+encerramento, quando a pista já está apagando. Letra display, anel de
+sombras em `--gh-ink` e miolo em degradê de `--gh-bone` para `--accent`.
+
+- **Fica acima do véu** (`z-index` 41 contra 40), então ganha contraste
+  enquanto o palco escurece.
+- **As letras batem uma a uma em menos de um segundo**, porque o grito do
+  `you_rockR.wav` ataca logo no começo. A saída conta do fim do
+  encerramento (`OUTRO_SECONDS`, passado como `--outro`).
+- **O miolo é um `::after` por cima da letra.** Com `background-clip: text`,
+  o `text-shadow` da mesma camada pinta por cima do degradê.
+- **Os raios entram por `scale` e giram por `rotate`**, as propriedades
+  separadas, para as duas animações não disputarem o `transform`.
+- **Movimento reduzido** fica só com opacidade.
+
+Os quadros se conferem pausando as animações pela Web Animations API
+(`document.getAnimations()`, `currentTime`), não por captura em sequência —
+ver a armadilha 6.
+
 ## 7. Navegação
 
 O menu principal é **dirigido por seleção**, não por ponteiro:

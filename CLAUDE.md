@@ -219,11 +219,19 @@ hover já move o seletor, um clique que iniciasse na lista iniciaria sempre a
 primeira música sob o cursor.
 
 **Preview na seleção.** `resting`, do seletor, é o índice onde ele ficou
-parado dois segundos; `ui/useSongPreview.ts` reage a isso. O trecho sai do
-`preview.ogg` do pack, depois do `preview_start_time` do `song.ini`, e só
-então do meio da música. Quem toca é a mesa, **no mesmo elemento** da música
-de fundo — é isso que torna dois previews ao mesmo tempo impossíveis, em vez
-de depender de disciplina.
+parado dois segundos; `ui/useSongPreview.ts` reage a isso. O trecho é um
+`preview.opus` **gerado**, a soma de todas as faixas, do `preview_start_time`
+do `song.ini` ou de 35% da música: no site quem gera é `upload-assets`, e na
+própria máquina é o plugin de `songs/`, sob demanda e com cache em
+`node_modules/.cache` — os dois por `tools/preview-mix.mjs`. Quem toca é a
+mesa, **no mesmo elemento** da música de fundo — é isso que torna dois
+previews ao mesmo tempo impossíveis, em vez de depender de disciplina.
+
+**O clipe `preview.*` do pack não é usado**, a não ser na importação pelo
+seletor de pastas, onde não há ffmpeg. Nos packs da Neversoft a guitarra
+entra nele uns 10 dB abaixo do resto, e o preview soava sem guitarra. Pelo
+mesmo motivo o `song.opus` sozinho não serve: num pack com faixas separadas,
+ele é a banda sem a guitarra.
 
 O preview **não obedece** ao interruptor de música de menu: ele é resposta a
 um gesto, não trilha. `PlayScreen` chama `mixer.silenceMenu()` ao montar, que
@@ -252,9 +260,10 @@ local.
 inteiro. É por isso que a música de menu e o preview tocam o clipe de 30 s
 desde o início, em vez de pular para o meio da faixa.
 
-**O preview gerado soma todas as faixas**, menos a plateia. Nos packs com
-instrumentos separados, o `song.opus` guarda só as sobras — nos da
-Harmonix, às vezes silêncio —, então ele sozinho não serve de preview.
+**O preview gerado soma todas as faixas**, menos a plateia e o clipe do
+pack. Nos packs com instrumentos separados, o `song.opus` guarda só as
+sobras — nos da Harmonix, às vezes silêncio —, então ele sozinho não serve
+de preview.
 
 **`VITE_ASSETS_BASE` não vai no `.env`.** Com ela, `npm run dev` e todos os
 scripts de navegador leem a biblioteca do host em vez de `songs/`. Ela mora

@@ -35,12 +35,14 @@ export interface SongEntry {
   /** Faixas tocáveis, com o papel de cada uma; vazio na faixa sintetizada. */
   tracks: AudioTrack[]
   /**
-   * O clipe de preview do pack, quando existe (`preview.ogg`/`.opus`).
+   * O clipe de preview (`preview.opus`), quando existe.
+   *
+   * Da pasta servida e do host, é o gerado pela soma das faixas — o índice
+   * dos dois já o anuncia no lugar do clipe do pack. Só na importação pelo
+   * seletor de pastas é o do próprio pack.
    *
    * Fica fora de `tracks` de propósito: ele não faz parte da mixagem da
-   * música e não pode entrar no palco. É o trecho que o charter escolheu
-   * para representar a faixa no menu, e é o melhor ponto de partida que
-   * existe para o preview da seleção.
+   * música e não pode entrar no palco.
    */
   preview?: string
   /** A faixa demo é gerada, não carregada. */
@@ -323,10 +325,11 @@ export interface BackgroundAudio {
  * A faixa que representa a música fora do palco.
  *
  * Duas situações usam isto: o fundo do menu e o preview da seleção. As
- * duas querem *a* parte que identifica a faixa, e aí vale a opinião de quem
- * charteou: primeiro o `preview.opus` — o do pack, ou o que
- * `upload-assets` gera para toda música publicada —, depois o
- * `preview_start_time` do `song.ini`, e só então o meio.
+ * duas querem *a* parte que identifica a faixa: primeiro o `preview.opus`
+ * — a soma de todas as faixas, que o plugin de desenvolvimento e
+ * `upload-assets` geram para toda música; só na importação pelo seletor de
+ * pastas é o clipe do pack —, depois o `preview_start_time` do `song.ini`,
+ * e só então o meio.
  *
  * De cada pacote sai uma faixa só. Quando há várias, a escolhida é a
  * `backing` — o `song.ogg` da convenção do Clone Hero, a banda já
