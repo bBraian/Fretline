@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   PREVIEW_FILE,
+  publishBlocker,
   buildManifest,
   ffmpegPreviewArgs,
   pickPreviewSource,
@@ -155,5 +156,21 @@ describe('buildManifest', () => {
 
   it('sem preview gerado, não lista preview', () => {
     expect(manifest.songs[0].files).toEqual(['notes.mid'])
+  })
+})
+
+describe('publishBlocker', () => {
+  // Publicar substitui o host inteiro: uma pasta vazia apagaria tudo o que
+  // está no ar. Num clone novo, `songs/` e `public/models/` não existem.
+  it('recusa publicar sem nenhuma música', () => {
+    expect(publishBlocker({ songs: 0, models: 35 })).toMatch(/songs\//)
+  })
+
+  it('recusa publicar sem nenhum modelo', () => {
+    expect(publishBlocker({ songs: 25, models: 0 })).toMatch(/public\/models\//)
+  })
+
+  it('com as duas pastas, deixa publicar', () => {
+    expect(publishBlocker({ songs: 25, models: 35 })).toBeNull()
   })
 })

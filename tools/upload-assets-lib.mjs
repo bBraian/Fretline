@@ -206,3 +206,16 @@ export function buildManifest(musicas) {
       .sort((a, b) => a.path.localeCompare(b.path)),
   }
 }
+
+/**
+ * Por que não publicar, ou `null`.
+ *
+ * Cada publicação substitui o host inteiro, então uma pasta vazia não é
+ * "nada a enviar": é apagar o que está no ar. E é o estado de um clone
+ * novo, onde `songs/` e `public/models/` ficam fora do versionamento.
+ */
+export function publishBlocker({ songs, models }) {
+  if (songs === 0) return 'Nenhuma música em songs/ — publicar agora apagaria as do host.'
+  if (models === 0) return 'Nenhum arquivo em public/models/ — publicar agora apagaria os modelos do host.'
+  return null
+}

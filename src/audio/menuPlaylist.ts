@@ -305,6 +305,15 @@ export class MenuPlaylist {
       this.timer = window.setTimeout(() => {
         if (token === this.token) void this.advance(ctx, out)
       }, span * 1000)
+
+      // Um clipe mais curto que o trecho acaba antes do prazo. Sem isto, o
+      // resto do prazo seria silêncio: um preview transmitido sem byte
+      // range tem duração `Infinity`, e o prazo cai nos 30 s cheios.
+      el.onended = () => {
+        if (token !== this.token) return
+        window.clearTimeout(this.timer)
+        void this.advance(ctx, out)
+      }
     } catch {
       // Uma faixa que não abre passa a vez. Se nenhuma abrir, o menu não
       // pode ficar tentando para sempre nem em silêncio.

@@ -43,6 +43,7 @@ import {
   HEADERS,
   PREVIEW_FILE,
   buildManifest,
+  publishBlocker,
   ffmpegPreviewArgs,
   listar,
   pickPreviewSource,
@@ -175,6 +176,7 @@ async function montar() {
   const indice = buildManifest(publicadas)
   await fs.writeFile(path.join(DIST, 'library.json'), JSON.stringify(indice, null, 2) + '\n')
   await fs.writeFile(path.join(DIST, '_headers'), HEADERS)
+  return { songs: musicas.length, models: modelos.length }
 }
 
 /**
@@ -205,8 +207,12 @@ async function main() {
   const ensaio = process.argv.includes('--dry-run')
 
   await conferirFerramentas()
-  await montar()
+  const bloqueio = publishBlocker(await montar())
 
+  if (bloqueio && !ensaio) {
+    console.error(`\n${bloqueio}`)
+    process.exit(1)
+  }
   if (ensaio) {
     console.log('\n--dry-run: .assets-dist/ montado, nada publicado.')
     return
