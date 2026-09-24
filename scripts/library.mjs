@@ -28,13 +28,21 @@ page.on('pageerror', (e) => problems.push(`exceção: ${e.message}`))
 
 await page.goto(`${BASE}/?debug&lowfx`, { waitUntil: 'networkidle' })
 
-const index = await page.evaluate(() => fetch('/library/index.json').then((r) => r.json()))
-console.log(`✓ pasta servida: ${index.root}`)
+// Na conferência hospedada (`npm run hosted`) o índice vem do host de
+// assets, pelo mesmo caminho que o jogo faz.
+const assets = process.env.VITE_ASSETS_BASE?.replace(/\/+$/, '')
+const indexUrl = assets ? `${assets}/library.json` : '/library/index.json'
+const index = await page.evaluate((url) => fetch(url).then((r) => r.json()), indexUrl)
+console.log(assets ? `✓ índice do host: ${indexUrl}` : `✓ pasta servida: ${index.root}`)
 console.log(`✓ ${index.songs.length} pasta(s) com chart: ${index.songs.map((s) => s.id).join(', ')}`)
 if (index.songs.length === 0) problems.push('nenhuma pasta de música encontrada em songs/')
 
 await page.getByRole('button', { name: /Tocar/ }).first().click()
 await page.getByRole('heading', { name: 'Escolha a música' }).waitFor()
+
+if (assets && (await page.getByRole('button', { name: /Reler a pasta/ }).count()) > 0) {
+  problems.push('o botão "Reler a pasta songs/" apareceu na versão hospedada')
+}
 
 // A primeira da lista, e não uma música pelo nome: o catálogo é a pasta,
 // e a pasta muda. O que se confere é a corrente — varredura, servidor,
