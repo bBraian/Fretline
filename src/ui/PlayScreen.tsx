@@ -19,6 +19,7 @@ import { GameScene } from '../render/gameScene'
 import { evaluate } from '../content/progression'
 import { useGame } from './store'
 import { Hud } from './hud/Hud'
+import { YouRock } from './hud/YouRock'
 import { mixer } from '../audio/mixer'
 
 const LEAD_IN = 3
@@ -54,6 +55,8 @@ export function PlayScreen() {
   const [countdown, setCountdown] = useState(LEAD_IN)
   const [hudState, setHudState] = useState<SessionState | null>(null)
   const [verdict, setVerdict] = useState<{ verdict: Verdict; delta: number } | null>(null)
+  /** Terminou a música — e não só chegou ao encerramento, que quem falhou também alcança. */
+  const [won, setWon] = useState(false)
 
   const entry = library.find((e) => e.song.meta.id === selectedSongId)
   const chart = entry?.song.charts[settings.difficulty]
@@ -131,6 +134,7 @@ export function PlayScreen() {
         // também é o caminho do botão "ver o resultado" de quem falhou — e
         // quem falhou não venceu.
         mixer.playCue('win')
+        setWon(true)
         finish()
       }
     }
@@ -371,6 +375,7 @@ export function PlayScreen() {
       {/* Véu do encerramento: escurece devagar até os resultados entrarem,
           para a troca de tela não aparecer como um corte. */}
       {phase === 'outro' && <div className="outro-veil" />}
+      {phase === 'outro' && won && <YouRock seconds={OUTRO_SECONDS} />}
 
       {phase === 'loading' && (
         <div className="overlay">

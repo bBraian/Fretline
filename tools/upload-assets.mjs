@@ -35,42 +35,28 @@
  * preview — ver `gerarPreview`.
  */
 
-import { execFile, spawn } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
-import { promisify } from 'node:util'
 import {
   HEADERS,
   PREVIEW_FILE,
   buildManifest,
   publishBlocker,
-  ffmpegPreviewArgs,
   listar,
-  pickPreviewSource,
-  previewClip,
   publishedFiles,
-  readIni,
   varrerMusicas,
 } from './upload-assets-lib.mjs'
-
-const executar = promisify(execFile)
+import { missingPreviewTool, mixPreview } from './preview-mix.mjs'
 
 const DIST = path.resolve('.assets-dist')
 const CONFIG = 'tools/assets-worker/wrangler.jsonc'
 
 /** Para com a instrução exata, em vez de falhar no meio da montagem. */
 async function conferirFerramentas() {
-  for (const ferramenta of ['ffmpeg', 'ffprobe']) {
-    try {
-      await executar(ferramenta, ['-version'])
-    } catch {
-      console.error(`Falta o ${ferramenta} no PATH. Instale com: sudo apt install ffmpeg`)
-      process.exit(1)
-    }
-  }
-  const { stdout } = await executar('ffmpeg', ['-hide_banner', '-encoders'])
-  if (!/\blibopus\b/.test(stdout)) {
-    console.error('Este ffmpeg não tem o encoder libopus. Use o do sistema: sudo apt install ffmpeg')
+  const falta = await missingPreviewTool()
+  if (falta) {
+    console.error(falta)
     process.exit(1)
   }
 }
@@ -89,13 +75,6 @@ async function linkarOuCopiar(origem, destino) {
   }
 }
 
-async function duracao(arquivo) {
-  const { stdout } = await executar('ffprobe', [
-    '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', arquivo,
-  ])
-  return Number.parseFloat(stdout)
-}
-
 /**
  * Gera o `preview.opus` de uma música dentro de `.assets-dist/`.
  *
@@ -103,35 +82,9 @@ async function duracao(arquivo) {
  * é um hard link. Se fosse, o ffmpeg escrevendo por cima truncaria o
  * original em `songs/` — é por isso que `publishedFiles` deixa o preview do
  * pack fora dos links.
- *
- * A duração vem sempre do `ffprobe` — a da faixa mais longa —, e não do
- * `song_length` do `.ini`: o fade de saída precisa do tamanho real de
- * qualquer jeito, e o `.ini` às vezes mente.
  */
-async function gerarPreview(pastaOrigem, pastaDestino, arquivos) {
-  const fonte = pickPreviewSource(arquivos)
-  if (!fonte) return false
-
-  let previewStartMs = 0
-  const ini = arquivos.find((nome) => nome.toLowerCase() === 'song.ini')
-  if (ini) {
-    const campos = readIni(await fs.readFile(path.join(pastaOrigem, ini), 'utf8'))
-    previewStartMs = Number(campos.preview_start_time) || 0
-  }
-
-  const entradas = fonte.names.map((nome) => path.join(pastaOrigem, nome))
-  const duracoes = (await Promise.all(entradas.map(duracao))).filter(Number.isFinite)
-  const clip = previewClip({
-    fromPack: fonte.fromPack,
-    previewStartMs,
-    sourceSeconds: Math.max(0, ...duracoes),
-  })
-  if (!clip) return false
-
-  await fs.mkdir(pastaDestino, { recursive: true })
-  const saida = path.join(pastaDestino, PREVIEW_FILE)
-  await executar('ffmpeg', ffmpegPreviewArgs({ inputs: entradas, output: saida, ...clip }))
-  return true
+function gerarPreview(pastaOrigem, pastaDestino, arquivos) {
+  return mixPreview(pastaOrigem, arquivos, path.join(pastaDestino, PREVIEW_FILE))
 }
 
 async function montar() {

@@ -126,6 +126,14 @@ export class Session {
   private events: SessionEvent[] = []
   /** Toque que ainda não resolveu nota; aguarda a folga do acorde. */
   private pendingTap: { time: number } | null = null
+  /**
+   * Nota que levou um traste errado e ainda não se resolveu.
+   *
+   * O castigo desse toque fica esperando a nota: se ela expirar, a conta é
+   * a nota perdida; se o jogador corrigir a tempo, é o toque no vazio. Ver
+   * `resolvePendingTap`.
+   */
+  private wrongAttempt = -1
   private lastUpdate: number
   private starPowerAnnounced = false
 
@@ -331,8 +339,22 @@ export class Session {
 
     this.pendingTap = null
     this.breakStreak()
-    this.damage(GHOST_TAP_COST)
     this.events.push({ kind: 'ghostTap', time: pending.time })
+
+    // Com nota na janela, o toque foi uma tentativa errada *dela*, e o
+    // medidor espera o desfecho para cobrar uma vez só — antes cobrava o
+    // toque agora e a nota perdida logo depois, e errar o botão, que é o
+    // erro mais comum que existe, derrubava a música no dobro da
+    // velocidade de não tocar. A corrente quebra na hora de qualquer jeito.
+    //
+    // Só a primeira tentativa espera. A segunda na mesma nota é cobrada na
+    // hora: sem isso, varrer os trastes em cima de cada nota sairia de graça.
+    const aimedAt = this.findCandidate(pending.time)
+    if (aimedAt && aimedAt.index !== this.wrongAttempt) {
+      this.wrongAttempt = aimedAt.index
+      return
+    }
+    this.damage(GHOST_TAP_COST)
   }
 
   /**
@@ -379,6 +401,13 @@ export class Session {
     this.noteStatus[note.index] = 'hit'
     this.advanceCursor()
 
+    // Corrigiu a tempo depois de um traste errado: a nota foi tocada, mas o
+    // toque errado continua sendo ruído, e é agora que ele é cobrado.
+    if (this.wrongAttempt === note.index) {
+      this.wrongAttempt = -1
+      this.damage(GHOST_TAP_COST)
+    }
+
     this.state.streak++
     this.state.longestStreak = Math.max(this.state.longestStreak, this.state.streak)
     this.state.notesHit++
@@ -416,6 +445,8 @@ export class Session {
       // puniria a mesma falha duas vezes, e era o que fazia uma passagem
       // difícil derrubar o medidor no dobro da velocidade devida.
       if (this.pendingTap && this.maskBuilds(note)) this.pendingTap = null
+      // O mesmo vale para o traste errado que esperava esta nota.
+      if (this.wrongAttempt === i) this.wrongAttempt = -1
 
       this.breakStreak()
       this.damage()

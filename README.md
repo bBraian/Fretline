@@ -212,7 +212,7 @@ HOPO e tap não existe em jogo. O parser continua derivando porque é parte do
 formato, mas nada depois dele olha. O anel em volta de uma nota marca star
 power, não tipo de nota.
 
-Padrão do teclado: `A S D F G` nos trastes, espaço para o star power, shift
+Padrão do teclado: `A S J K L` nos trastes, espaço para o star power, shift
 esquerdo na alavanca. Tudo remapeável nos ajustes. Controle comum (Xbox/PS)
 também funciona, pela API de gamepad: trastes nos quatro botões de ação mais
 o bumper direito.

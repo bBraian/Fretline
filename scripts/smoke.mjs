@@ -90,7 +90,7 @@ const result = await page.evaluate(async () => {
   // input, julgamento e notas. O palco é conferido pelas capturas visuais,
   // que é onde ele de fato precisa ser olhado.
   scene.setVisible('stage', false)
-  const FRET_KEYS = ['KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyG']
+  const FRET_KEYS = ['KeyA', 'KeyS', 'KeyJ', 'KeyK', 'KeyL']
 
   const send = (type, code) =>
     window.dispatchEvent(new KeyboardEvent(type, { code, bubbles: true }))

@@ -113,34 +113,37 @@ export function readIni(texto) {
 }
 
 /**
- * De quais arquivos sai o preview.
+ * De quais arquivos sai o preview: a soma de todas as faixas que o jogo toca.
  *
- * O clipe do pack ganha sempre: é o trecho que o charter escolheu. Sem ele,
- * a soma de todas as faixas que o jogo toca. Não serve só a faixa de fundo:
- * num pack com instrumentos separados, o `song.opus` guarda só o que sobrou
- * — nos da Harmonix, às vezes silêncio. A plateia gravada fica de fora, como
- * fica da mixagem da partida.
+ * Não serve só a faixa de fundo: num pack com instrumentos separados, o
+ * `song.opus` guarda só o que sobrou — nos da Harmonix, às vezes silêncio.
+ * A plateia gravada fica de fora, como fica da mixagem da partida.
+ *
+ * O clipe que vem no pack também fica. Ele já ganhou daqui, por ser o
+ * trecho que o charter escolheu, mas nos packs da Neversoft a guitarra entra
+ * nele uns 10 dB abaixo do resto — medido contra as faixas separadas — e o
+ * preview de um jogo de guitarra soava sem guitarra. O trecho escolhido
+ * se perde; o `preview_start_time` do `song.ini`, quando existe, continua
+ * valendo.
  */
 export function pickPreviewSource(arquivos) {
-  const audios = arquivos.filter(ehAudio).sort()
-  const pack = audios.find(ehPreview)
-  if (pack) return { names: [pack], fromPack: true }
-
-  const mixagem = audios.filter((nome) => semExtensao(nome) !== 'crowd')
-  return mixagem.length > 0 ? { names: mixagem, fromPack: false } : null
+  const mixagem = arquivos
+    .filter((nome) => ehAudio(nome) && !ehPreview(nome) && semExtensao(nome) !== 'crowd')
+    .sort()
+  return mixagem.length > 0 ? { names: mixagem } : null
 }
 
 /**
  * Onde o clipe começa e quanto dura, em segundos.
  *
- * O do pack é reencodado desde o início. Nos outros vale o
- * `preview_start_time`; sem ele, 35% da faixa, que costuma cair depois da
- * introdução. Em qualquer caso o clipe cabe na faixa: um início perto do fim
- * recua, e uma faixa curta vira um clipe curto — nunca um arquivo vazio.
+ * Vale o `preview_start_time`; sem ele, 35% da faixa, que costuma cair
+ * depois da introdução. Em qualquer caso o clipe cabe na faixa: um início
+ * perto do fim recua, e uma faixa curta vira um clipe curto — nunca um
+ * arquivo vazio.
  */
-export function previewClip({ fromPack, previewStartMs, sourceSeconds }) {
+export function previewClip({ previewStartMs, sourceSeconds }) {
   if (!(sourceSeconds > 0)) return null
-  const pedido = fromPack ? 0 : previewStartMs > 0 ? previewStartMs / 1000 : sourceSeconds * 0.35
+  const pedido = previewStartMs > 0 ? previewStartMs / 1000 : sourceSeconds * 0.35
   const start = Math.max(0, Math.min(pedido, sourceSeconds - PREVIEW_SECONDS))
   return { start, length: Math.min(PREVIEW_SECONDS, sourceSeconds - start) }
 }

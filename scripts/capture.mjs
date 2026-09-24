@@ -55,7 +55,7 @@ await page.waitForFunction(() => !document.body.innerText.includes('Afinando'), 
 // que haja notas acertadas e efeitos na tela na hora da foto.
 await page.evaluate(() => {
   const { session, player, chart } = window.__fretline
-  const FRET_KEYS = ['KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyG']
+  const FRET_KEYS = ['KeyA', 'KeyS', 'KeyJ', 'KeyK', 'KeyL']
   const send = (type, code) => window.dispatchEvent(new KeyboardEvent(type, { code, bubbles: true }))
   let held = new Set()
   let index = 0

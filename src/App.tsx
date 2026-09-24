@@ -20,6 +20,7 @@ import { CalibrationScreen } from './ui/screens/CalibrationScreen'
 import { ResultsScreen } from './ui/screens/ResultsScreen'
 import { PlayScreen } from './ui/PlayScreen'
 import { FullscreenButton } from './ui/FullscreenButton'
+import { GamepadToast } from './ui/GamepadToast'
 
 export function App() {
   const screen = useGame((s) => s.screen)
@@ -109,6 +110,7 @@ export function App() {
       {/* O canto inferior direito do palco é do HUD, e um controle de
           janela por cima da pista se clica sem querer. */}
       {screen !== 'play' && <FullscreenButton />}
+      <GamepadToast />
     </>
   )
 }

@@ -23,20 +23,21 @@ describe('readIni', () => {
 })
 
 describe('pickPreviewSource', () => {
-  it('prefere o preview do pack', () => {
-    expect(pickPreviewSource(['song.opus', 'preview.ogg', 'guitar.opus'])).toEqual({
-      names: ['preview.ogg'],
-      fromPack: true,
-    })
-  })
-
-  it('sem preview, mistura todas as faixas tocáveis', () => {
+  it('mistura todas as faixas tocáveis', () => {
     // Num pack com instrumentos separados, o `song.opus` guarda só o que
     // sobrou — às vezes silêncio. A música é a soma.
     expect(pickPreviewSource(['guitar.opus', 'song.opus', 'drums_1.opus'])).toEqual({
       names: ['drums_1.opus', 'guitar.opus', 'song.opus'],
-      fromPack: false,
     })
+  })
+
+  it('ignora o preview do pack, que traz a guitarra lá no fundo', () => {
+    // Medido nos packs da Neversoft: no clipe do pack a guitarra entra uns
+    // 10 dB abaixo do resto, e o preview soava sem ela.
+    expect(pickPreviewSource(['song.opus', 'preview.ogg', 'guitar.opus'])).toEqual({
+      names: ['guitar.opus', 'song.opus'],
+    })
+    expect(pickPreviewSource(['preview.ogg', 'notes.mid'])).toBeNull()
   })
 
   it('nunca mistura a plateia gravada', () => {
@@ -50,48 +51,41 @@ describe('pickPreviewSource', () => {
 })
 
 describe('previewClip', () => {
-  it('o preview do pack é reencodado desde o início', () => {
-    expect(previewClip({ fromPack: true, previewStartMs: 45000, sourceSeconds: 25 })).toEqual({
-      start: 0,
-      length: 25,
-    })
-  })
-
   it('usa o preview_start_time do song.ini', () => {
-    expect(previewClip({ fromPack: false, previewStartMs: 45000, sourceSeconds: 200 })).toEqual({
+    expect(previewClip({ previewStartMs: 45000, sourceSeconds: 200 })).toEqual({
       start: 45,
       length: 30,
     })
   })
 
   it('sem preview_start_time, começa em 35% da faixa', () => {
-    const clip = previewClip({ fromPack: false, previewStartMs: 0, sourceSeconds: 200 })
+    const clip = previewClip({ previewStartMs: 0, sourceSeconds: 200 })
     expect(clip.start).toBeCloseTo(70, 5)
     expect(clip.length).toBe(30)
   })
 
   it('trata preview_start_time negativo como ausente', () => {
-    const clip = previewClip({ fromPack: false, previewStartMs: -1, sourceSeconds: 200 })
+    const clip = previewClip({ previewStartMs: -1, sourceSeconds: 200 })
     expect(clip.start).toBeCloseTo(70, 5)
   })
 
   it('um início perto do fim recua para o clipe caber inteiro', () => {
-    expect(previewClip({ fromPack: false, previewStartMs: 190000, sourceSeconds: 200 })).toEqual({
+    expect(previewClip({ previewStartMs: 190000, sourceSeconds: 200 })).toEqual({
       start: 170,
       length: 30,
     })
   })
 
   it('uma faixa curta vira um clipe curto, desde o começo', () => {
-    expect(previewClip({ fromPack: false, previewStartMs: 0, sourceSeconds: 20 })).toEqual({
+    expect(previewClip({ previewStartMs: 0, sourceSeconds: 20 })).toEqual({
       start: 0,
       length: 20,
     })
   })
 
   it('sem duração conhecida, não há clipe', () => {
-    expect(previewClip({ fromPack: false, previewStartMs: 0, sourceSeconds: NaN })).toBeNull()
-    expect(previewClip({ fromPack: false, previewStartMs: 0, sourceSeconds: 0 })).toBeNull()
+    expect(previewClip({ previewStartMs: 0, sourceSeconds: NaN })).toBeNull()
+    expect(previewClip({ previewStartMs: 0, sourceSeconds: 0 })).toBeNull()
   })
 })
 

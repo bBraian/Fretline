@@ -15,7 +15,14 @@ import { CHARACTERS, SHOP_CHARACTERS } from '../content/characters'
 import { GUITARS } from '../content/guitars'
 import { mixer } from '../audio/mixer'
 import type { Performance } from '../content/progression'
-import { DEFAULT_GAMEPAD, DEFAULT_KEYBOARD, type GamepadBindings, type KeyboardBindings } from '../input/bindings'
+import { owns, reconcileLoadout } from '../content/loadout'
+import {
+  DEFAULT_GAMEPAD,
+  DEFAULT_KEYBOARD,
+  migrateKeyboard,
+  type GamepadBindings,
+  type KeyboardBindings,
+} from '../input/bindings'
 import { DEFAULT_NOTE_SPEED } from '../render/layout'
 import type { Quality } from '../render/gameScene'
 
@@ -160,14 +167,9 @@ function blocked() {
   return {}
 }
 
-/** Curinga de desenvolvimento: `['*']` significa tudo liberado. */
-function ownsAll(list: string[]) {
-  return list.includes('*')
-}
-
-export function owns(list: string[], id: string) {
-  return ownsAll(list) || list.includes(id)
-}
+// As telas perguntam aqui; a regra, com o curinga de desenvolvimento, mora
+// junto da conferência do save.
+export { owns }
 
 function load(): Persisted {
   try {
@@ -176,9 +178,12 @@ function load(): Persisted {
     const parsed = JSON.parse(raw) as Partial<Persisted>
     // Mesclagem rasa com os padrões: um save antigo não pode derrubar o jogo
     // por não conhecer um ajuste que passou a existir depois.
+    const settings = { ...DEFAULT_SETTINGS, ...parsed.settings }
     return {
-      settings: { ...DEFAULT_SETTINGS, ...parsed.settings },
-      profile: { ...DEFAULT_PROFILE, ...parsed.profile },
+      settings: { ...settings, keyboard: migrateKeyboard(settings.keyboard) },
+      // O save não sabe do elenco de hoje: um equipado que saiu da loja, ou
+      // um gratuito que entrou depois, precisam ser conferidos na leitura.
+      profile: reconcileLoadout({ ...DEFAULT_PROFILE, ...parsed.profile }),
     }
   } catch {
     return { settings: DEFAULT_SETTINGS, profile: DEFAULT_PROFILE }

@@ -76,17 +76,25 @@ export interface MeterTuning {
 /**
  * O medidor perdoa mais nas dificuldades baixas.
  *
- * As taxas são assimétricas de propósito: errar precisa doer mais do que
- * acertar recompensa, senão a música nunca apresenta risco de falhar. Mas a
- * diferença entre os níveis está mais na escalada do que na perda inicial —
- * antes o expert tirava quase um décimo do medidor por nota perdida, e uma
- * única passagem ruim acabava com a música.
+ * O número que decide a sensação é quantos erros seguidos derrubam a música
+ * a partir do meio do medidor, onde ela começa: 18 no fácil, 15 no médio,
+ * 12 no difícil e 10 no expert — o teste "quanto se aguenta" guarda isso.
+ * Do medidor cheio, perto de 33, 26, 20 e 16.
+ *
+ * Antes eram 9, 8, 7 e 6, e errar o traste custava em dobro (ver
+ * `resolvePendingTap`): no médio, cinco botões errados logo no começo
+ * acabavam com a música. Quem está aprendendo erra em rajada, e perder
+ * antes do primeiro refrão não ensina nada.
+ *
+ * O risco continua existindo onde deve. Com erros espalhados, a perda
+ * contra o ganho decide quanto acerto sustenta o medidor: um terço no fácil,
+ * três quintos no expert.
  */
 export const METER_BY_DIFFICULTY: Record<Difficulty, MeterTuning> = {
-  easy: { gain: 0.034, loss: 0.032, escalation: 0.22 },
-  medium: { gain: 0.028, loss: 0.038, escalation: 0.28 },
-  hard: { gain: 0.023, loss: 0.045, escalation: 0.34 },
-  expert: { gain: 0.02, loss: 0.05, escalation: 0.4 },
+  easy: { gain: 0.034, loss: 0.017, escalation: 0.12 },
+  medium: { gain: 0.028, loss: 0.02, escalation: 0.14 },
+  hard: { gain: 0.023, loss: 0.025, escalation: 0.17 },
+  expert: { gain: 0.02, loss: 0.03, escalation: 0.2 },
 }
 
 /** Depois deste tanto de erros seguidos, a escalada para de crescer. */

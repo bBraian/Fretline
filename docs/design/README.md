@@ -257,6 +257,35 @@ Por ora o valor só é **gravado** (`settings.language`, padrão `en`). Nada o
 lê para escolher texto, e as telas seguem em português: a tradução é trabalho
 separado, e isto é o lugar onde ela vai encontrar a escolha já feita.
 
+### O cartão do café
+
+`src/ui/screens/CoffeeCard.tsx`. Um bilhete colado no cartaz, embaixo do
+logo: torto como o logo (`rotate(-1.5deg)`), com um pedaço de fita crepe em
+cima e a xícara em SVG desenhado. É **link**, não item de menu, e fica fora
+das setas pelo mesmo motivo do idioma — ele não abre tela, sai do jogo.
+
+Segue a linguagem de seleção sem o respingo: marrom mais claro sob o
+ponteiro, osso com título vermelho no foco de teclado.
+
+A grade do menu tem áreas nomeadas (`brand`, `coffee`, `actions`) e duas
+linhas de folga em volta do logo e do cartão, que é o que centra os dois
+juntos. No retrato estreito o cartão vai **depois** da lista; numa janela
+baixa (`max-height: 520px`) ele some, como o botão de tela cheia — ali logo
+e lista já disputam cada pixel de altura.
+
+### O aviso de controle
+
+`src/ui/GamepadToast.tsx`, montado no roteador. Aparece no canto
+**superior** direito, o único que o HUD deixa livre durante a música, e
+some sozinho em ~4 s. Não recebe ponteiro.
+
+Quem dispara é o evento `gamepadconnected`, que o navegador só emite
+depois do primeiro botão apertado no controle — é esse o momento de avisar.
+O aviso mostra as cinco cores de traste com o botão que toca cada uma: é o
+uso que as cores têm em todo lugar, o mesmo das amostras na tela de ajustes.
+Não toca som, porque o toque que revela o controle já é um comando para a
+tela de baixo.
+
 ### O canto inferior direito
 
 O botão de tela cheia flutua fixo no canto, por cima de todas as telas menos

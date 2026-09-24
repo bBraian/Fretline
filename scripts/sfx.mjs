@@ -573,7 +573,7 @@ console.log('\nGAMEPLAY — vitória (piloto automático toca a música)')
   const resultado = await page.evaluate(async () => {
     const { session, player, chart, scene } = window.__fretline
     scene.setVisible('stage', false)
-    const KEYS = ['KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyG']
+    const KEYS = ['KeyA', 'KeyS', 'KeyJ', 'KeyK', 'KeyL']
     const send = (type, code) =>
       window.dispatchEvent(new KeyboardEvent(type, { code, bubbles: true }))
     let held = new Set()

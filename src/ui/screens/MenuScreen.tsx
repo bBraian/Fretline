@@ -22,6 +22,7 @@ import { characterById } from '../../content/characters'
 import { guitarById } from '../../content/guitars'
 import { Backdrop } from '../Backdrop'
 import { LanguagePicker } from './LanguagePicker'
+import { CoffeeCard } from './CoffeeCard'
 import { mixer } from '../../audio/mixer'
 import type { Screen } from '../store'
 
@@ -148,6 +149,8 @@ export function MenuScreen() {
               ponteiro ou pelo Tab, como em qualquer outro ajuste. */}
           <LanguagePicker />
         </nav>
+
+        <CoffeeCard />
       </div>
 
       <footer className="menu-foot">

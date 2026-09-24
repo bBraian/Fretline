@@ -173,13 +173,59 @@ describe('toque no vazio', () => {
     expect(s.getState().streak).toBe(0)
   })
 
-  it('apertar o traste errado em cima da nota é castigado', () => {
+  it('apertar o traste errado em cima da nota quebra a corrente na hora', () => {
     const s = new Session(chartOf([{ time: 1, frets: GREEN }]), 'expert')
     press(s, RED, 1.0)
     s.update(1 + CHORD_GRACE + 0.001)
 
     expect(s.statusOf(0)).toBe('pending')
-    expect(s.getState().rockMeter).toBeLessThan(0.5)
+    expect(s.getState().streak).toBe(0)
+    expect(s.consumeEvents().some((e) => e.kind === 'ghostTap')).toBe(true)
+  })
+
+  /**
+   * Traste errado em cima da nota é uma falha só.
+   *
+   * Antes ela pagava duas contas: o toque no vazio quando a folga vencia e a
+   * nota perdida logo depois, cada uma empurrando a escalada. Errar o botão
+   * — o erro mais comum que existe — derrubava o medidor no dobro da
+   * velocidade de simplesmente não tocar.
+   */
+  it('traste errado e a nota perdida custam o mesmo que só perder a nota', () => {
+    const errado = new Session(chartOf([{ time: 1, frets: GREEN }]), 'expert')
+    press(errado, RED, 1.0)
+    errado.update(1 + CHORD_GRACE + 0.001)
+    press(errado, 0, 1.06)
+    errado.update(1 + HIT_WINDOW + 0.01)
+
+    const parado = new Session(chartOf([{ time: 1, frets: GREEN }]), 'expert')
+    parado.update(1 + HIT_WINDOW + 0.01)
+
+    expect(errado.statusOf(0)).toBe('missed')
+    expect(errado.getState().rockMeter).toBeCloseTo(parado.getState().rockMeter, 9)
+  })
+
+  it('traste errado corrigido a tempo custa o toque no vazio', () => {
+    const s = new Session(chartOf([{ time: 1, frets: GREEN }]), 'expert')
+    press(s, RED, 0.97)
+    s.update(0.97 + CHORD_GRACE + 0.001)
+    press(s, GREEN, 1.03)
+
+    const { gain, loss } = METER_BY_DIFFICULTY.expert
+    expect(s.statusOf(0)).toBe('hit')
+    expect(s.getState().rockMeter).toBeCloseTo(METER_START - loss * GHOST_TAP_COST + gain, 9)
+  })
+
+  it('a segunda tentativa errada na mesma nota é cobrada na hora', () => {
+    // Senão, varrer os trastes em cima de cada nota sairia de graça.
+    const s = new Session(chartOf([{ time: 1, frets: GREEN }]), 'expert')
+    press(s, RED, 0.95)
+    s.update(0.95 + CHORD_GRACE + 0.001)
+    expect(s.getState().rockMeter).toBe(METER_START)
+
+    press(s, YELLOW, 1.0)
+    s.update(1.0 + CHORD_GRACE + 0.001)
+    expect(s.getState().rockMeter).toBeLessThan(METER_START)
   })
 
   it('não castiga antes da folga do acorde passar', () => {
@@ -418,6 +464,56 @@ describe('medidor: escalada dos erros', () => {
       expect(afterEight - afterTen).toBeCloseTo(afterSix - afterEight, 1)
     }
   })
+})
+
+/**
+ * Quantos erros seguidos derrubam a música, a partir do meio do medidor.
+ *
+ * É o número que o jogador sente — "errei umas notas e já perdi" — e por
+ * isso fica escrito aqui como contrato, em vez de ser consequência
+ * implícita de três constantes. Mexer em `METER_BY_DIFFICULTY` muda estes
+ * números, e o teste obriga a mudança a ser de propósito.
+ */
+describe('medidor: quanto se aguenta', () => {
+  function seguidasAteFalhar(difficulty: 'easy' | 'medium' | 'hard' | 'expert') {
+    const notes = Array.from({ length: 80 }, (_, i) => ({ time: 1 + i * 0.5, frets: GREEN }))
+    const s = new Session(chartOf(notes), difficulty)
+    for (let i = 0; i < notes.length; i++) {
+      s.update(notes[i].time + HIT_WINDOW + 0.01)
+      if (s.getState().failed) return i + 1
+    }
+    return Infinity
+  }
+
+  function erradasAteFalhar(difficulty: 'easy' | 'medium' | 'hard' | 'expert') {
+    const notes = Array.from({ length: 80 }, (_, i) => ({ time: 1 + i * 0.5, frets: GREEN }))
+    const s = new Session(chartOf(notes), difficulty)
+    for (let i = 0; i < notes.length; i++) {
+      const t = notes[i].time
+      press(s, RED, t)
+      s.update(t + CHORD_GRACE + 0.001)
+      press(s, 0, t + 0.06)
+      s.update(t + HIT_WINDOW + 0.01)
+      if (s.getState().failed) return i + 1
+    }
+    return Infinity
+  }
+
+  it.each([
+    ['easy', 18],
+    ['medium', 15],
+    ['hard', 12],
+    ['expert', 10],
+  ] as const)('no %s, a música cai no erro seguido número %i', (difficulty, limite) => {
+    expect(seguidasAteFalhar(difficulty)).toBe(limite)
+  })
+
+  it.each(['easy', 'medium', 'hard', 'expert'] as const)(
+    'no %s, apertar o traste errado derruba tão devagar quanto não tocar',
+    (difficulty) => {
+      expect(erradasAteFalhar(difficulty)).toBe(seguidasAteFalhar(difficulty))
+    },
+  )
 })
 
 describe('medidor: toque no vazio custa menos', () => {

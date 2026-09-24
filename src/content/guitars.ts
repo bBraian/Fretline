@@ -150,7 +150,7 @@ const IMPORTED: Guitar[] = ([
   ['electric_guitar', 'Stratos', 'Corte duplo, sunburst marrom com o miolo claro', 'super-strat', 0x8a4a22, CHROME, 0xf2e6cf, 0, 0, undefined],
   ['electric_guitar_dragons_v1.2', 'Dragão', 'Corte duplo preto, miolo branco e entalhe no corpo', 'super-strat', 0x15161a, CHROME, 0xf4f4f2, 8, 4000, undefined],
   ['guitar', 'Oficina', 'Chifres duplos em marrom, escudo claro', 'sg', 0x7a3f1d, CHROME, 0xf0e8da, 16, 8000, { flip: false }],
-  ['flying-v_electric_guitar', 'Flecha', 'O V preto com filete branco', 'v', 0x121214, CHROME, 0xf5f5f5, 26, 13000, { flip: false }],
+  ['flying-v_electric_guitar', 'Flecha', 'O V preto com filete branco', 'v', 0x121214, CHROME, 0xf5f5f5, 26, 13000, { flip: false, roll: HALF_TURN }],
   ['electric_guitar_explorer', 'Angular XR', 'Corpo angular preto, escudo branco', 'explorer', 0x141417, CHROME, 0xfafafa, 36, 18000, { roll: HALF_TURN }],
   ['white_electric_guitar', 'Alvorada', 'Branca inteira, da ponta ao headstock', 'offset', 0xf0efec, CHROME, 0xe8e6e1, 48, 24000, undefined],
   ['electric_guitar-1', 'Vanguarda', 'Corte simples preto com ferragem dourada', 'single-cut', 0x101013, GOLD, 0xc9a227, 60, 32000, undefined],

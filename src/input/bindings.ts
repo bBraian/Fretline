@@ -25,10 +25,40 @@ export interface GamepadBindings {
   strumDown: number
 }
 
+/**
+ * Verde e vermelho na mão esquerda, amarelo, azul e laranja na direita.
+ *
+ * Com as duas mãos no teclado, os dedos já estão em cima da fileira do
+ * meio, e o espaço fica sob os polegares para o star power.
+ */
 export const DEFAULT_KEYBOARD: KeyboardBindings = {
-  frets: ['KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyG'],
+  frets: ['KeyA', 'KeyS', 'KeyJ', 'KeyK', 'KeyL'],
   starPower: 'Space',
   whammy: 'ShiftLeft',
+}
+
+/** O padrão dos trastes até o A S J K L. Ver `migrateKeyboard`. */
+const PREVIOUS_DEFAULT_FRETS = ['KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyG']
+
+/**
+ * Leva um save do padrão antigo dos trastes para o novo.
+ *
+ * Todo save grava os ajustes inteiros, e não só o que o jogador mudou:
+ * quem nunca abriu a tela de controles carrega o padrão antigo como se
+ * fosse escolha sua, e nunca veria o novo. Só troca os trastes idênticos
+ * ao padrão antigo — um mapeamento feito à mão fica como está, e star
+ * power e alavanca nem entram na conta.
+ *
+ * Não pode lançar: roda dentro do `load()` da store, cujo `catch` recomeça
+ * o perfil do zero. Um save torto aqui custaria o progresso inteiro.
+ */
+export function migrateKeyboard(saved: KeyboardBindings): KeyboardBindings {
+  const frets: unknown = saved?.frets
+  const antigo =
+    Array.isArray(frets) &&
+    frets.length === PREVIOUS_DEFAULT_FRETS.length &&
+    frets.every((code, i) => code === PREVIOUS_DEFAULT_FRETS[i])
+  return antigo ? { ...saved, frets: [...DEFAULT_KEYBOARD.frets] } : saved
 }
 
 /**
@@ -56,6 +86,21 @@ export function gamepadButtonLabel(index: number): string {
     16: 'Guia',
   }
   return nomes[index] ?? `Botão ${index}`
+}
+
+/**
+ * Nome legível de um controle, a partir de `Gamepad.id`.
+ *
+ * Cada navegador embrulha o nome de um jeito: o Chrome acrescenta
+ * fabricante e produto entre parênteses, o Firefox os antepõe em
+ * hexadecimal. Nenhum dos dois diz nada a quem acabou de ligar o controle.
+ */
+export function gamepadName(id: string): string {
+  const nome = id
+    .replace(/\s*\([^)]*(?:STANDARD GAMEPAD|Vendor:)[^)]*\)\s*$/i, '')
+    .replace(/^[0-9a-f]{1,4}-[0-9a-f]{1,4}-/i, '')
+    .trim()
+  return nome || 'Controle'
 }
 
 /** Nome legível de um eixo. */
