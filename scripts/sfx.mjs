@@ -58,8 +58,19 @@ async function novaPagina(profile, { viewport } = {}) {
       const start = AudioBufferSourceNode.prototype.start
       AudioBufferSourceNode.prototype.start = function (when, ...rest) {
         const nome = this.buffer && tag.get(this.buffer)
-        if (nome) window.__sfx.push({ nome, quando: when ?? 0, t: performance.now() / 1000 })
+        if (nome) {
+          window.__sfx.push({ nome, quando: when ?? 0, offset: rest[0] ?? 0, t: performance.now() / 1000 })
+        }
         return start.call(this, when, ...rest)
+      }
+
+      // A pausa é conferida pelo outro lado: quais amostras foram paradas.
+      window.__sfxStops = []
+      const stop = AudioBufferSourceNode.prototype.stop
+      AudioBufferSourceNode.prototype.stop = function (...args) {
+        const nome = this.buffer && tag.get(this.buffer)
+        if (nome) window.__sfxStops.push({ nome, t: performance.now() / 1000 })
+        return stop.apply(this, args)
       }
 
       window.__media = []
@@ -488,6 +499,58 @@ console.log('\nPADRÕES E NAVEGAÇÃO')
       if (!ok) problems.push(`sair da carreira caiu em "${titulo?.trim()}", não na carreira`)
     }
   }
+
+  await page.close()
+}
+
+// ─── gameplay: a pausa alcança os efeitos ─────────────────────────────────
+console.log('\nGAMEPLAY — pausa na contagem')
+{
+  const ABERTURA = ['highwayRise', 'notesRipple', 'crowdCheer']
+  const page = await novaPagina(null, { viewport: { width: 480, height: 270 } })
+  await page.goto(`${BASE}/?debug&lowfx`, { waitUntil: 'domcontentloaded' })
+  await page.getByRole('button', { name: /Tocar/ }).first().click()
+  await page.getByRole('button', { name: /^Tocar em/ }).click()
+  await page.waitForFunction(() => !document.body.innerText.includes('Afinando'), null, {
+    timeout: 60000,
+  })
+
+  // Pausa ainda na contagem, com o grito da plateia pela frente.
+  await page.evaluate(() =>
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape', bubbles: true })),
+  )
+  await page.getByRole('heading', { name: 'Pausado' }).waitFor({ timeout: 5000 })
+
+  const paradas = await page.evaluate(
+    (nomes) => window.__sfxStops.filter((s) => nomes.includes(s.nome)).map((s) => s.nome),
+    ABERTURA,
+  )
+  const okParou = paradas.length > 0
+  console.log(`${okParou ? '✓' : '✗'} pausar parou a abertura → [${paradas.join(', ')}]`)
+  if (!okParou) problems.push('pausar não parou nenhuma amostra da abertura')
+
+  const marco = await page.evaluate(() => window.__sfx.length)
+  await page.waitForTimeout(1500)
+  const naPausa = await page.evaluate((n) => window.__sfx.slice(n).map((s) => s.nome), marco)
+  confere('nada toca durante a pausa', naPausa, { ausentes: [...ABERTURA, 'crowdSwell'] })
+
+  await page.getByRole('button', { name: /^Continuar$/ }).click()
+  await page.waitForTimeout(600)
+  const retomadas = await page.evaluate((n) => window.__sfx.slice(n), marco)
+  const plateia = retomadas.find((s) => s.nome === 'crowdCheer')
+  const okRetomou = Boolean(plateia)
+  console.log(
+    `${okRetomou ? '✓' : '✗'} continuar retomou a plateia` +
+      (plateia ? ` (${plateia.offset.toFixed(2)}s adentro)` : ''),
+  )
+  if (!okRetomou) problems.push('continuar não retomou o grito da plateia')
+
+  // Pausou na contagem: a contagem volta junto.
+  const contagem = await page.evaluate(
+    () => window.__fretline.player.now() >= 0 || document.querySelector('.countdown') !== null,
+  )
+  console.log(`${contagem ? '✓' : '✗'} a contagem volta depois da pausa`)
+  if (!contagem) problems.push('continuar durante a contagem escondeu a contagem')
 
   await page.close()
 }

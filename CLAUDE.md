@@ -16,7 +16,7 @@ sem passar por ele.
 
 ```bash
 npm run dev       # http://localhost:5173
-npm test          # 167 testes do engine, do áudio, do conteúdo e da publicação, em Node
+npm test          # 213 testes do engine, do áudio, do conteúdo e da publicação, em Node
 npm run build     # tsc -b && vite build
 npm run smoke     # sobe o jogo num navegador de verdade e toca a demo
 npm run menus     # captura as telas de menu em scripts/menu-*.png
@@ -86,6 +86,19 @@ segura um `AudioContext` e um renderizador WebGL.
 efeitos; o da partida (`audio/songPlayer.ts`) nasce e morre com a tela de
 jogo. É por isso que o "you rock" do fim sobrevive à troca para os
 resultados, e que um efeito de interface nunca interrompe a música.
+
+A consequência para a **pausa**: ela precisa alcançar os dois. A música
+para no tocador; os efeitos de palco da mesa (abertura, plateia do boost)
+tocam num `VoiceGroup` (`audio/sfx.ts`) que `mixer.pauseStage()` congela e
+`resumeStage()` retoma do ponto. Suspender o contexto da mesa não serve:
+qualquer som de interface o acordaria. Efeito novo de palco que deva parar
+na pausa entra por esse grupo.
+
+**Nada toca antes do primeiro quadro.** O relógio do `SongPlayer` fica
+parado no começo da aproximação até `start()`, e a tela de jogo só dá a
+partida depois de `scene.warmUp()` — compilar shaders e subir texturas no
+primeiro desenho travava a página por segundos com a música já correndo, e
+a contagem acontecia atrás da tela de carregamento.
 
 ## Arte procedural
 

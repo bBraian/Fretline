@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { ShuffleBag } from './sfx'
+import { ShuffleBag, VoiceGroup } from './sfx'
 
 /** Gerador determinístico, para o teste não depender da sorte. */
 function seeded(seed: number) {
@@ -69,5 +69,134 @@ describe('ShuffleBag', () => {
     }
     const ordens = new Set([1, 2, 3, 4, 5, 6].map(ordem))
     expect(ordens.size).toBeGreaterThan(1)
+  })
+})
+
+/**
+ * Um contexto de áudio de mentira: guarda como cada fonte foi começada e
+ * parada, e o relógio anda quando o teste manda.
+ */
+function fakeContext() {
+  const events: Array<{ kind: string; value: number; at: number }> = []
+  const sources: Array<{ when: number; offset: number; stopped: boolean }> = []
+  const ctx = {
+    currentTime: 0,
+    createBufferSource() {
+      const record = { when: NaN, offset: NaN, stopped: false }
+      sources.push(record)
+      return {
+        buffer: null,
+        onended: null,
+        connect() {},
+        disconnect() {},
+        start(when: number, offset: number) {
+          record.when = when
+          record.offset = offset
+        },
+        stop() {
+          record.stopped = true
+        },
+      }
+    },
+    createGain() {
+      return {
+        gain: {
+          setValueAtTime: (value: number, at: number) => events.push({ kind: 'set', value, at }),
+          linearRampToValueAtTime: (value: number, at: number) =>
+            events.push({ kind: 'ramp', value, at }),
+        },
+        connect() {},
+        disconnect() {},
+      }
+    },
+  }
+  return { ctx: ctx as unknown as AudioContext, clock: ctx, sources, events }
+}
+
+const out = {} as AudioNode
+const tenSeconds = { duration: 10 } as AudioBuffer
+
+describe('VoiceGroup', () => {
+  it('retoma do ponto em que pausou', () => {
+    const { ctx, clock, sources } = fakeContext()
+    const group = new VoiceGroup()
+    group.play(ctx, out, tenSeconds)
+    expect(sources[0]).toMatchObject({ when: 0, offset: 0 })
+
+    clock.currentTime = 2
+    group.pause(ctx)
+    expect(sources[0].stopped).toBe(true)
+
+    // Cinco segundos parado não contam: volta dois segundos adentro.
+    clock.currentTime = 7
+    group.resume(ctx)
+    expect(sources[1]).toMatchObject({ when: 7, offset: 2 })
+  })
+
+  it('o que estava agendado para depois continua agendado, empurrado pela pausa', () => {
+    const { ctx, clock, sources } = fakeContext()
+    const group = new VoiceGroup()
+    group.play(ctx, out, tenSeconds, 3)
+    expect(sources[0]).toMatchObject({ when: 3, offset: 0 })
+
+    clock.currentTime = 1
+    group.pause(ctx)
+    clock.currentTime = 5
+    group.resume(ctx)
+    // Faltavam dois segundos quando parou; faltam dois ao voltar.
+    expect(sources[1]).toMatchObject({ when: 7, offset: 0 })
+  })
+
+  it('um efeito pedido durante a pausa espera a volta, em vez de soar por cima', () => {
+    const { ctx, clock, sources } = fakeContext()
+    const group = new VoiceGroup()
+    group.pause(ctx)
+    clock.currentTime = 2
+    group.play(ctx, out, tenSeconds)
+    expect(sources).toHaveLength(0)
+
+    clock.currentTime = 4
+    group.resume(ctx)
+    expect(sources[0]).toMatchObject({ when: 4, offset: 0 })
+  })
+
+  it('o que já tinha acabado não volta', () => {
+    const { ctx, clock, sources } = fakeContext()
+    const group = new VoiceGroup()
+    group.play(ctx, out, tenSeconds)
+    clock.currentTime = 11
+    group.pause(ctx)
+    group.resume(ctx)
+    expect(sources).toHaveLength(1)
+  })
+
+  it('stop esquece tudo: nada volta num resume seguinte', () => {
+    const { ctx, clock, sources } = fakeContext()
+    const group = new VoiceGroup()
+    group.play(ctx, out, tenSeconds)
+    group.pause(ctx)
+    group.stop()
+    clock.currentTime = 3
+    group.resume(ctx)
+    expect(sources).toHaveLength(1)
+    expect(group.paused).toBe(false)
+  })
+
+  it('um fecho interrompido pela pausa continua do volume em que estava', () => {
+    const { ctx, clock, events } = fakeContext()
+    const group = new VoiceGroup()
+    group.play(ctx, out, tenSeconds, 0, { from: 3, length: 1 })
+
+    clock.currentTime = 3.5
+    group.pause(ctx)
+    events.length = 0
+    clock.currentTime = 10
+    group.resume(ctx)
+
+    // Metade do fecho já tinha passado: recomeça da metade e termina no
+    // meio segundo que faltava.
+    expect(events[0]).toMatchObject({ kind: 'set', at: 10 })
+    expect(events[0].value).toBeCloseTo(0.5, 3)
+    expect(events.at(-1)).toMatchObject({ kind: 'ramp', at: 10.5 })
   })
 })

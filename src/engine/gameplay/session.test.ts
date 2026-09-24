@@ -601,6 +601,33 @@ describe('sustains', () => {
   })
 })
 
+describe('alavanca', () => {
+  it('puxada num sustain segurado, carrega o star power', () => {
+    const s = new Session(chartOf([{ time: 1, frets: GREEN, duration: 2 }]), 'expert')
+    press(s, GREEN, 1)
+    s.handleInput({ kind: 'whammy', value: 1, time: 1.1 })
+    s.update(2.5)
+    expect(s.getState().starPowerAmount).toBeGreaterThan(0)
+  })
+
+  it('sem sustain, não carrega nada', () => {
+    const s = new Session(chartOf([{ time: 1, frets: GREEN }]), 'expert')
+    press(s, GREEN, 1)
+    s.handleInput({ kind: 'whammy', value: 1, time: 1.1 })
+    s.update(2.5)
+    expect(s.getState().starPowerAmount).toBe(0)
+  })
+
+  it('solta, não carrega', () => {
+    const s = new Session(chartOf([{ time: 1, frets: GREEN, duration: 2 }]), 'expert')
+    press(s, GREEN, 1)
+    s.handleInput({ kind: 'whammy', value: 1, time: 1.1 })
+    s.handleInput({ kind: 'whammy', value: 0, time: 1.2 })
+    s.update(2.5)
+    expect(s.getState().starPowerAmount).toBe(0)
+  })
+})
+
 describe('star power', () => {
   const phraseChart = () =>
     chartOf(

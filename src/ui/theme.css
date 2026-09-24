@@ -1290,25 +1290,47 @@ button {
 }
 
 /*
-  Pontuação à esquerda e medidor à direita, na altura de baixo da tela: é
-  onde o original os coloca, e é o que mantém o meio livre para as notas.
+  Pontuação à esquerda e medidor à direita, encostados no braço: é onde o
+  original os coloca, e é o que mantém o meio livre para as notas.
+
+  Encostar exige saber onde o braço está, e isso depende da janela — com o
+  campo de visão vertical fixo, a pista ocupa a mesma fração da *altura*, e
+  numa tela larga sobra espaço dos lados. A tela de jogo mede as bordas da
+  pista na altura do pé dos painéis e publica tudo aqui (ver
+  `highwayRailsAt` e `PlayScreen`): as bordas, a folga, o pé e a escala.
+
+  Os painéis são desenhados numa largura só e **escalados**, não
+  refluídos: numa janela estreita a pista vai quase de lado a lado, e o
+  painel encolhe inteiro para caber ao lado dela em vez de cobrir o trilho
+  — ou de quebrar o visor em duas linhas. A origem da escala é o canto
+  junto da pista, para a borda de dentro não sair do lugar.
+
+  Os valores em porcentagem são só o que vale antes da primeira medida.
 */
+.play {
+  --hud-panel: 196px;
+}
+
 .hud-left,
 .hud-right {
   position: absolute;
-  bottom: clamp(20px, 5vh, 54px);
+  bottom: var(--hud-bottom, 5vh);
+  width: var(--hud-panel);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 8px;
+  align-items: stretch;
+  gap: 6px;
+  transform: scale(var(--hud-scale, 1));
 }
 
 .hud-left {
-  left: clamp(16px, 4vw, 60px);
+  right: calc(100% - var(--rail-left, 32%) + var(--hud-gap, 14px));
+  transform-origin: bottom right;
 }
 
 .hud-right {
-  right: clamp(16px, 4vw, 60px);
+  left: calc(var(--rail-right, 68%) + var(--hud-gap, 14px));
+  transform-origin: bottom left;
 }
 
 .hud-bottom {
@@ -1323,8 +1345,10 @@ button {
 /* --- painel de pontuação ------------------------------------------------ */
 
 .score-panel {
-  width: clamp(150px, 15vw, 196px);
-  padding: 12px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  padding: 10px 10px 10px 8px;
   border-radius: 14px;
   /* Moldura de metal escovado: dois gradientes, um para a chapa e outro
      para o brilho da borda. */
@@ -1333,6 +1357,62 @@ button {
     linear-gradient(160deg, #6b7183, #2a2e38 40%, #7d8498) border-box;
   border: 2px solid transparent;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+
+  /* A cor do degrau atual: anel do multiplicador e luzes da corrente. É a
+     mesma progressão do original — cada degrau tem a sua, e o jogador lê o
+     multiplicador pela cor antes de ler o número. */
+  --level: #9aa1b3;
+  --level-glow: rgba(154, 161, 179, 0.35);
+}
+
+.score-panel[data-level='2'] {
+  --level: #ffb703;
+  --level-glow: rgba(255, 183, 3, 0.55);
+}
+
+.score-panel[data-level='3'] {
+  --level: #3ddc84;
+  --level-glow: rgba(61, 220, 132, 0.55);
+}
+
+.score-panel[data-level='4'] {
+  --level: #c77dff;
+  --level-glow: rgba(199, 125, 255, 0.6);
+}
+
+.score-panel[data-star='true'] {
+  --level: #8ec2ff;
+  --level-glow: rgba(110, 168, 255, 0.75);
+}
+
+/* Uma luz por nota até o próximo degrau, enchendo de baixo para cima. */
+.streak-lights {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 6px;
+  background: #0b0c10;
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.9);
+}
+
+.streak-lights i {
+  flex: 1;
+  width: 7px;
+  min-height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.07);
+  transition: background-color 120ms ease, box-shadow 120ms ease;
+}
+
+.streak-lights i[data-on='true'] {
+  background: var(--level);
+  box-shadow: 0 0 6px var(--level-glow);
+}
+
+.score-main {
+  min-width: 0;
 }
 
 .lcd {
@@ -1353,7 +1433,7 @@ button {
 
 .lcd-digit {
   font-family: ui-monospace, 'SF Mono', Menlo, monospace;
-  font-size: clamp(19px, 2.1vw, 27px);
+  font-size: 25px;
   font-weight: 700;
   line-height: 1;
   color: #5dffa0;
@@ -1370,56 +1450,62 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  margin-top: 10px;
+  gap: 8px;
+  margin-top: 8px;
 }
 
+/* O multiplicador é um mostrador redondo com anel na cor do degrau. */
 .multiplier-badge {
   display: flex;
   align-items: baseline;
   justify-content: center;
-  gap: 1px;
-  width: 58px;
-  height: 46px;
-  border-radius: 10px;
-  background: radial-gradient(circle at 50% 30%, #3a3020, #16130d);
-  border: 1px solid #574a2c;
-  color: var(--accent-warm);
-  text-shadow: 0 0 16px rgba(255, 183, 3, 0.6);
+  flex: none;
+  width: 50px;
+  height: 50px;
+  padding-top: 9px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 35%, #2c2f39, #101217 70%);
+  border: 3px solid var(--level);
+  box-shadow:
+    0 0 12px var(--level-glow),
+    inset 0 0 10px rgba(0, 0, 0, 0.8);
+  color: var(--level);
+  text-shadow: 0 0 12px var(--level-glow);
+  transition: border-color 150ms ease, color 150ms ease;
+}
+
+.multiplier-badge small {
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .multiplier-badge span {
-  font-size: 28px;
+  font-size: 25px;
   font-weight: 900;
   line-height: 1;
 }
 
-.multiplier-badge small {
-  font-size: 14px;
-  font-weight: 800;
-}
-
-.multiplier-badge[data-star='true'] {
-  color: #9ec5ff;
-  border-color: #2f4a7a;
-  background: radial-gradient(circle at 50% 30%, #1b2a44, #0b1220);
-  text-shadow: 0 0 18px rgba(158, 197, 255, 0.8);
-}
-
+/* A corrente num contador de rolete: dígitos claros numa janela escura. */
 .streak-readout {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 5px;
-  color: var(--text);
+  min-width: 0;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #0b0c10;
+  box-shadow: inset 0 1px 6px rgba(0, 0, 0, 0.9);
+  color: #f1f3f8;
 }
 
 .streak-note {
   color: var(--text-dim);
-  font-size: 16px;
+  font-size: 14px;
 }
 
 .streak-count {
-  font-size: 20px;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 18px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
@@ -1427,8 +1513,7 @@ button {
 /* --- medidor de rock ---------------------------------------------------- */
 
 .rock-dial {
-  width: clamp(140px, 15vw, 196px);
-  padding: 12px 12px 8px;
+  padding: 8px 10px 6px;
   border-radius: 14px;
   background:
     linear-gradient(180deg, #23262f, #14161c) padding-box,
@@ -1462,19 +1547,6 @@ button {
   stroke: #2fbf5e;
 }
 
-.dial-track {
-  fill: none;
-  stroke: rgba(255, 255, 255, 0.08);
-  stroke-width: 5;
-}
-
-.dial-star {
-  fill: none;
-  stroke: #6ea8ff;
-  stroke-width: 5;
-  filter: drop-shadow(0 0 5px rgba(110, 168, 255, 0.85));
-}
-
 .dial-tick {
   stroke: rgba(255, 255, 255, 0.35);
   stroke-width: 1.5;
@@ -1499,6 +1571,57 @@ button {
   text-anchor: middle;
 }
 
+/* As válvulas do star power. Apagadas, são vidro vazio; o brilho sobe por
+   dentro conforme a carga, e a válvula cheia acende inteira. */
+.sp-glass {
+  fill: rgba(170, 190, 230, 0.07);
+  stroke: rgba(210, 222, 255, 0.4);
+  stroke-width: 1.2;
+}
+
+.sp-socket {
+  fill: #3a3f4b;
+  stroke: #8b93a5;
+  stroke-width: 1;
+}
+
+.sp-filament {
+  stroke: rgba(255, 255, 255, 0.16);
+  stroke-width: 1;
+}
+
+.sp-glow {
+  fill: #6ea8ff;
+  filter: drop-shadow(0 0 3px rgba(110, 168, 255, 0.9));
+}
+
+.sp-tube[data-lit='true'] .sp-glass {
+  fill: rgba(110, 168, 255, 0.28);
+  stroke: #cfe2ff;
+}
+
+.sp-tube[data-lit='true'] .sp-filament {
+  stroke: #f2f7ff;
+}
+
+/* Duas válvulas acesas: dá para ativar. Elas pulsam para dizer isso sem
+   texto, que é o que o original faz. */
+.rock-dial[data-ready='true'] .sp-tube[data-lit='true'] {
+  animation: sp-ready 0.9s ease-in-out infinite;
+}
+
+@keyframes sp-ready {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* Ativo: as válvulas acesas ficam brancas de tão fortes. */
+.rock-dial[data-star='true'] .sp-glow {
+  fill: #d8e8ff;
+  filter: drop-shadow(0 0 5px rgba(140, 190, 255, 1));
+}
+
 /* Perto de zerar, o mostrador inteiro pulsa em vermelho. */
 .rock-dial[data-danger='true'] {
   animation: dial-alarm 0.65s ease-in-out infinite;
@@ -1518,9 +1641,17 @@ button {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55), 0 0 28px rgba(110, 168, 255, 0.6);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .rock-dial[data-ready='true'] .sp-tube[data-lit='true'],
+  .rock-dial[data-danger='true'] {
+    animation: none;
+  }
+}
+
 .accuracy-readout {
   font-size: 12.5px;
   color: var(--text);
+  text-align: center;
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.9);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.04em;

@@ -87,7 +87,9 @@ void main() {
   // Trilhos das bordas, bem mais fortes que as divisórias internas: no
   // original é o que separa a pista do cenário atrás.
   float border = crispLine(vUv.x, 0.0, 2.2) + crispLine(vUv.x, 1.0, 2.2);
-  color += vec3(0.72, 0.80, 1.0) * border;
+  vec3 railColor = mix(vec3(0.72, 0.80, 1.0), uStarPower * 2.2, uStarPowerMix);
+  railColor = mix(railColor, vec3(1.6, 0.25, 0.25), uFail);
+  color += railColor * border;
 
   // A pista escurece ao longe, o que dá profundidade sem névoa global. O
   // piso não pode cair a zero: é sobre ele que as notas distantes são lidas.
@@ -98,8 +100,13 @@ void main() {
   float approach = smoothstep(0.82, 1.0, vUv.y) * 0.5;
   color += vec3(0.24, 0.32, 0.55) * approach;
 
-  color = mix(color, uStarPower, uStarPowerMix * (0.25 + 0.5 * depth));
-  color = mix(color, vec3(0.45, 0.06, 0.06), uFail * 0.55);
+  // Star power e perigo tingem as bordas, não o meio. O meio é onde as
+  // notas passam, e pintá-lo inteiro de azul apagava as notas azuis — e de
+  // vermelho, as vermelhas — justo nos dois momentos em que o jogador mais
+  // precisa ler a pista. O trilho acende forte; o miolo só escurece de tom.
+  float rim = smoothstep(0.38, 0.5, abs(vUv.x - 0.5));
+  color = mix(color, uStarPower, uStarPowerMix * mix(0.035, 0.7, rim));
+  color = mix(color, vec3(0.5, 0.05, 0.05), uFail * mix(0.04, 0.65, rim));
 
   float line = crispLine(vUv.y, uHitLine, 1.8);
   color += vec3(0.95, 0.98, 1.0) * line;

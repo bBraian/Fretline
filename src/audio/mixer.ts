@@ -28,7 +28,7 @@
  */
 
 import { MenuPlaylist, type MenuTrack } from './menuPlaylist'
-import { SampleBank, ShuffleBag, type SampleName } from './sfx'
+import { SampleBank, ShuffleBag, VoiceGroup, type SampleName } from './sfx'
 
 /** Quanto a música de menu toca abaixo do volume geral. */
 const MENU_MUSIC_RATIO = 0.5
@@ -78,6 +78,13 @@ class Mixer {
   private listeners = new Set<Listener>()
 
   private bank = new SampleBank()
+  /**
+   * Os efeitos do palco que a pausa congela: a abertura e a plateia do
+   * boost. Vitória e derrota ficam de fora de propósito — a pausa não
+   * existe nesses momentos, e o "you rock" precisa atravessar a troca para
+   * os resultados.
+   */
+  private stage = new VoiceGroup()
   /** Instante do último "voltar", para não somar o som de "abrir menu". */
   private lastBack = -Infinity
 
@@ -281,7 +288,31 @@ class Mixer {
   playCue(cue: GameCue) {
     const ctx = this.ensure()
     if (!ctx || !this.sfxGain) return
-    this.bank.play(ctx, this.sfxGain, CUE_SAMPLE[cue])
+    // A plateia do boost é reação ao que acontece no palco, e para junto
+    // com ele; os outros avisos não acontecem com o jogo pausável.
+    const group = cue === 'boost' ? this.stage : undefined
+    this.bank.play(ctx, this.sfxGain, CUE_SAMPLE[cue], group)
+  }
+
+  /**
+   * A pausa do jogo alcança os efeitos da mesa.
+   *
+   * A música da partida vive noutro contexto e para sozinha; o que toca
+   * aqui — o grito da abertura, que dura quase dez segundos, e a plateia do
+   * boost — seguia tocando por cima da tela de pausa. Retomar continua cada
+   * um de onde parou.
+   */
+  pauseStage() {
+    if (this.ctx) this.stage.pause(this.ctx)
+  }
+
+  resumeStage() {
+    if (this.ctx) this.stage.resume(this.ctx)
+  }
+
+  /** Sair da música no meio: o que era do palco não vem junto para o menu. */
+  stopStage() {
+    this.stage.stop()
   }
 
   /**
@@ -356,11 +387,16 @@ class Mixer {
   playSongIntro(leadIn: number) {
     const ctx = this.ensure()
     if (!ctx || !this.sfxGain) return
-    void this.bank.playSequence(ctx, this.sfxGain, [
-      { name: 'highwayRise' },
-      { name: 'notesRipple' },
-      { name: 'crowdCheer', fadeFrom: leadIn, fadeFor: 1.5 },
-    ])
+    void this.bank.playSequence(
+      ctx,
+      this.sfxGain,
+      [
+        { name: 'highwayRise' },
+        { name: 'notesRipple' },
+        { name: 'crowdCheer', fadeFrom: leadIn, fadeFor: 1.5 },
+      ],
+      this.stage,
+    )
   }
 }
 

@@ -99,6 +99,147 @@ export class ShuffleBag<T> {
   }
 }
 
+/** Um efeito dentro de um `VoiceGroup`. */
+interface Voice {
+  buffer: AudioBuffer
+  out: AudioNode
+  /** Instante, no relógio do grupo, em que o começo do buffer toca. */
+  origin: number
+  /** Fecho até o silêncio, contado do começo do buffer. */
+  fade?: { from: number; length: number }
+  /** A fonte tocando agora; `null` enquanto pausado. */
+  source: AudioBufferSourceNode | null
+  gain: GainNode | null
+}
+
+/**
+ * Efeitos que obedecem à pausa.
+ *
+ * Um `AudioBufferSourceNode` não pausa: ele só começa e para. Suspender o
+ * contexto inteiro pausaria, mas o contexto é o da mesa, que também toca a
+ * interface — e qualquer som de menu o acordaria, soltando a plateia no
+ * meio da tela de pausa.
+ *
+ * Então o grupo tem um relógio próprio, o do contexto menos o tempo parado.
+ * Cada efeito guarda em que instante desse relógio começou; pausar para as
+ * fontes, e retomar recria cada uma no ponto em que estava — inclusive o que
+ * ainda estava agendado para o futuro, como o fim de uma sequência, e o
+ * fecho de volume que estivesse no meio do caminho.
+ */
+export class VoiceGroup {
+  private voices = new Set<Voice>()
+  /** Tempo parado acumulado. */
+  private offset = 0
+  private pausedAt: number | null = null
+
+  get paused() {
+    return this.pausedAt !== null
+  }
+
+  /** O relógio do grupo: o do contexto, sem contar as pausas. */
+  private now(ctx: BaseAudioContext) {
+    return (this.pausedAt ?? ctx.currentTime) - this.offset
+  }
+
+  /**
+   * Toca `buffer` daqui a `delay` segundos do relógio do grupo.
+   *
+   * Pedido durante a pausa, o efeito fica esperando o `resume` na posição
+   * em que nasceu, em vez de soar por cima dela.
+   */
+  play(
+    ctx: BaseAudioContext,
+    out: AudioNode,
+    buffer: AudioBuffer,
+    delay = 0,
+    fade?: { from: number; length: number },
+  ) {
+    const voice: Voice = { buffer, out, origin: this.now(ctx) + delay, fade, source: null, gain: null }
+    this.voices.add(voice)
+    if (this.pausedAt === null) this.start(ctx, voice)
+  }
+
+  pause(ctx: BaseAudioContext) {
+    if (this.pausedAt !== null) return
+    this.pausedAt = ctx.currentTime
+    for (const voice of this.voices) this.silence(voice)
+  }
+
+  resume(ctx: BaseAudioContext) {
+    if (this.pausedAt === null) return
+    this.offset += ctx.currentTime - this.pausedAt
+    this.pausedAt = null
+    for (const voice of [...this.voices]) this.start(ctx, voice)
+  }
+
+  /** Cala tudo e esquece: nada do que estava no grupo volta num `resume`. */
+  stop() {
+    for (const voice of this.voices) this.silence(voice)
+    this.voices.clear()
+    this.offset = 0
+    this.pausedAt = null
+  }
+
+  private silence(voice: Voice) {
+    const { source, gain } = voice
+    // Zerar antes de parar: o `onended` que vem depois vê que a fonte já
+    // não é a da voz e não a tira do grupo.
+    voice.source = null
+    voice.gain = null
+    if (!source) return
+    try {
+      source.stop()
+    } catch {
+      // Já tinha parado.
+    }
+    source.disconnect()
+    gain?.disconnect()
+  }
+
+  private start(ctx: BaseAudioContext, voice: Voice) {
+    const now = ctx.currentTime
+    // Onde o começo do buffer cai no relógio do contexto, agora.
+    const at = voice.origin + this.offset
+    const into = Math.max(0, now - at)
+    if (into >= voice.buffer.duration) {
+      this.voices.delete(voice)
+      return
+    }
+
+    const startAt = Math.max(now, at)
+    const gain = ctx.createGain()
+    if (voice.fade) {
+      const fadeStart = at + voice.fade.from
+      const fadeEnd = fadeStart + voice.fade.length
+      gain.gain.setValueAtTime(levelOnFade(startAt, fadeStart, fadeEnd), startAt)
+      if (fadeEnd > startAt) {
+        if (fadeStart > startAt) gain.gain.setValueAtTime(1, fadeStart)
+        gain.gain.linearRampToValueAtTime(0.0001, fadeEnd)
+      }
+    }
+
+    const source = ctx.createBufferSource()
+    source.buffer = voice.buffer
+    source.connect(gain)
+    gain.connect(voice.out)
+    source.onended = () => {
+      if (voice.source !== source) return
+      this.voices.delete(voice)
+      gain.disconnect()
+    }
+    source.start(startAt, into)
+    voice.source = source
+    voice.gain = gain
+  }
+}
+
+/** O volume no meio de um fecho linear até o silêncio. */
+function levelOnFade(t: number, fadeStart: number, fadeEnd: number) {
+  if (t <= fadeStart) return 1
+  if (t >= fadeEnd) return 0.0001
+  return 1 - ((t - fadeStart) / (fadeEnd - fadeStart)) * (1 - 0.0001)
+}
+
 /** Onde os arquivos moram, servidos por `public/`. */
 const BASE = '/sfx/'
 
@@ -169,20 +310,27 @@ export class SampleBank {
   }
 
   /**
+   * Efeitos soltos, que nunca pausam: os de menu.
+   *
+   * Passam pelo mesmo `VoiceGroup` que os de palco para haver um caminho só
+   * de tocar amostra — ninguém chama `pause` neste.
+   */
+  private loose = new VoiceGroup()
+
+  /**
    * Toca um efeito.
    *
    * Cada toque cria a própria fonte: dois efeitos ao mesmo tempo somam, e
    * nenhum corta o outro nem a música. Se o sample ainda não estiver
    * decodificado, toca assim que ficar pronto — com o `prefetch` no lugar
    * isso só acontece nos primeiros instantes da sessão.
+   *
+   * Com `group`, o efeito obedece à pausa dele.
    */
-  play(ctx: AudioContext, out: AudioNode, name: SampleName) {
+  play(ctx: AudioContext, out: AudioNode, name: SampleName, group = this.loose) {
     void this.buffer(ctx, name).then((buffer) => {
       if (!buffer || ctx.state === 'closed') return
-      const source = ctx.createBufferSource()
-      source.buffer = buffer
-      source.connect(out)
-      source.start()
+      group.play(ctx, out, buffer)
     })
   }
 
@@ -194,11 +342,11 @@ export class SampleBank {
    * a lacuna audível que justamente não pode existir entre a aproximação da
    * pista e o arpejo das notas.
    */
-  async playSequence(ctx: AudioContext, out: AudioNode, cues: Cue[]) {
+  async playSequence(ctx: AudioContext, out: AudioNode, cues: Cue[], group = this.loose) {
     const buffers = await Promise.all(cues.map((cue) => this.buffer(ctx, cue.name)))
     if (ctx.state === 'closed') return
 
-    const inicio = ctx.currentTime + 0.05
+    const inicio = 0.05
     let deslocamento = 0
 
     for (let i = 0; i < cues.length; i++) {
@@ -208,26 +356,13 @@ export class SampleBank {
       if (!buffer) continue
 
       const cue = cues[i]
-      const quando = inicio + deslocamento
-      const source = ctx.createBufferSource()
-      source.buffer = buffer
-
-      if (cue.fadeFrom !== undefined) {
-        const ganho = ctx.createGain()
-        const fadeAt = inicio + cue.fadeFrom
-        ganho.gain.setValueAtTime(1, quando)
-        ganho.gain.setValueAtTime(1, Math.max(quando, fadeAt))
-        ganho.gain.linearRampToValueAtTime(
-          0.0001,
-          Math.max(quando, fadeAt) + (cue.fadeFor ?? 1),
-        )
-        source.connect(ganho)
-        ganho.connect(out)
-      } else {
-        source.connect(out)
-      }
-
-      source.start(quando)
+      // O fecho é contado do começo da sequência; a voz o quer contado do
+      // começo dela.
+      const fade =
+        cue.fadeFrom === undefined
+          ? undefined
+          : { from: Math.max(0, cue.fadeFrom - deslocamento), length: cue.fadeFor ?? 1 }
+      group.play(ctx, out, buffer, inicio + deslocamento, fade)
       deslocamento += buffer.duration
     }
   }

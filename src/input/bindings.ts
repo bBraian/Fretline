@@ -75,6 +75,25 @@ export const DEFAULT_GAMEPAD: GamepadBindings = {
   strumDown: 13,
 }
 
+/**
+ * A alavanca, de 0 a 1, a partir da leitura de um eixo do controle.
+ *
+ * Há dois tipos de eixo. O analógico de um controle comum descansa no meio
+ * e vai para os dois lados. A alavanca de um controle de guitarra descansa
+ * num **extremo** — em -1 ou em 1 — e percorre o eixo inteiro até o outro.
+ * Lida como analógico, ela marcava alavanca puxada o tempo todo, e puxá-la
+ * de verdade não mudava nada: era exatamente "a alavanca não faz efeito".
+ *
+ * `rest` é o valor em que o eixo foi encontrado parado; um repouso longe do
+ * meio denuncia o segundo tipo.
+ */
+export function whammyFromAxis(raw: number, rest: number): number {
+  const fromExtreme = Math.abs(rest) > 0.5
+  const value = fromExtreme ? Math.abs(raw - rest) / 2 : Math.abs(raw)
+  // Zona morta: nada descansa exatamente no lugar.
+  return value < 0.15 ? 0 : Math.min(1, value)
+}
+
 /** Nome legível de um botão de controle, no layout padrão do XInput. */
 export function gamepadButtonLabel(index: number): string {
   if (index < 0) return '—'

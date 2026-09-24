@@ -1,5 +1,6 @@
 /**
- * O medidor de rock: um mostrador de meia-lua com ponteiro.
+ * O medidor de rock: um mostrador de meia-lua com ponteiro, e as válvulas do
+ * star power em leque por cima dele.
  *
  * É desenhado em SVG, não em WebGL. O mostrador precisa de traços finos,
  * texto pequeno e legível e um ponteiro que não tremule — coisas que vetor
@@ -9,12 +10,30 @@
  * O arco vai do vermelho ao verde passando pelo amarelo, como no original: a
  * posição do ponteiro diz sozinha se a música está indo bem, sem precisar de
  * número nenhum.
+ *
+ * **O star power são quatro válvulas, não um arco.** Antes era um arco por
+ * fora do mostrador, e ele se soltava do desenho: passando da metade, o
+ * caminho SVG pedia o "arco grande" entre dois pontos que distam menos de
+ * meia volta, e o navegador — que precisa de *algum* círculo por eles —
+ * desenhava o arco em volta de outro centro, longe do mostrador. Válvulas
+ * também leem melhor as regras: cada trecho de star power completo acende
+ * uma, e com duas acesas dá para ativar.
  */
 
-const RADIUS = 58
-const CENTER = { x: 70, y: 70 }
+import { STAR_POWER_ACTIVATION_MINIMUM, STAR_POWER_PER_PHRASE } from '../../engine/gameplay/rules'
+
+const CENTER = { x: 80, y: 96 }
+const RADIUS = 52
 const START_ANGLE = 180
 const SWEEP = 180
+
+/** Uma válvula por trecho de star power: o medidor cheio são quatro. */
+const TUBES = Math.round(1 / STAR_POWER_PER_PHRASE)
+/** Inclinação de cada válvula a partir da vertical, em graus. */
+const TUBE_ANGLES = Array.from({ length: TUBES }, (_, i) => -48 + (96 / (TUBES - 1)) * i)
+const TUBE_BASE = RADIUS + 11
+/** Altura útil do vidro, onde o brilho sobe. */
+const TUBE_GLASS = 21
 
 /** Ponto na circunferência do mostrador, em graus a partir da esquerda. */
 function polar(angleDegrees: number, radius: number) {
@@ -25,11 +44,17 @@ function polar(angleDegrees: number, radius: number) {
   }
 }
 
-/** Caminho de um pedaço de arco, de `from` a `to` em fração do mostrador. */
+/**
+ * Caminho de um pedaço de arco, de `from` a `to` em fração do mostrador.
+ *
+ * A bandeira de arco grande vale para mais de meia volta *de círculo*, não
+ * de mostrador — que só tem meia volta. Com o limite errado, o SVG escolhe o
+ * outro dos dois círculos possíveis e o arco sai do lugar.
+ */
 function arc(from: number, to: number, radius: number) {
   const a = polar(START_ANGLE + from * SWEEP, radius)
   const b = polar(START_ANGLE + to * SWEEP, radius)
-  const large = to - from > 0.5 ? 1 : 0
+  const large = (to - from) * SWEEP > 180 ? 1 : 0
   return `M ${a.x} ${a.y} A ${radius} ${radius} 0 ${large} 1 ${b.x} ${b.y}`
 }
 
@@ -42,20 +67,53 @@ export interface RockMeterProps {
 }
 
 export function RockMeter({ value, starPower, starPowerActive }: RockMeterProps) {
-  const needle = polar(START_ANGLE + value * SWEEP, RADIUS - 12)
+  const needle = polar(START_ANGLE + value * SWEEP, RADIUS - 11)
   const base = polar(START_ANGLE + value * SWEEP + 90, 6)
   const baseOpposite = polar(START_ANGLE + value * SWEEP - 90, 6)
+  const ready = !starPowerActive && starPower >= STAR_POWER_ACTIVATION_MINIMUM
 
   return (
-    <div className="rock-dial" data-danger={value < 0.25} data-star={starPowerActive}>
-      {/* A altura sobra abaixo do eixo de propósito: é onde o rótulo cabe
-          sem o ponteiro passar por cima dele. */}
-      <svg viewBox="0 0 140 98" role="img" aria-label={`Medidor de rock em ${Math.round(value * 100)}%`}>
-        {/* Arco do star power, por fora do mostrador. */}
-        <path d={arc(0, 1, RADIUS + 9)} className="dial-track" />
-        {starPower > 0 && (
-          <path d={arc(0, Math.max(0.001, starPower), RADIUS + 9)} className="dial-star" />
-        )}
+    <div
+      className="rock-dial"
+      data-danger={value < 0.25}
+      data-star={starPowerActive}
+      data-ready={ready}
+    >
+      <svg
+        viewBox="0 0 160 124"
+        role="img"
+        aria-label={`Medidor de rock em ${Math.round(value * 100)}%, star power em ${Math.round(starPower * 100)}%`}
+      >
+        {/* As válvulas do star power, em leque sobre o mostrador. */}
+        {TUBE_ANGLES.map((angle, i) => {
+          const fill = Math.min(1, Math.max(0, starPower * TUBES - i))
+          const radians = (angle * Math.PI) / 180
+          const x = CENTER.x + Math.sin(radians) * TUBE_BASE
+          const y = CENTER.y - Math.cos(radians) * TUBE_BASE
+          const glow = fill * TUBE_GLASS
+          return (
+            <g
+              key={i}
+              className="sp-tube"
+              data-lit={fill >= 1}
+              transform={`translate(${x} ${y}) rotate(${angle})`}
+            >
+              <rect x={-6} y={-TUBE_GLASS - 7} width={12} height={TUBE_GLASS + 4} rx={6} className="sp-glass" />
+              {glow > 0.3 && (
+                <rect
+                  x={-4}
+                  y={-3 - glow}
+                  width={8}
+                  height={glow}
+                  rx={Math.min(4, glow / 2)}
+                  className="sp-glow"
+                />
+              )}
+              <line x1={0} y1={-6} x2={0} y2={-TUBE_GLASS + 1} className="sp-filament" />
+              <rect x={-7.5} y={-4} width={15} height={7} rx={1.5} className="sp-socket" />
+            </g>
+          )
+        })}
 
         {/* Faixas do medidor. */}
         <path d={arc(0, 0.28, RADIUS)} className="dial-zone dial-red" />
@@ -85,6 +143,8 @@ export function RockMeter({ value, starPower, starPowerActive }: RockMeterProps)
         />
         <circle cx={CENTER.x} cy={CENTER.y} r="7" className="dial-hub" />
 
+        {/* A altura sobra abaixo do eixo de propósito: é onde o rótulo cabe
+            sem o ponteiro passar por cima dele. */}
         <text x={CENTER.x} y={CENTER.y + 24} className="dial-label">
           ROCK
         </text>

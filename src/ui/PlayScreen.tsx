@@ -15,7 +15,7 @@ import type { Verdict } from '../engine/types'
 import { SongPlayer } from '../audio/songPlayer'
 import { renderDemoTrack } from '../audio/demoTrack'
 import { InputManager } from '../input/inputManager'
-import { GameScene } from '../render/gameScene'
+import { GameScene, highwayRailsAt } from '../render/gameScene'
 import { evaluate } from '../content/progression'
 import { useGame } from './store'
 import { Hud } from './hud/Hud'
@@ -29,7 +29,31 @@ type Phase = 'loading' | 'countdown' | 'playing' | 'outro' | 'paused' | 'failed'
 /** Quanto dura o encerramento, do fim da música até os resultados. */
 const OUTRO_SECONDS = 3.2
 
+/**
+ * O painel: largura de desenho (a de `--hud-panel`), altura de janela em que
+ * ele sai nesse tamanho, e os limites da escala. Abaixo do mínimo ele deixa
+ * de caber de qualquer jeito, e ler vale mais que não cobrir o trilho.
+ */
+const HUD_WIDTH = 196
+const HUD_REFERENCE_HEIGHT = 680
+const HUD_MIN_SCALE = 0.45
+const HUD_MAX_SCALE = 1.35
+/** Distância mínima entre o painel e a borda da tela. */
+const HUD_MARGIN = 8
+
+/** Espera o navegador pintar `count` quadros. */
+function frames(count: number) {
+  return new Promise<void>((resolve) => {
+    const step = (left: number) => {
+      if (left <= 0) resolve()
+      else requestAnimationFrame(() => step(left - 1))
+    }
+    step(count)
+  })
+}
+
 export function PlayScreen() {
+  const playRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const sceneRef = useRef<GameScene | null>(null)
   const playerRef = useRef<SongPlayer | null>(null)
@@ -220,13 +244,23 @@ export function PlayScreen() {
       setAssets(scene.loadingProgress)
       if (cancelled) return
 
+      // Arquivo chegado ainda não é quadro pronto: o primeiro desenho
+      // compila shaders e sobe texturas, e travava a página por segundos
+      // com a música já correndo — a contagem e a abertura se passavam
+      // inteiras atrás desta tela. Nada toca antes de o palco estar de fato
+      // na tela: aquece, desenha com o relógio parado no começo, espera o
+      // navegador pintar, e só então dá a partida.
+      await scene.warmUp(-LEAD_IN)
+      if (cancelled) return
+      scene.start()
+      await frames(2)
+      if (cancelled) return
+
       // A abertura: a pista sobe, o arpejo das notas sobe atrás, a plateia
       // grita — e a música entra por cima do fim do grito. Cabe na
       // aproximação de três segundos, e toca no contexto da mesa, que
       // sobrevive à montagem e ao descarte desta tela.
       mixer.playSongIntro(LEAD_IN)
-
-      scene.start()
       await player.start()
       if (!cancelled) setPhase('countdown')
     }
@@ -235,6 +269,10 @@ export function PlayScreen() {
 
     return () => {
       cancelled = true
+      // O que era do palco — o grito da abertura, a plateia do boost — não
+      // vem junto para o menu, nem fica pausado esperando uma volta que
+      // não vai acontecer.
+      mixer.stopStage()
       unsubscribeVolume?.()
       inputRef.current?.detach()
       sceneRef.current?.dispose()
@@ -259,7 +297,12 @@ export function PlayScreen() {
       if (input && scene) {
         input.pollGamepad()
         scene.setPressed(input.fretMask)
-        scene.setWhammy(input.whammyValue)
+        // A alavanca só faz som e só entorta a cauda com um sustain
+        // segurado, como no original; fora dele, só o braço da guitarra do
+        // personagem acompanha.
+        const sustaining = (sessionRef.current?.getState().activeSustains.length ?? 0) > 0
+        scene.setWhammy(input.whammyValue, sustaining)
+        playerRef.current?.setWhammy(sustaining ? input.whammyValue : 0)
       }
       frame = requestAnimationFrame(tick)
     }
@@ -318,9 +361,17 @@ export function PlayScreen() {
     return () => window.clearTimeout(id)
   }, [verdict])
 
+  /**
+   * Pausa tudo: música, desenho e os efeitos da mesa.
+   *
+   * A música da partida e os efeitos vivem em contextos de áudio
+   * diferentes, e pausar só a música deixava o grito da abertura e a
+   * plateia do boost tocando sobre a tela de pausa.
+   */
   const pause = useCallback(() => {
     if (phase !== 'playing' && phase !== 'countdown') return
     playerRef.current?.pause()
+    mixer.pauseStage()
     sceneRef.current?.stop()
     inputRef.current?.reset()
     setPhase('paused')
@@ -328,10 +379,53 @@ export function PlayScreen() {
 
   const resume = useCallback(() => {
     if (phase !== 'paused') return
+    // Pausou na contagem, volta para a contagem — senão o número some e a
+    // música entra sem aviso.
+    const inCountdown = (playerRef.current?.now() ?? 0) < 0
     sceneRef.current?.start()
+    mixer.resumeStage()
     void playerRef.current?.resume()
-    setPhase('playing')
+    setPhase(inCountdown ? 'countdown' : 'playing')
   }, [phase])
+
+  // Trocar de aba ou minimizar pausa. Sem isto a música seguia tocando com
+  // o desenho parado — o navegador não anima aba escondida —, e na volta
+  // todas as notas do intervalo venciam de uma vez, como erro.
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.hidden) pause()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => document.removeEventListener('visibilitychange', onVisibility)
+  }, [pause])
+
+  // O painel encosta nas bordas do braço, onde quer que elas caiam nesta
+  // janela; ver `highwayRailsAt` e o CSS de `.hud-left`.
+  useEffect(() => {
+    const el = playRef.current
+    if (!el) return
+    const place = () => {
+      const { width, height } = el.getBoundingClientRect()
+      if (!width || !height) return
+      // O pé dos painéis: 5% da altura, entre 20 e 54px.
+      const bottom = Math.round(Math.min(54, Math.max(20, height * 0.05)))
+      const gap = Math.round(Math.min(22, Math.max(10, width * 0.014)))
+      const rails = highwayRailsAt(height - bottom, width, height)
+      // Quanto cabe entre a pista e a borda da tela, do lado mais apertado.
+      const room = Math.min(rails.left, width - rails.right) - gap - HUD_MARGIN
+      // Cresce com a altura, como a pista; e nunca passa do espaço que há.
+      const scale = Math.min(HUD_MAX_SCALE, room / HUD_WIDTH, height / HUD_REFERENCE_HEIGHT)
+      el.style.setProperty('--hud-bottom', `${bottom}px`)
+      el.style.setProperty('--hud-gap', `${gap}px`)
+      el.style.setProperty('--hud-scale', `${Math.max(HUD_MIN_SCALE, scale).toFixed(3)}`)
+      el.style.setProperty('--rail-left', `${Math.round(rails.left)}px`)
+      el.style.setProperty('--rail-right', `${Math.round(rails.right)}px`)
+    }
+    place()
+    const observer = new ResizeObserver(place)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -358,7 +452,7 @@ export function PlayScreen() {
   }
 
   return (
-    <div className="play">
+    <div className="play" ref={playRef}>
       <canvas ref={canvasRef} />
 
       {hudState && entry && (

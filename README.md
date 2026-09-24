@@ -150,11 +150,30 @@ linhas de compasso atravessando a pista — mais largas no início de cada
 compasso — e os cinco botões com anel metálico e aro colorido. As notas têm o
 mesmo aro, porque no original a nota *é* o botão.
 
-O painel também: pontuação num visor de sete segmentos verde à esquerda, com
-multiplicador e contador de notas seguidas, e o medidor de rock à direita como
-um mostrador de meia-lua com ponteiro, do vermelho ao verde. O mostrador é
-SVG, não WebGL — traço fino e texto pequeno são de graça em vetor, e em 3D
-exigiriam atlas de fonte.
+O painel também, e **encostado no braço**, como no original: pontuação à
+esquerda da pista, medidor de rock à direita. A tela de jogo projeta as
+bordas da pista na altura do pé dos painéis (`highwayRailsAt`) e os
+posiciona ali; numa janela estreita, em que a pista vai quase de borda a
+borda, eles encolhem inteiros em vez de cobrir os botões.
+
+- **Pontuação:** visor de sete segmentos verde, multiplicador num anel com a
+  cor do degrau (cinza, amarelo, verde, roxo; azul no star power), contador
+  de notas seguidas, e uma coluna de dez luzes que enche até o próximo
+  degrau.
+- **Medidor de rock:** mostrador de meia-lua com ponteiro, do vermelho ao
+  verde, e o star power em **quatro válvulas** por cima — cada trecho
+  completo acende uma, e com duas acesas elas pulsam: dá para ativar.
+
+Tudo SVG e DOM, não WebGL — traço fino e texto pequeno são de graça em
+vetor, e em 3D exigiriam atlas de fonte.
+
+Star power e perigo **tingem os trilhos, não o miolo da pista**. Pintar a
+pista inteira de azul apagava as notas azuis, e de vermelho, as vermelhas —
+justo nos dois momentos em que o jogador mais precisa ler.
+
+Um sustain longo entra com a cauda cortada no fim do braço, e o resto dela
+aparece conforme a pista rola — antes ela saía pela ponta e subia pelo
+palco.
 
 ## Câmeras
 
@@ -216,6 +235,17 @@ Padrão do teclado: `A S J K L` nos trastes, espaço para o star power, shift
 esquerdo na alavanca. Tudo remapeável nos ajustes. Controle comum (Xbox/PS)
 também funciona, pela API de gamepad: trastes nos quatro botões de ação mais
 o bumper direito.
+
+**A alavanca** vale durante um sustain segurado, como no original: a cauda da
+nota ondula, a guitarra entorta de tom e o star power enche aos poucos. O som
+é um atraso que varia, não uma mudança de velocidade — mexer na velocidade
+tiraria a guitarra de sincronia com a banda para sempre. Num controle de
+guitarra a alavanca descansa num extremo do eixo, e o jogo lê esse repouso na
+primeira leitura em vez de tomá-lo por alavanca puxada.
+
+**A pausa** para tudo: a música, o desenho e os efeitos da mesa — o grito da
+abertura e a plateia do boost continuam de onde pararam. Trocar de aba ou
+minimizar pausa sozinho.
 
 ## Testes
 

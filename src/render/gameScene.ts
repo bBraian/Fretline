@@ -35,7 +35,13 @@ import {
   registerStageControls,
 } from './stage/stagePanel'
 import { refreshRigPanel } from './character/rigPanel'
-import { DEFAULT_NOTE_SPEED } from './layout'
+import {
+  DEFAULT_NOTE_SPEED,
+  HIGHWAY_LENGTH,
+  HIGHWAY_OVERSHOOT,
+  HIGHWAY_WIDTH,
+  HIGHWAY_Y,
+} from './layout'
 import { CameraDirector, type ShotMood } from './cameraDirector'
 import { guitarById } from '../content/guitars'
 import type { PerformanceState } from './character/characterModel'
@@ -69,6 +75,50 @@ interface PausableClock extends Clock {
 
 function isPausable(clock: Clock): clock is PausableClock {
   return typeof (clock as PausableClock).pause === 'function'
+}
+
+/**
+ * A câmera da pista. É fixa — ver `updateCamera` —, e por isso cabe numa
+ * constante: quem precisa saber onde a pista cai na tela não precisa de uma
+ * cena montada para perguntar.
+ */
+const PLAY_CAMERA = {
+  position: new THREE.Vector3(0, 2.45, 5.0),
+  target: new THREE.Vector3(0, 1.75, -11),
+  fov: 52,
+}
+
+/**
+ * Onde as duas bordas do braço cruzam uma linha da tela, em pixels.
+ *
+ * Existe para o painel encostar na pista, como no original, em qualquer
+ * janela. Com o campo de visão vertical fixo, a largura da pista em pixels
+ * acompanha só a altura: numa tela larga sobra espaço dos lados, numa
+ * estreita a pista vai quase de borda a borda — e uma posição escrita em
+ * porcentagem no CSS acerta uma das duas e erra a outra.
+ *
+ * A borda é uma reta na tela, porque projeção leva reta em reta: basta
+ * projetar as duas pontas de cada trilho e ler a altura pedida.
+ */
+export function highwayRailsAt(screenY: number, width: number, height: number) {
+  const camera = new THREE.PerspectiveCamera(PLAY_CAMERA.fov, width / height, 0.1, 140)
+  camera.position.copy(PLAY_CAMERA.position)
+  camera.lookAt(PLAY_CAMERA.target)
+  camera.updateMatrixWorld()
+
+  const point = new THREE.Vector3()
+  const toScreen = (x: number, z: number) => {
+    point.set(x, HIGHWAY_Y, z).project(camera)
+    return { x: ((point.x + 1) / 2) * width, y: ((1 - point.y) / 2) * height }
+  }
+  const railAt = (x: number) => {
+    const near = toScreen(x, HIGHWAY_OVERSHOOT)
+    const far = toScreen(x, -HIGHWAY_LENGTH)
+    const t = (screenY - near.y) / (far.y - near.y)
+    return near.x + (far.x - near.x) * t
+  }
+
+  return { left: railAt(-HIGHWAY_WIDTH / 2), right: railAt(HIGHWAY_WIDTH / 2) }
 }
 
 export interface GameSceneOptions {
@@ -127,8 +177,6 @@ export class GameScene {
   private running = false
   private lastFrame = 0
   private shake = 0
-  private cameraBase = new THREE.Vector3(0, 2.45, 5.0)
-  private lookTarget = new THREE.Vector3(0, 1.75, -11)
   private missFeedback = 0
   private beats: number[]
   private beatCursor = 0
@@ -163,9 +211,9 @@ export class GameScene {
     // distantes, que são justamente o que o jogador precisa ler antes.
     this.stageScene.fog = new THREE.Fog(0x070a14, 26, 72)
 
-    this.camera = new THREE.PerspectiveCamera(52, 16 / 9, 0.1, 140)
-    this.camera.position.copy(this.cameraBase)
-    this.camera.lookAt(this.lookTarget)
+    this.camera = new THREE.PerspectiveCamera(PLAY_CAMERA.fov, 16 / 9, 0.1, 140)
+    this.camera.position.copy(PLAY_CAMERA.position)
+    this.camera.lookAt(PLAY_CAMERA.target)
 
     this.highway = new Highway(this.beats)
     this.noteSpeed = options.noteSpeed ?? DEFAULT_NOTE_SPEED
@@ -366,14 +414,73 @@ export class GameScene {
     return this.stage.ready()
   }
 
+  /**
+   * Prepara o primeiro quadro antes de a música começar.
+   *
+   * Arquivo baixado não é cena pronta. O primeiro quadro de verdade ainda
+   * compila o shader de cada material do palco e sobe cada textura para a
+   * placa de vídeo, e isso travava a página por segundos — com o relógio da
+   * música já correndo. A contagem e a abertura aconteciam atrás da tela de
+   * carregamento, e o jogador chegava com a música andando.
+   *
+   * Aqui os shaders são compilados em paralelo, sem travar a página
+   * (`compileAsync`), as texturas sobem, e um quadro é desenhado no instante
+   * de partida. Quem chama só dá a partida depois disso.
+   */
+  async warmUp(songTime: number) {
+    this.pose(0, songTime)
+
+    // Os programas dependem de onde se desenha: o compositor desenha num
+    // alvo intermediário, sem mapeamento de tom, e um programa compilado
+    // para a tela não serviria para ele.
+    const target = this.composer ? this.composer.readBuffer : null
+    this.renderer.setRenderTarget(target)
+    try {
+      // Sem a extensão de compilação paralela, `compileAsync` compila do
+      // mesmo jeito e ainda avisa no console. Compilar direto dá no mesmo:
+      // trava, mas atrás da tela de carregamento e com o relógio parado.
+      if (this.renderer.extensions.has('KHR_parallel_shader_compile')) {
+        await this.renderer.compileAsync(this.stageScene, this.director.camera)
+        await this.renderer.compileAsync(this.playScene, this.camera)
+      } else {
+        this.renderer.compile(this.stageScene, this.director.camera)
+        this.renderer.compile(this.playScene, this.camera)
+      }
+    } finally {
+      this.renderer.setRenderTarget(null)
+    }
+
+    // Texturas de peças que o primeiro plano não enquadra também sobem
+    // agora; senão o tranco só mudaria de lugar, para o primeiro corte de
+    // câmera que as mostrasse.
+    for (const scene of [this.stageScene, this.playScene]) {
+      scene.traverse((object) => {
+        const material = (object as THREE.Mesh).material
+        if (!material) return
+        for (const m of Array.isArray(material) ? material : [material]) {
+          for (const value of Object.values(m)) {
+            if (value instanceof THREE.Texture) this.renderer.initTexture(value)
+          }
+        }
+      })
+    }
+
+    this.draw()
+  }
+
   /** O que já chegou, para a tela de espera mostrar progresso de verdade. */
   get loadingProgress() {
     return this.stage.loadingProgress
   }
 
-  /** Repassa a alavanca ao palco, que a leva até o modelo da guitarra. */
-  setWhammy(value: number) {
+  /**
+   * A alavanca: o braço da guitarra do personagem acompanha sempre, e a
+   * cauda das notas só quando há sustain segurado — `sustaining` —, que é
+   * quando ela vale alguma coisa.
+   */
+  setWhammy(value: number, sustaining: boolean) {
     this.stage.setWhammy(value)
+    this.notes.setWhammy(sustaining ? value : 0)
   }
 
   setPressed(mask: number) {
@@ -416,6 +523,17 @@ export class GameScene {
     this.session.update(songTime)
     this.drainEvents()
 
+    this.pose(dt, songTime)
+    this.draw()
+  }
+
+  /**
+   * Põe tudo na posição de `songTime`: notas, pista, banda e câmera do show.
+   *
+   * Não avança a sessão — é o que permite o aquecimento desenhar o instante
+   * de partida sem julgar nota nenhuma.
+   */
+  private pose(dt: number, songTime: number) {
     const state = this.session.getState()
     const beatPhase = this.beatPhaseAt(songTime)
 
@@ -457,19 +575,25 @@ export class GameScene {
       beatPhase,
     )
 
-    if (this.composer && this.bloom) {
+    if (this.bloom) {
       // O brilho aumenta no star power: é o efeito que diz, sem texto, que o
       // jogo mudou de estado.
       this.bloom.strength = 0.42 + (state.starPowerActive ? 0.55 : 0) + this.excitement() * 0.12
-      this.composer.render()
-    } else {
-      // Caminho direto: o palco primeiro, depois a pista por cima com a
-      // profundidade zerada — o mesmo empilhamento, sem compositor.
-      this.renderer.clear()
-      this.renderer.render(this.stageScene, this.director.camera)
-      this.renderer.clearDepth()
-      this.renderer.render(this.playScene, this.camera)
     }
+  }
+
+  /** Desenha o quadro: o palco, e a pista por cima com a profundidade zerada. */
+  private draw() {
+    if (this.composer) {
+      this.composer.render()
+      return
+    }
+    // Caminho direto: o palco primeiro, depois a pista por cima com a
+    // profundidade zerada — o mesmo empilhamento, sem compositor.
+    this.renderer.clear()
+    this.renderer.render(this.stageScene, this.director.camera)
+    this.renderer.clearDepth()
+    this.renderer.render(this.playScene, this.camera)
   }
 
   /** Traduz o estado da sessão no clima que o diretor de câmera usa. */

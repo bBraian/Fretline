@@ -4,7 +4,13 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_KEYBOARD, gamepadName, migrateKeyboard, type KeyboardBindings } from './bindings'
+import {
+  DEFAULT_KEYBOARD,
+  gamepadName,
+  migrateKeyboard,
+  whammyFromAxis,
+  type KeyboardBindings,
+} from './bindings'
 
 describe('teclado padrão', () => {
   it('põe os trastes em A S J K L, do verde ao laranja', () => {
@@ -62,5 +68,29 @@ describe('gamepadName', () => {
   it('não devolve vazio quando o navegador só informa o fabricante', () => {
     expect(gamepadName('(Vendor: 0079 Product: 0006)')).toBe('Controle')
     expect(gamepadName('')).toBe('Controle')
+  })
+})
+
+describe('whammyFromAxis', () => {
+  it('num analógico, que descansa no meio, lê a distância do meio', () => {
+    expect(whammyFromAxis(0.02, 0.01)).toBe(0)
+    expect(whammyFromAxis(0.8, 0.01)).toBeCloseTo(0.8)
+    expect(whammyFromAxis(-0.8, 0.01)).toBeCloseTo(0.8)
+  })
+
+  it('na alavanca de guitarra, que descansa num extremo, parada é zero', () => {
+    // Lida como analógico, esta leitura dava alavanca inteira puxada.
+    expect(whammyFromAxis(-1, -1)).toBe(0)
+    expect(whammyFromAxis(1, 1)).toBe(0)
+  })
+
+  it('na alavanca de guitarra, o curso vai de um extremo ao outro', () => {
+    expect(whammyFromAxis(0, -1)).toBeCloseTo(0.5)
+    expect(whammyFromAxis(1, -1)).toBe(1)
+    expect(whammyFromAxis(-1, 1)).toBe(1)
+  })
+
+  it('ignora o tremor em volta do repouso', () => {
+    expect(whammyFromAxis(-0.9, -1)).toBe(0)
   })
 })

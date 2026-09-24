@@ -24,6 +24,18 @@ const MAX_RIMS = 320
 const MAX_OPENS = 64
 const MAX_SUSTAINS = 320
 
+/**
+ * Quanto a cauda segurada ondula, em unidades de mundo.
+ *
+ * `HELD_WAVE` é o tremor de uma nota só segurada — a cauda viva do original,
+ * que diz "está valendo" sem texto. `WHAMMY_WAVE` é o que a alavanca soma no
+ * curso inteiro. O teto é a folga entre a cauda e a divisória da pista: a
+ * onda não pode invadir o traste vizinho, senão o rastro de um traste passa
+ * a parecer nota do outro.
+ */
+const HELD_WAVE = 0.012
+const WHAMMY_WAVE = 0.08
+
 const STAR_POWER_COLOR = new THREE.Color(0xdfe9ff)
 const WHITE = new THREE.Color(0xffffff)
 /** Nota aberta não tem traste, então não tem cor de traste. */
@@ -47,6 +59,11 @@ export class NoteField {
 
   private speed: number
   private starPowerActive = false
+  /** Alavanca, de 0 a 1; só mexe nas caudas que estão sendo seguradas. */
+  private whammy = 0
+  /** Amplitude da onda de cada rastro, por instância. */
+  private waves: THREE.InstancedBufferAttribute
+  private sustainMaterial: THREE.ShaderMaterial
 
   constructor(chart: Chart, speed: number) {
     this.chart = chart
@@ -57,7 +74,12 @@ export class NoteField {
     this.gems = makeInstanced(gemGeometry(), gemMaterial(), MAX_GEMS)
     this.rims = makeInstanced(rimGeometry(), rimMaterial(), MAX_RIMS)
     this.opens = makeInstanced(openGeometry(), gemMaterial(), MAX_OPENS)
-    this.sustains = makeInstanced(sustainGeometry(), sustainMaterial(), MAX_SUSTAINS)
+    this.sustainMaterial = sustainMaterial()
+    const tails = sustainGeometry()
+    this.waves = new THREE.InstancedBufferAttribute(new Float32Array(MAX_SUSTAINS), 1)
+    this.waves.setUsage(THREE.DynamicDrawUsage)
+    tails.setAttribute('aWave', this.waves)
+    this.sustains = makeInstanced(tails, this.sustainMaterial, MAX_SUSTAINS)
 
     this.group.add(this.sustains, this.opens, this.gems, this.rims)
   }
@@ -70,12 +92,23 @@ export class NoteField {
     this.starPowerActive = active
   }
 
+  /**
+   * A alavanca, já filtrada por quem chama: fora de um sustain segurado ela
+   * não faz nada no original, e aqui também não.
+   */
+  setWhammy(value: number) {
+    this.whammy = Math.min(1, Math.max(0, value))
+  }
+
   /** Reposiciona o cursor depois de um seek ou de reiniciar a música. */
   reset() {
     this.cursor = 0
   }
 
   update(songTime: number, session: Session) {
+    // A onda corre no relógio da música: pausada a música, a cauda para
+    // junto, em vez de continuar tremendo sobre um quadro congelado.
+    this.sustainMaterial.uniforms.uTime.value = songTime
     const notes = this.chart.notes
     // Alcance de tempo que cabe na tela, derivado do comprimento do braço.
     const leadTime = HIGHWAY_LENGTH / this.speed
@@ -118,9 +151,15 @@ export class NoteField {
         const tailEndTime = note.time + note.duration
         if (tailEndTime > songTime) {
           const zStart = -(tailStartTime - songTime) * this.speed
-          const zEnd = -(tailEndTime - songTime) * this.speed
+          // O rastro termina no fim do braço, não no fim da nota. A nota
+          // entra em cena quando a cabeça chega ao fundo da pista, mas um
+          // sustain longo ainda tem segundos de cauda atrás dela — e essa
+          // cauda saía pela ponta do braço, subindo pelo palco até o ponto
+          // de fuga. O resto dela aparece conforme a pista rola.
+          const zEnd = Math.max(-HIGHWAY_LENGTH, -(tailEndTime - songTime) * this.speed)
           const length = Math.max(0.01, zStart - zEnd)
           const held = status === 'hit'
+          const wave = held ? HELD_WAVE + this.whammy * WHAMMY_WAVE : 0
           const tailLanes = note.isOpen ? [-1] : fretsToArray(note.frets)
 
           for (const lane of tailLanes) {
@@ -129,6 +168,9 @@ export class NoteField {
             this.placeSustain(lane, zStart - length / 2, length, held)
             this.sustains.setMatrixAt(sustainCount, this.dummy.matrix)
             this.sustains.setColorAt(sustainCount, this.color)
+            // A nota aberta cobre a pista inteira; balançá-la de lado a
+            // jogaria para fora do braço.
+            this.waves.setX(sustainCount, lane < 0 ? 0 : wave)
             sustainCount++
           }
         }
@@ -187,6 +229,7 @@ export class NoteField {
     commit(this.rims, rimCount)
     commit(this.opens, openCount)
     commit(this.sustains, sustainCount)
+    this.waves.needsUpdate = true
   }
 
   /**
@@ -284,7 +327,9 @@ function openGeometry() {
 }
 
 function sustainGeometry() {
-  const geometry = new THREE.BoxGeometry(1, 0.05, 1)
+  // Fatiada ao comprido: a onda da alavanca desloca vértice por vértice, e
+  // uma caixa de uma fatia só ondularia como uma régua inclinada.
+  const geometry = new THREE.BoxGeometry(1, 0.05, 1, 1, 1, 96)
   return geometry
 }
 
@@ -304,6 +349,48 @@ function rimMaterial() {
   return new THREE.MeshStandardMaterial({ roughness: 0.22, metalness: 0.8 })
 }
 
+/**
+ * O rastro ondula no vértice, não na matriz da instância.
+ *
+ * A onda é calculada em coordenada de mundo, depois da matriz de cada
+ * instância: o rastro é uma caixa esticada ao comprimento da nota, e uma
+ * onda em coordenada local esticaria junto — uma cauda curta ondularia
+ * rápido e uma longa, devagar. Em mundo, todas ondulam no mesmo passo.
+ */
+const SUSTAIN_VERTEX = /* glsl */ `
+attribute float aWave;
+uniform float uTime;
+varying vec3 vColor;
+
+void main() {
+  vec4 world = modelMatrix * instanceMatrix * vec4(position, 1.0);
+  // Presa no botão: a onda cresce a partir da linha de batida, e a cauda
+  // continua saindo do traste que o jogador está segurando.
+  float anchor = smoothstep(0.0, 1.6, -world.z);
+  world.x += aWave * anchor * sin(world.z * 2.4 + uTime * 17.0);
+  vColor = instanceColor;
+  gl_Position = projectionMatrix * viewMatrix * world;
+}
+`
+
+/** As inclusões do fim são as mesmas da pista; ver `highway.ts`. */
+const SUSTAIN_FRAGMENT = /* glsl */ `
+uniform float uOpacity;
+varying vec3 vColor;
+
+void main() {
+  gl_FragColor = vec4(vColor, uOpacity);
+
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+}
+`
+
 function sustainMaterial() {
-  return new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.75 })
+  return new THREE.ShaderMaterial({
+    vertexShader: SUSTAIN_VERTEX,
+    fragmentShader: SUSTAIN_FRAGMENT,
+    uniforms: { uTime: { value: 0 }, uOpacity: { value: 0.75 } },
+    transparent: true,
+  })
 }

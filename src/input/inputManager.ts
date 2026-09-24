@@ -14,6 +14,7 @@ import { FRET_COUNT } from '../engine/types'
 import {
   DEFAULT_GAMEPAD,
   DEFAULT_KEYBOARD,
+  whammyFromAxis,
   type GamepadBindings,
   type KeyboardBindings,
 } from './bindings'
@@ -34,6 +35,8 @@ export class InputManager {
   private gamepad: GamepadBindings = DEFAULT_GAMEPAD
   private mask = 0
   private whammy = 0
+  /** Onde o eixo da alavanca descansa; ver `whammyFromAxis`. */
+  private whammyRest: number | null = null
   /** Instante do último strum, para o retorno visual. */
   private strummedAt = -1
   private previousButtons: boolean[] = []
@@ -47,6 +50,7 @@ export class InputManager {
   setBindings(keyboard: KeyboardBindings, gamepad: GamepadBindings) {
     this.keyboard = keyboard
     this.gamepad = gamepad
+    this.whammyRest = null
   }
 
   setClock(clock: Clock) {
@@ -71,6 +75,10 @@ export class InputManager {
   }
 
   reset() {
+    // A sessão também precisa saber que a alavanca voltou. Sem isto, pausar
+    // com ela puxada a deixava puxada do lado de lá para sempre: a soltura
+    // que vinha depois já não mudava nada do lado de cá, e não era enviada.
+    if (this.whammy !== 0) this.sink({ kind: 'whammy', value: 0, time: this.clock.now() })
     this.mask = 0
     this.whammy = 0
     this.previousButtons = []
@@ -221,9 +229,12 @@ export class InputManager {
 
     if (this.gamepad.whammyAxis >= 0) {
       const raw = pad.axes[this.gamepad.whammyAxis] ?? 0
-      // Zona morta: analógicos raramente descansam exatamente em zero.
-      const value = Math.abs(raw) < 0.15 ? 0 : Math.min(1, Math.abs(raw))
-      this.setWhammy(value, time)
+      // O repouso é a primeira leitura de verdade. Zero exato é o que o
+      // navegador informa antes de o controle mandar o primeiro relatório,
+      // e tomá-lo por repouso confundiria a alavanca de guitarra com um
+      // analógico.
+      if (this.whammyRest === null && raw !== 0) this.whammyRest = raw
+      this.setWhammy(whammyFromAxis(raw, this.whammyRest ?? 0), time)
     }
 
     this.previousButtons = pressed

@@ -28,6 +28,27 @@ interface Stem {
   gain: GainNode
 }
 
+/**
+ * A alavanca, em segundos de atraso.
+ *
+ * Mexer em `playbackRate` ou `detune` da faixa entortaria a afinação, mas
+ * também o andamento: a guitarra sairia de sincronia com o resto da banda e
+ * com o relógio, e a deriva ficaria para sempre. Um atraso que varia não
+ * tem esse problema — enquanto o atraso cresce, o som desce de tom; quando
+ * para de crescer, volta ao tom; e como ele tem teto, a faixa nunca se
+ * afasta mais que alguns milissegundos do lugar.
+ *
+ * `BEND_DEPTH` é o mergulho de afinação ao puxar e a volta ao soltar;
+ * `WOBBLE_DEPTH` e `WOBBLE_RATE` são o vibrato enquanto a alavanca fica
+ * puxada — sem ele, uma tecla, que só sabe estar puxada ou não, soaria
+ * como um tranco e depois nada.
+ */
+const BEND_DEPTH = 0.007
+const WOBBLE_DEPTH = 0.0014
+const WOBBLE_RATE = 5.5
+/** Quanto o efeito vale sem faixa de guitarra separada, sobre a mixagem toda. */
+const BEND_WITHOUT_STEM = 0.6
+
 export class SongPlayer implements Clock {
   private ctx: AudioContext
   private gain: GainNode
@@ -36,11 +57,24 @@ export class SongPlayer implements Clock {
   private missNoise: AudioBuffer | null = null
   private stems: Stem[] = []
   private sources: AudioBufferSourceNode[] = []
+  /** A curva da alavanca; ver `BEND_DEPTH`. */
+  private bend: DelayNode
+  private wobble: GainNode
+  /** Último valor aplicado; quem chama manda a cada quadro. */
+  private whammy = 0
 
   /** Instante do `AudioContext` correspondente a songTime = 0. */
   private origin = 0
   private running = false
-  private pausedAt: number | null = null
+  /**
+   * Onde a música está parada, ou `null` tocando.
+   *
+   * Nasce parada no começo da aproximação, e não em `null`: antes da
+   * partida o relógio respondia o tempo do contexto de áudio desde que ele
+   * foi criado — segundos, depois de decodificar a música — e quem desenhasse
+   * um quadro antes da partida via a música já no meio.
+   */
+  private pausedAt: number | null
   private leadIn: number
   private chartOffset: number
 
@@ -55,6 +89,44 @@ export class SongPlayer implements Clock {
     this.sfx.connect(this.ctx.destination)
     this.leadIn = options.leadIn ?? 3
     this.chartOffset = options.chartOffset ?? 0
+    this.pausedAt = -this.leadIn
+
+    this.bend = this.ctx.createDelay(0.05)
+    this.bend.delayTime.value = 0
+    this.bend.connect(this.gain)
+    // O vibrato soma ao atraso-base. A profundidade começa em zero e só a
+    // alavanca a abre; o oscilador em si roda sempre, que custa nada.
+    const lfo = this.ctx.createOscillator()
+    lfo.frequency.value = WOBBLE_RATE
+    this.wobble = this.ctx.createGain()
+    this.wobble.gain.value = 0
+    lfo.connect(this.wobble)
+    this.wobble.connect(this.bend.delayTime)
+    lfo.start()
+  }
+
+  /**
+   * A alavanca, de 0 a 1.
+   *
+   * Quem chama decide quando ela vale: no original, só com um sustain
+   * segurado — fora dele, puxar a alavanca não faz som nenhum. Com faixa de
+   * guitarra separada só a guitarra entorta; sem ela, a mixagem inteira,
+   * mais de leve, que é o retorno possível — o mesmo acordo de
+   * `setMissedFeedback`.
+   */
+  setWhammy(amount: number) {
+    const clamped = Math.min(1, Math.max(0, amount))
+    // Cada chamada agenda um evento na linha do tempo do parâmetro; a
+    // sessenta por segundo com o mesmo valor, é lixo acumulando.
+    if (Math.abs(clamped - this.whammy) < 0.01) return
+    this.whammy = clamped
+
+    const now = this.ctx.currentTime
+    const value = clamped * (this.hasGuitarStem ? 1 : BEND_WITHOUT_STEM)
+    // O atraso-base fica acima da profundidade do vibrato: um atraso
+    // negativo não existe, e o nó o cortaria em zero, rachando a onda.
+    this.bend.delayTime.setTargetAtTime(value * BEND_DEPTH, now, 0.045)
+    this.wobble.gain.setTargetAtTime(value * WOBBLE_DEPTH, now, 0.045)
   }
 
   /**
@@ -152,12 +224,24 @@ export class SongPlayer implements Clock {
     if (rest.length > 0) {
       this.stems.push(this.makeStem('backing', this.mixdown(rest.map((s) => s.buffer))))
     }
+    this.routeStems()
   }
 
   private makeStem(role: StemRole, buffer: AudioBuffer): Stem {
     const gain = this.ctx.createGain()
-    gain.connect(this.gain)
     return { role, buffer, gain }
+  }
+
+  /**
+   * Liga cada faixa à saída: a guitarra passa pela alavanca, o resto vai
+   * direto. Sem guitarra separada, tudo passa por ela — ver `setWhammy`.
+   */
+  private routeStems() {
+    const guitar = this.hasGuitarStem
+    for (const stem of this.stems) {
+      stem.gain.disconnect()
+      stem.gain.connect(!guitar || stem.role === 'guitar' ? this.bend : this.gain)
+    }
   }
 
   /**
@@ -192,11 +276,8 @@ export class SongPlayer implements Clock {
    */
   useBuffers(buffers: AudioBuffer[]) {
     this.disconnectStems()
-    this.stems = buffers.map((buffer) => {
-      const gain = this.ctx.createGain()
-      gain.connect(this.gain)
-      return { role: 'backing' as StemRole, buffer, gain }
-    })
+    this.stems = buffers.map((buffer) => this.makeStem('backing', buffer))
+    this.routeStems()
   }
 
   private disconnectStems() {
