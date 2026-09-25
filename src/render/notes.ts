@@ -2,8 +2,8 @@
  * Desenho das notas e dos rastros de sustain.
  *
  * Uma música de expert passa de mil notas, e cada uma se move a cada frame.
- * Um `Mesh` por nota faria mil chamadas de desenho; em vez disso há quatro
- * `InstancedMesh` — gemas, anéis, notas abertas e rastros — e por frame só as
+ * Um `Mesh` por nota faria mil chamadas de desenho; em vez disso há cinco
+ * `InstancedMesh` — gemas, anéis, tampas, notas abertas e rastros — e por frame só as
  * matrizes das notas visíveis são reescritas. As invisíveis ficam com
  * `count` fora do alcance, o que as tira do desenho sem realocar nada.
  *
@@ -14,13 +14,15 @@
  */
 
 import * as THREE from 'three'
-import type { Chart } from '../engine/types'
+import type { Chart, NoteType } from '../engine/types'
 import { FRET_COLORS, fretsToArray } from '../engine/types'
 import type { Session } from '../engine/gameplay/session'
 import { HIGHWAY_LENGTH, HIGHWAY_OVERSHOOT, HIGHWAY_WIDTH, LANE_WIDTH, NOTE_Y, laneX } from './layout'
 
 const MAX_GEMS = 640
 const MAX_RIMS = 320
+/** Duas peças por HOPO: o disco escuro e a tampa branca. */
+const MAX_CAPS = 640
 const MAX_OPENS = 64
 const MAX_SUSTAINS = 320
 
@@ -41,11 +43,29 @@ const WHITE = new THREE.Color(0xffffff)
 /** Nota aberta não tem traste, então não tem cor de traste. */
 const OPEN_COLOR = new THREE.Color(0xc084fc)
 
+/**
+ * Com palhetada, HOPO e tap se distinguem da nota que se palheta: gema
+ * menor e uma tampa em cima — branca no HOPO, como no original, e escura no
+ * tap. Sem palhetada os três tipos jogam igual, e a pista não os separa.
+ *
+ * A tampa branca vai sobre um disco escuro um pouco maior. Sem ele, no
+ * amarelo — que sob a luz do palco já chega creme — branco sobre creme
+ * quase não se via.
+ */
+const HAMMER_SCALE = 0.84
+const CAP_WHITE = new THREE.Color(0xffffff)
+const CAP_DARK = new THREE.Color(0x17100a)
+/** Quanto o disco escuro passa da tampa branca. */
+const CAP_EDGE = 1.22
+/** Altura do topo da gema; ver `gemGeometry`. */
+const GEM_TOP = 0.116
+
 export class NoteField {
   readonly group = new THREE.Group()
 
   private gems: THREE.InstancedMesh
   private rims: THREE.InstancedMesh
+  private caps: THREE.InstancedMesh
   private opens: THREE.InstancedMesh
   private sustains: THREE.InstancedMesh
 
@@ -58,6 +78,8 @@ export class NoteField {
   private laneColors: THREE.Color[]
 
   private speed: number
+  /** HOPO e tap aparecem diferentes? Só quando a palhetada é exigida. */
+  private markHammers: boolean
   private starPowerActive = false
   /** Alavanca, de 0 a 1; só mexe nas caudas que estão sendo seguradas. */
   private whammy = 0
@@ -65,14 +87,16 @@ export class NoteField {
   private waves: THREE.InstancedBufferAttribute
   private sustainMaterial: THREE.ShaderMaterial
 
-  constructor(chart: Chart, speed: number) {
+  constructor(chart: Chart, speed: number, markHammers = false) {
     this.chart = chart
     this.speed = speed
+    this.markHammers = markHammers
     this.laneColors = FRET_COLORS.map((c) => new THREE.Color(c))
     this.isStarPower = markStarPowerNotes(chart)
 
     this.gems = makeInstanced(gemGeometry(), gemMaterial(), MAX_GEMS)
     this.rims = makeInstanced(rimGeometry(), rimMaterial(), MAX_RIMS)
+    this.caps = makeInstanced(capGeometry(), capMaterial(), MAX_CAPS)
     this.opens = makeInstanced(openGeometry(), gemMaterial(), MAX_OPENS)
     this.sustainMaterial = sustainMaterial()
     const tails = sustainGeometry()
@@ -81,7 +105,7 @@ export class NoteField {
     tails.setAttribute('aWave', this.waves)
     this.sustains = makeInstanced(tails, this.sustainMaterial, MAX_SUSTAINS)
 
-    this.group.add(this.sustains, this.opens, this.gems, this.rims)
+    this.group.add(this.sustains, this.opens, this.gems, this.rims, this.caps)
   }
 
   setSpeed(speed: number) {
@@ -125,6 +149,7 @@ export class NoteField {
 
     let gemCount = 0
     let rimCount = 0
+    let capCount = 0
     let openCount = 0
     let sustainCount = 0
 
@@ -191,12 +216,14 @@ export class NoteField {
         continue
       }
 
+      const hammer = this.markHammers && isHammer(note.type)
+      const scale = hammer ? HAMMER_SCALE : 1
+
       for (const lane of fretsToArray(note.frets)) {
         if (gemCount >= MAX_GEMS) break
         const base = this.laneColors[lane]
         this.tintFor(lane, missed, starPower, false)
 
-        const scale = 1
         this.dummy.position.set(laneX(lane), NOTE_Y, z)
         this.dummy.rotation.set(0, 0, 0)
         this.dummy.scale.set(scale, missed ? 0.35 : 1, scale)
@@ -215,18 +242,24 @@ export class NoteField {
           else this.color.copy(base).lerp(WHITE, 0.55)
 
           this.dummy.position.set(laneX(lane), NOTE_Y + 0.045, z)
-          this.dummy.scale.setScalar(1)
+          this.dummy.scale.setScalar(scale)
           this.dummy.rotation.set(-Math.PI / 2, 0, 0)
           this.dummy.updateMatrix()
           this.rims.setMatrixAt(rimCount, this.dummy.matrix)
           this.rims.setColorAt(rimCount, this.color)
           rimCount++
         }
+
+        if (hammer && capCount + 2 <= MAX_CAPS && !missed) {
+          this.placeCap(capCount++, lane, z, GEM_TOP, scale * CAP_EDGE, CAP_DARK)
+          if (note.type === 'hopo') this.placeCap(capCount++, lane, z, GEM_TOP + 0.004, scale, CAP_WHITE)
+        }
       }
     }
 
     commit(this.gems, gemCount)
     commit(this.rims, rimCount)
+    commit(this.caps, capCount)
     commit(this.opens, openCount)
     commit(this.sustains, sustainCount)
     this.waves.needsUpdate = true
@@ -254,6 +287,15 @@ export class NoteField {
     if (this.starPowerActive) this.color.lerp(STAR_POWER_COLOR, 0.18)
     if (held) this.color.multiplyScalar(1.6)
     if (missed) this.color.multiplyScalar(0.18)
+  }
+
+  private placeCap(index: number, lane: number, z: number, y: number, scale: number, color: THREE.Color) {
+    this.dummy.position.set(laneX(lane), NOTE_Y + y, z)
+    this.dummy.scale.setScalar(scale)
+    this.dummy.rotation.set(0, 0, 0)
+    this.dummy.updateMatrix()
+    this.caps.setMatrixAt(index, this.dummy.matrix)
+    this.caps.setColorAt(index, color)
   }
 
   private placeSustain(lane: number, zCenter: number, length: number, held: boolean) {
@@ -302,6 +344,11 @@ function makeInstanced(
   return mesh
 }
 
+/** Nota que, com palhetada, se toca no traste. */
+function isHammer(type: NoteType): boolean {
+  return type === 'hopo' || type === 'tap'
+}
+
 function commit(mesh: THREE.InstancedMesh, count: number) {
   mesh.count = count
   mesh.instanceMatrix.needsUpdate = true
@@ -318,6 +365,14 @@ function gemGeometry() {
 
 function rimGeometry() {
   return new THREE.TorusGeometry(0.205, 0.036, 10, 28)
+}
+
+function capGeometry() {
+  // Um disco fino sobre o topo da gema, menor que ele: a borda colorida
+  // continua à mostra, e é ela que diz o traste.
+  const geometry = new THREE.CylinderGeometry(0.1, 0.1, 0.014, 24)
+  geometry.translate(0, 0.007, 0)
+  return geometry
 }
 
 function openGeometry() {
@@ -341,6 +396,12 @@ function gemMaterial() {
     emissiveIntensity: 0.0,
     vertexColors: false,
   })
+}
+
+function capMaterial() {
+  // Sem luz: a tampa branca precisa ser branca em qualquer palco, e sob a
+  // luz colorida do show um material iluminado a deixava cinza ou rosa.
+  return new THREE.MeshBasicMaterial()
 }
 
 function rimMaterial() {

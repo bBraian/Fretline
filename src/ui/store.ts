@@ -23,6 +23,7 @@ import {
   type GamepadBindings,
   type KeyboardBindings,
 } from '../input/bindings'
+import type { StrumMode } from '../input/guitar'
 import { DEFAULT_NOTE_SPEED } from '../render/layout'
 import type { Quality } from '../render/gameScene'
 import { isLanguage, type Language } from '../i18n'
@@ -64,6 +65,11 @@ export interface Settings {
   quality: Quality
   keyboard: KeyboardBindings
   gamepad: GamepadBindings
+  /**
+   * Quando a palhetada é exigida. Decidido no começo de cada música, pelo
+   * controle conectado; ver `input/guitar.ts`.
+   */
+  strum: StrumMode
 }
 
 export interface Profile {
@@ -154,6 +160,7 @@ const DEFAULT_SETTINGS: Settings = {
   quality: 'alta',
   keyboard: DEFAULT_KEYBOARD,
   gamepad: DEFAULT_GAMEPAD,
+  strum: 'guitar',
 }
 
 const DEFAULT_PROFILE: Profile = {

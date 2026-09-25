@@ -16,6 +16,7 @@ import { SongPlayer } from '../audio/songPlayer'
 import { renderDemoTrack } from '../audio/demoTrack'
 import { InputManager } from '../input/inputManager'
 import { pausePadButton } from '../input/bindings'
+import { strumRequired } from '../input/guitar'
 import { GameScene, highwayRailsAt } from '../render/gameScene'
 import { stageForShow } from '../render/stage/stageModel'
 import { evaluate } from '../content/progression'
@@ -235,9 +236,16 @@ export function PlayScreen() {
       // início dela: a mesa avisa e o tocador acompanha.
       unsubscribeVolume = mixer.onVolumeChange((v) => player.setVolume(v))
 
+      // A palhetada é decidida aqui, pelo controle que estiver ligado, e vale
+      // a música inteira. `?strum` a força, para conferir a pista sem uma
+      // guitarra na mão.
+      const pad = [...(navigator.getGamepads?.() ?? [])].find((p): p is Gamepad => p !== null && p.connected)
       const session = new Session(chart, settings.difficulty, {
         inputOffset: settings.audioOffset,
         noFail: settings.noFail,
+        strum:
+          new URLSearchParams(location.search).has('strum') ||
+          strumRequired(settings.strum, pad ?? null, settings.gamepad.whammyAxis),
       })
 
       const input = new InputManager(player, (event) => session.handleInput(event))

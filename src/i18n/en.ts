@@ -244,6 +244,13 @@ export const en: Messages = {
     strumUp: 'Strum up',
     strumDown: 'Strum down',
     whammyOff: 'off',
+    strum: 'Strumming',
+    strumHint:
+      'With strumming on, a note only counts with the strum bar, like the original, and HOPOs — the notes with a white cap — are played on the fret. Controllers only: the keyboard has no strum bar. It is decided at the start of each song.',
+    strumGuitar: 'Guitar only',
+    strumAlways: 'Any controller',
+    guitarFound: 'This controller was recognized as a guitar: strumming is on.',
+    guitarNotFound: 'This controller was not recognized as a guitar. If it is one, choose “Any controller”.',
     pressedNow: (buttons) => `Pressed now: ${buttons || 'none'}`,
   },
 

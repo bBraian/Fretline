@@ -13,10 +13,14 @@ import { countFrets, highestFret } from '../types'
 /**
  * Meia janela de acerto, em segundos.
  *
- * Mais larga que a de um jogo com palhetada, e de propósito: aqui a nota é
- * resolvida no toque do traste, e duas notas seguidas no mesmo traste exigem
- * soltar e apertar dentro da janela. Esse movimento é mais lento que
- * palhetar, e com 70ms ele ficava impossível nos trechos rápidos.
+ * Mais larga que a de um jogo com palhetada, e de propósito: sem palhetada,
+ * a nota é resolvida no toque do traste, e duas notas seguidas no mesmo
+ * traste exigem soltar e apertar dentro da janela. Esse movimento é mais
+ * lento que palhetar, e com 70ms ele ficava impossível nos trechos rápidos.
+ *
+ * Com palhetada a janela é a mesma: o medidor e o "perfeito" foram
+ * ajustados em cima dela, e dois tamanhos fariam uma música valer uma nota
+ * diferente conforme o controle.
  */
 export const HIT_WINDOW = 0.09
 
@@ -33,6 +37,26 @@ export const PERFECT_WINDOW = 0.025
  * 20ms acordes honestos começam a ser punidos.
  */
 export const CHORD_GRACE = 0.03
+
+/**
+ * Com palhetada, quanto a barra pode chegar antes dos trastes.
+ *
+ * As duas mãos nunca descem juntas, e o controle só é lido uma vez por
+ * quadro: uma palhetada e o traste que ela acompanha caem com frequência
+ * em quadros vizinhos. Uma palhetada que não toca nada espera este tanto
+ * pelos trastes antes de virar overstrum.
+ */
+export const STRUM_LENIENCY = 0.05
+
+/**
+ * Com palhetada, quanto depois de um HOPO tocado no traste a barra é
+ * ignorada.
+ *
+ * Quem palheteia por hábito palheteia o HOPO também, e o traste chega
+ * primeiro: sem esta folga, a palhetada que acompanha a nota viraria
+ * overstrum — ou pior, tocaria a nota seguinte antes da hora.
+ */
+export const HOPO_STRUM_LENIENCY = 0.08
 
 /** Pontos por nota. Um acorde paga por traste, como no original. */
 export const POINTS_PER_NOTE = 50

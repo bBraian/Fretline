@@ -217,12 +217,13 @@ mostrado isso, porque a chamada só enfileira comandos e volta.
 
 ## Controles
 
-**Não há palhetada.** A nota é tocada apertando o traste, e só isso. Foi uma
-decisão de projeto: o jogo é jogado no teclado e no controle, e nenhum dos
-dois tem um gesto decente para palhetar — palhetar no teclado é uma tecla
-extra que atrapalha, e no controle é um direcional que briga com os trastes.
+**Sem palhetada, a não ser na guitarra.** No teclado e no controle comum a
+nota é tocada apertando o traste, e só isso. Foi uma decisão de projeto:
+nenhum dos dois tem um gesto decente para palhetar — palhetar no teclado é
+uma tecla extra que atrapalha, e no controle é um direcional que briga com
+os trastes.
 
-Três consequências que o jogo trata explicitamente:
+Sem palhetada, três consequências que o jogo trata explicitamente:
 
 - **duas notas seguidas no mesmo traste** exigem soltar e apertar de novo,
   porque só a transição de solto para pressionado resolve nota;
@@ -234,9 +235,29 @@ Três consequências que o jogo trata explicitamente:
   acorde — que nunca sai com os dedos exatamente juntos — seria punido.
 
 Como todas as notas são tocadas do mesmo jeito, a distinção entre strum,
-HOPO e tap não existe em jogo. O parser continua derivando porque é parte do
-formato, mas nada depois dele olha. O anel em volta de uma nota marca star
+HOPO e tap não existe nesse modo. O anel em volta de uma nota marca star
 power, não tipo de nota.
+
+**Com um controle de guitarra, a palhetada volta**, como no original:
+
+- a nota normal só vale com a barra de strum e os trastes certos na mão;
+  apertar traste sem palhetar não toca nada, e também não é castigado;
+- o **HOPO** — a gema menor, de tampa branca — se toca no traste, apertando
+  (hammer-on) ou soltando o de cima (pull-off), desde que a nota anterior
+  tenha sido acertada; depois de um erro, ele precisa ser palhetado. O
+  **tap**, de tampa escura, se toca no traste sempre;
+- **palhetar no vazio** (overstrum) quebra a corrente, tira do medidor e
+  corta o sustain que estava soando;
+- duas folgas evitam castigo injusto: a palhetada pode chegar até 50 ms
+  antes dos trastes, e a palhetada que vem logo atrás de um HOPO tocado no
+  traste é engolida em vez de virar overstrum.
+
+O jogo reconhece a guitarra pelo nome do controle ou pela alavanca, que
+descansa no fim do curso. A de Xbox 360 no Windows chega com o nome de um
+controle de Xbox comum, e é a alavanca que a entrega. O ajuste
+**Palhetada** escolhe entre "só na guitarra" (o padrão), "todo controle"
+— para quando o reconhecimento falhar — e "desligada". A escolha vale a
+partir do começo da música seguinte; o teclado nunca exige palhetada.
 
 Padrão do teclado: `A S J K L` nos trastes, espaço para o star power, shift
 esquerdo na alavanca. Tudo remapeável nos ajustes. Controle comum (Xbox/PS)

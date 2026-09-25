@@ -11,6 +11,7 @@ import { mixer } from '../../audio/mixer'
 import { useBackKey } from '../useBackKey'
 import { holdGamepadNav } from '../gamepadNav'
 import { useT } from '../useT'
+import { STRUM_MODES, looksLikeGuitar, type StrumMode } from '../../input/guitar'
 
 type Listening = { kind: 'fret'; index: number } | { kind: 'starPower' | 'whammy' } | null
 
@@ -27,6 +28,7 @@ export function SettingsScreen() {
   const [padListening, setPadListening] = useState<PadListening>(null)
   const [livePressed, setLivePressed] = useState<number[]>([])
   const [axes, setAxes] = useState<number[]>([])
+  const [padMapping, setPadMapping] = useState('')
   const t = useT()
 
   /**
@@ -91,6 +93,7 @@ export function SettingsScreen() {
     const tick = () => {
       const pad = (navigator.getGamepads?.() ?? []).find((p) => p?.connected) ?? null
       setGamepadName(pad ? pad.id : null)
+      setPadMapping(pad ? pad.mapping : '')
       const pressed = pad ? pad.buttons.flatMap((b, i) => (b.pressed ? [i] : [])) : []
       setLivePressed((antes) =>
         antes.length === pressed.length && antes.every((v, i) => v === pressed[i]) ? antes : pressed,
@@ -152,6 +155,9 @@ export function SettingsScreen() {
       window.removeEventListener('keydown', cancelar)
     }
   }, [padListening, livePressed.length, settings.gamepad, updateSettings])
+
+  const strumLabel = (mode: StrumMode) =>
+    mode === 'guitar' ? t.settings.strumGuitar : mode === 'always' ? t.settings.strumAlways : t.settings.off
 
   const padButton = (label: string, index: number, target: PadListening) => {
     const ativo = padListening !== null && JSON.stringify(padListening) === JSON.stringify(target)
@@ -407,6 +413,27 @@ export function SettingsScreen() {
           >
             {t.settings.restore}
           </button>
+        </div>
+
+        <div className="field">
+          <span className="field-label">{t.settings.strum}</span>
+          <p className="field-hint">{t.settings.strumHint}</p>
+          <div className="segmented">
+            {STRUM_MODES.map((mode) => (
+              <button key={mode} data-active={settings.strum === mode} onClick={() => updateSettings({ strum: mode })}>
+                {strumLabel(mode)}
+              </button>
+            ))}
+          </div>
+          {/* Com o controle na mão, o jogador vê se o "só na guitarra" o
+              pegou — é o que diz quando escolher "todo controle". */}
+          {gamepadName && settings.strum === 'guitar' && (
+            <p className="field-hint">
+              {looksLikeGuitar({ id: gamepadName, mapping: padMapping, axes }, settings.gamepad.whammyAxis)
+                ? t.settings.guitarFound
+                : t.settings.guitarNotFound}
+            </p>
+          )}
         </div>
       </div>
 

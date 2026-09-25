@@ -7,12 +7,13 @@ export const DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard', 'expert']
 /**
  * Tipo de nota, no sentido do formato de chart.
  *
- * O parser continua derivando isso porque faz parte do arquivo e outras
- * ferramentas contam com ele, mas o jogo não usa: aqui não há palhetada, e
- * toda nota é tocada apertando o traste. Os três tipos jogam igual.
+ * Sem palhetada, o padrão, os três tipos jogam igual: toda nota é tocada
+ * apertando o traste. Com palhetada — que é como se toca com guitarra — a
+ * nota normal exige a barra, e HOPO e tap se tocam no traste. Ver
+ * `SessionOptions.strum`.
  */
 export type NoteType =
-  | 'strum' // no formato original, exigiria palhetada
+  | 'strum' // exige palhetada, quando ela é exigida
   | 'hopo' // hammer-on / pull-off
   | 'tap'
 

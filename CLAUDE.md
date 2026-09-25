@@ -16,7 +16,7 @@ sem passar por ele.
 
 ```bash
 npm run dev       # http://localhost:5173
-npm test          # 213 testes do engine, do áudio, do conteúdo e da publicação, em Node
+npm test          # 346 testes do engine, do áudio, do conteúdo e da publicação, em Node
 npm run build     # tsc -b && vite build
 npm run smoke     # sobe o jogo num navegador de verdade e toca a demo
 npm run menus     # captura as telas de menu em scripts/menu-*.png
@@ -66,12 +66,22 @@ julgamento; o de *vídeo* desloca só o desenho. Têm causas físicas
 diferentes (latência de saída de som contra latência de display) e não
 podem virar um só.
 
-**Não há palhetada.** A nota é resolvida na transição solto→pressionado do
-traste. Decorre daí: duas notas seguidas no mesmo traste exigem soltar e
-apertar; nota aberta é tocada soltando todos os trastes; e existe castigo
-por tocar no vazio, agrupado numa folga de 30ms para não punir acordes. A
-distinção entre strum, HOPO e tap não existe em jogo — o parser continua
-derivando porque é parte do formato, mas nada depois dele olha.
+**Sem palhetada, a não ser na guitarra.** São dois modos da mesma
+`Session`, escolhidos na criação (`SessionOptions.strum`) e que não se
+misturam.
+
+No padrão — teclado e controle comum — a nota é resolvida na transição
+solto→pressionado do traste. Decorre daí: duas notas seguidas no mesmo
+traste exigem soltar e apertar; nota aberta é tocada soltando todos os
+trastes; e existe castigo por tocar no vazio, agrupado numa folga de 30ms
+para não punir acordes. Strum, HOPO e tap jogam igual.
+
+Com guitarra, vale a regra do GH3: a nota normal só sai com a barra, HOPO e
+tap saem no traste, e palhetar no vazio é overstrum. Quem decide é
+`input/guitar.ts` (nome do controle, ou a alavanca parada no fim do curso),
+com o ajuste `strum` por cima, uma vez no começo da música. Só nesse modo a
+pista marca HOPO e tap — fora dele, marcar um tipo que não muda nada seria
+ruído. `?strum` força o modo, para conferir a pista sem guitarra.
 
 **Duas cenas, duas câmeras.** O palco é desenhado primeiro com a câmera de
 um diretor que corta entre planos, o buffer de profundidade é limpo, e a
