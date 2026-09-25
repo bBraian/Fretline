@@ -16,10 +16,9 @@ export interface GamepadBindings {
   /**
    * Strum para cima e para baixo.
    *
-   * O jogo resolve a nota no traste e não precisa de palhetada, mas quem
-   * tem controle de guitarra vai palhetar de qualquer forma. A barra toca a
-   * nota que já está debaixo dos dedos — um segundo gatilho, nunca uma
-   * exigência. `-1` desliga.
+   * Com palhetada exigida — na guitarra, ver `input/guitar.ts` — é a barra
+   * que toca a nota. Sem ela, a barra toca a nota que já está debaixo dos
+   * dedos: um segundo gatilho, nunca uma exigência. `-1` desliga.
    */
   strumUp: number
   strumDown: number
@@ -64,7 +63,9 @@ export function migrateKeyboard(saved: KeyboardBindings): KeyboardBindings {
 /**
  * Padrão para controle comum: os quatro botões de ação mais o bumper
  * direito. É o arranjo que deixa cinco trastes alcançáveis sem tirar o
- * polegar do lugar — e, como não há palhetada, o direcional fica livre.
+ * polegar do lugar — e, como o controle comum não palheteia, o direcional
+ * fica livre. Na guitarra de Xbox a barra de strum *é* o direcional, e é
+ * por isso que ele está nos dois strums.
  */
 export const DEFAULT_GAMEPAD: GamepadBindings = {
   frets: [2, 3, 1, 0, 5],

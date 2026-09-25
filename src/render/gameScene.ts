@@ -223,7 +223,7 @@ export class GameScene {
 
     this.highway = new Highway(this.beats)
     this.noteSpeed = options.noteSpeed ?? DEFAULT_NOTE_SPEED
-    this.notes = new NoteField(options.session.getChart(), this.noteSpeed)
+    this.notes = new NoteField(options.session.getChart(), this.noteSpeed, options.session.strum)
     this.effects = new HitEffects()
     this.stage = new Stage(options.characterId, options.guitarId, {
       effects: this.quality === 'alta',

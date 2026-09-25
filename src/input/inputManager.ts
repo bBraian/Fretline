@@ -226,11 +226,10 @@ export class InputManager {
       this.sink({ kind: 'starPower', time })
     }
 
-    // A barra de strum toca nota. O jogo não exige palhetada e continua sem
-    // exigir, mas ela estava ligada ao star power — quem tinha um controle
-    // de guitarra e palhetava a música normalmente disparava o star power a
-    // cada nota. Agora é um segundo gatilho para a nota que já está debaixo
-    // dos dedos, que é o que o instrumento promete.
+    // A barra de strum toca nota: com palhetada exigida, é ela que toca;
+    // sem, é um segundo gatilho para a nota que já está debaixo dos dedos.
+    // A sessão decide qual dos dois. Antes ela estava ligada ao star power,
+    // e quem palhetava a música disparava o star power a cada nota.
     for (const strum of [this.gamepad.strumUp, this.gamepad.strumDown]) {
       if (strum < 0) continue
       if ((pressed[strum] ?? false) && !(this.previousButtons[strum] ?? false)) {

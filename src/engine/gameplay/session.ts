@@ -9,13 +9,18 @@
  * Os eventos de input trazem o próprio instante em vez de serem amostrados
  * por frame: um frame de 16ms é largo demais perto de uma janela de 70ms.
  *
- * Não existe palhetada *obrigatória*. Toda nota é resolvida na mudança dos
- * trastes, o que torna teclado e controle igualmente jogáveis — nenhum dos
- * dois tem um gesto decente para palhetar. Quem tem um controle de guitarra
- * pode usar a barra, que vale como um segundo gatilho (ver `onStrum`), mas
- * ninguém precisa dela.
+ * Há dois jeitos de tocar, escolhidos na criação (`SessionOptions.strum`).
  *
- * Três consequências que a máquina de estados precisa tratar:
+ * **Sem palhetada**, o padrão, toda nota é resolvida na mudança dos
+ * trastes, o que torna teclado e controle igualmente jogáveis — nenhum dos
+ * dois tem um gesto decente para palhetar. A barra de strum, se houver,
+ * vale como um segundo gatilho (ver `onStrum`), mas ninguém precisa dela.
+ *
+ * **Com palhetada**, que é como se toca com uma guitarra, vale a regra do
+ * original: a nota normal só sai com a barra, e o traste sozinho toca só
+ * HOPO e tap. Ver `onFretsWithStrum` e `onStrumRequired`.
+ *
+ * Sem palhetada, três consequências que a máquina de estados precisa tratar:
  *
  * - duas notas seguidas na mesma digitação exigem soltar e apertar de novo,
  *   porque a mão precisa *mudar* para resolver nota;
@@ -35,6 +40,7 @@ import {
   ESCALATION_CAP,
   GHOST_TAP_COST,
   HIT_WINDOW,
+  HOPO_STRUM_LENIENCY,
   METER_BY_DIFFICULTY,
   METER_START,
   PERFECT_WINDOW,
@@ -43,6 +49,7 @@ import {
   STAR_POWER_ACTIVATION_MINIMUM,
   STAR_POWER_BEATS_PER_FULL_BAR,
   STAR_POWER_PER_PHRASE,
+  STRUM_LENIENCY,
   beatDurationAt,
   fretsSatisfyNote,
   multiplierFor,
@@ -108,6 +115,12 @@ export interface SessionOptions {
   inputOffset?: number
   /** Desliga a falha por medidor zerado. */
   noFail?: boolean
+  /**
+   * Exige palhetada, como no original: a nota normal só vale com a barra de
+   * strum, e HOPO e tap se tocam no traste. Desligado, toda nota é tocada
+   * no traste e a barra é opcional.
+   */
+  strum?: boolean
 }
 
 export class Session {
@@ -117,6 +130,8 @@ export class Session {
   private readonly meter: MeterTuning
   private readonly inputOffset: number
   private readonly noFail: boolean
+  /** A nota normal exige a barra de strum? Ver `SessionOptions.strum`. */
+  readonly strum: boolean
 
   /** Primeira nota ainda não resolvida; só anda para frente. */
   private cursor = 0
@@ -134,6 +149,16 @@ export class Session {
    * `resolvePendingTap`.
    */
   private wrongAttempt = -1
+  /**
+   * Com palhetada: palhetada que não tocou nada e ainda espera os trastes.
+   * Ver `STRUM_LENIENCY`.
+   */
+  private pendingStrum: { time: number } | null = null
+  /**
+   * Com palhetada: quando o último HOPO foi tocado no traste, ou -1. A
+   * palhetada que vem logo atrás é dele; ver `HOPO_STRUM_LENIENCY`.
+   */
+  private hammeredAt = -1
   private lastUpdate: number
   private starPowerAnnounced = false
 
@@ -147,6 +172,7 @@ export class Session {
     this.meter = METER_BY_DIFFICULTY[difficulty]
     this.inputOffset = options.inputOffset ?? 0
     this.noFail = options.noFail ?? false
+    this.strum = options.strum ?? false
     this.noteStatus = new Array(chart.notes.length).fill('pending')
     this.notePhrase = new Int32Array(chart.notes.length).fill(-1)
     this.phrases = []
@@ -228,6 +254,9 @@ export class Session {
     const dt = Math.max(0, songTime - this.lastUpdate)
     this.lastUpdate = songTime
 
+    // Antes de expirar: uma palhetada errada em cima da nota precisa saber
+    // que a nota ainda está de pé para cobrar uma vez só.
+    this.resolvePendingStrum(songTime)
     this.expireNotes(songTime)
     this.resolvePendingTap(songTime)
     this.updateSustains(songTime)
@@ -253,7 +282,8 @@ export class Session {
         this.onFretChange(event.mask, time)
         break
       case 'strum':
-        this.onStrum(time)
+        if (this.strum) this.onStrumRequired(time)
+        else this.onStrum(time)
         break
       case 'whammy':
         this.state.whammy = event.value
@@ -270,6 +300,10 @@ export class Session {
     const previous = this.state.fretMask
     this.state.fretMask = mask
     if (mask === previous) return
+    if (this.strum) {
+      this.onFretsWithStrum(mask, time)
+      return
+    }
 
     const pressed = mask & ~previous
     const candidate = this.findCandidate(time)
@@ -311,12 +345,12 @@ export class Session {
   }
 
   /**
-   * Palhetada.
+   * Palhetada, quando ela não é exigida.
    *
-   * O jogo resolve a nota no traste e continua sem exigir palhetada — mas um
-   * controle de guitarra tem a barra, e quem o tem vai usá-la. Ela é um
-   * segundo gatilho para a nota que já está debaixo dos dedos: se a mão
-   * satisfaz a nota candidata, a palhetada resolve.
+   * Nesse modo o jogo resolve a nota no traste — mas um controle pode ter a
+   * barra, e quem a tem vai usá-la. Ela é um segundo gatilho para a nota
+   * que já está debaixo dos dedos: se a mão satisfaz a nota candidata, a
+   * palhetada resolve.
    *
    * Palhetar no vazio não é castigado, e é de propósito. Aqui a palhetada é
    * opcional, não obrigatória; punir quem palheteia por hábito enquanto
@@ -330,6 +364,125 @@ export class Session {
     this.hit(candidate, time)
   }
 
+  /**
+   * Trastes, com palhetada.
+   *
+   * O traste sozinho não toca nota normal, e mexer nele à toa não é
+   * castigado — sem palhetar, a mão está só se posicionando. Ele resolve
+   * nota em dois casos: fechando uma palhetada que chegou um pouco antes
+   * dele, e no HOPO e no tap, que é para isso que eles existem.
+   *
+   * A soltura vale igual ao aperto: soltar o traste de cima para revelar o
+   * de baixo é o pull-off.
+   */
+  private onFretsWithStrum(mask: number, time: number) {
+    const pending = this.pendingStrum
+    if (pending && time - pending.time <= STRUM_LENIENCY) {
+      const target = this.findStrumTarget(mask, time)
+      if (target) {
+        this.pendingStrum = null
+        this.hitStrummed(target, time)
+        return
+      }
+    }
+
+    const candidate = this.findCandidate(time)
+    if (candidate && this.canHammer(candidate) && fretsSatisfyNote(mask, candidate)) {
+      this.hammeredAt = time
+      this.hit(candidate, time)
+    }
+  }
+
+  /**
+   * HOPO se toca no traste só com a corrente de pé, como no original:
+   * depois de um erro, o primeiro HOPO precisa ser palhetado. Tap não tem
+   * essa condição — é o que o separa do HOPO.
+   */
+  private canHammer(note: Note): boolean {
+    if (note.type === 'tap') return true
+    return note.type === 'hopo' && this.state.streak > 0
+  }
+
+  /**
+   * Palhetada obrigatória.
+   *
+   * Toca a nota que os trastes na mão satisfazem. Se não satisfazem nenhuma,
+   * ela ainda espera os trastes um instante (`STRUM_LENIENCY`) antes de
+   * virar overstrum.
+   */
+  private onStrumRequired(time: number) {
+    if (this.hammeredAt >= 0 && time - this.hammeredAt <= HOPO_STRUM_LENIENCY) {
+      // É a palhetada do HOPO que acabou de sair no traste. Uma só: a
+      // seguinte já é outra palhetada.
+      this.hammeredAt = -1
+      return
+    }
+
+    // A palhetada anterior ainda esperava os trastes e perdeu a vez.
+    if (this.pendingStrum) this.overstrum(this.pendingStrum.time)
+    this.pendingStrum = null
+
+    const target = this.findStrumTarget(this.state.fretMask, time)
+    if (target) this.hitStrummed(target, time)
+    else this.pendingStrum = { time }
+  }
+
+  /** Palhetada que atravessou a folga sem tocar nada: é overstrum. */
+  private resolvePendingStrum(songTime: number) {
+    const pending = this.pendingStrum
+    if (!pending) return
+    if (songTime < pending.time + STRUM_LENIENCY) return
+    this.pendingStrum = null
+    this.overstrum(pending.time)
+  }
+
+  /**
+   * Palhetar sem tocar nota.
+   *
+   * Custa como um toque no vazio, e corta o sustain que estiver soando, como
+   * no original: palhetar de novo é largar a nota que estava tocando.
+   */
+  private overstrum(time: number) {
+    if (this.sustains.length > 0) {
+      for (const sustain of this.sustains) {
+        this.events.push({ kind: 'sustainEnd', note: sustain.note, completed: false })
+      }
+      this.sustains = []
+      this.syncSustainView()
+    }
+    this.strayTouch(time)
+  }
+
+  /**
+   * A nota que uma palhetada toca, dados os trastes na mão.
+   *
+   * É a primeira da janela que os trastes satisfazem — podendo passar por
+   * cima de notas que já cruzaram a linha e ficaram para trás. Sem isso,
+   * num trecho rápido, a nota perdida por atraso ocupava a janela da
+   * seguinte: a palhetada certa da seguinte virava overstrum, e o jogador
+   * pagava duas vezes pelo mesmo atraso. Nota que ainda está por vir nunca
+   * é pulada.
+   */
+  private findStrumTarget(mask: number, time: number): Note | null {
+    for (let i = this.cursor; i < this.chart.notes.length; i++) {
+      if (this.noteStatus[i] !== 'pending') continue
+      const note = this.chart.notes[i]
+      if (note.time > time + HIT_WINDOW) return null
+      if (note.time < time - HIT_WINDOW) continue
+      if (fretsSatisfyNote(mask, note)) return note
+      if (note.time >= time) return null
+    }
+    return null
+  }
+
+  /** Acerta pela palhetada; as notas que ela pulou estão perdidas. */
+  private hitStrummed(note: Note, time: number) {
+    for (let i = this.cursor; i < note.index; i++) {
+      if (this.noteStatus[i] === 'pending') this.missNote(i)
+    }
+    this.hit(note, time)
+  }
+
   /** Toque que atravessou a folga sem virar acerto: é castigo. */
   private resolvePendingTap(songTime: number) {
     const pending = this.pendingTap
@@ -338,8 +491,13 @@ export class Session {
     if (this.buildingChord(songTime)) return
 
     this.pendingTap = null
+    this.strayTouch(pending.time)
+  }
+
+  /** Um toque — traste ou palhetada — que não tocou nada. */
+  private strayTouch(time: number) {
     this.breakStreak()
-    this.events.push({ kind: 'ghostTap', time: pending.time })
+    this.events.push({ kind: 'ghostTap', time })
 
     // Com nota na janela, o toque foi uma tentativa errada *dela*, e o
     // medidor espera o desfecho para cobrar uma vez só — antes cobrava o
@@ -349,7 +507,7 @@ export class Session {
     //
     // Só a primeira tentativa espera. A segunda na mesma nota é cobrada na
     // hora: sem isso, varrer os trastes em cima de cada nota sairia de graça.
-    const aimedAt = this.findCandidate(pending.time)
+    const aimedAt = this.findCandidate(time)
     if (aimedAt && aimedAt.index !== this.wrongAttempt) {
       this.wrongAttempt = aimedAt.index
       return
@@ -436,24 +594,28 @@ export class Session {
       const note = this.chart.notes[i]
       if (note.time > deadline) break
       if (this.noteStatus[i] !== 'pending') continue
-
-      this.noteStatus[i] = 'missed'
-      this.state.notesSeen++
-
-      // Um toque que estava montando justamente esta nota já tem a sua
-      // conta: a nota perdida. Cobrar também o castigo por tocar no vazio
-      // puniria a mesma falha duas vezes, e era o que fazia uma passagem
-      // difícil derrubar o medidor no dobro da velocidade devida.
-      if (this.pendingTap && this.maskBuilds(note)) this.pendingTap = null
-      // O mesmo vale para o traste errado que esperava esta nota.
-      if (this.wrongAttempt === i) this.wrongAttempt = -1
-
-      this.breakStreak()
-      this.damage()
-      this.creditPhrase(i, false)
-      this.events.push({ kind: 'miss', note })
+      this.missNote(i)
     }
     this.advanceCursor()
+  }
+
+  private missNote(i: number) {
+    const note = this.chart.notes[i]
+    this.noteStatus[i] = 'missed'
+    this.state.notesSeen++
+
+    // Um toque que estava montando justamente esta nota já tem a sua
+    // conta: a nota perdida. Cobrar também o castigo por tocar no vazio
+    // puniria a mesma falha duas vezes, e era o que fazia uma passagem
+    // difícil derrubar o medidor no dobro da velocidade devida.
+    if (this.pendingTap && this.maskBuilds(note)) this.pendingTap = null
+    // O mesmo vale para o traste errado que esperava esta nota.
+    if (this.wrongAttempt === i) this.wrongAttempt = -1
+
+    this.breakStreak()
+    this.damage()
+    this.creditPhrase(i, false)
+    this.events.push({ kind: 'miss', note })
   }
 
   private advanceCursor() {

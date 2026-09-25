@@ -4,9 +4,11 @@ import {
   CHORD_GRACE,
   GHOST_TAP_COST,
   HIT_WINDOW,
+  HOPO_STRUM_LENIENCY,
   METER_BY_DIFFICULTY,
   METER_START,
   POINTS_PER_NOTE,
+  STRUM_LENIENCY,
 } from './rules'
 import type { Chart, Note, NoteType } from '../types'
 
@@ -728,5 +730,270 @@ describe('fim da música', () => {
     s.update(2)
     expect(s.getState().finished).toBe(true)
     expect(s.consumeEvents().some((e) => e.kind === 'finished')).toBe(true)
+  })
+})
+
+/**
+ * Palhetada, como no original — ligada quando se toca com guitarra.
+ *
+ * A nota normal só vale com a barra; HOPO e tap se tocam no traste. O
+ * resto da sessão (janela, regra dos trastes, medidor) é o mesmo.
+ */
+describe('palhetada', () => {
+  const tocando = (specs: Parameters<typeof chartOf>[0]) =>
+    new Session(chartOf(specs), 'expert', { strum: true })
+  const strum = (s: Session, time: number) => s.handleInput({ kind: 'strum', time })
+  const houveOverstrum = (s: Session) => s.consumeEvents().some((e) => e.kind === 'ghostTap')
+
+  it('apertar o traste sem palhetar não toca a nota', () => {
+    const s = tocando([{ time: 1, frets: GREEN }])
+    press(s, GREEN, 1.0)
+    expect(s.statusOf(0)).toBe('pending')
+  })
+
+  it('traste sem palhetada nunca é castigado, nem o errado', () => {
+    const s = tocando([{ time: 1, frets: GREEN }])
+    press(s, RED, 0.98)
+    press(s, GREEN | YELLOW, 1.0)
+    s.update(1.05)
+
+    expect(s.getState().rockMeter).toBe(METER_START)
+    expect(houveOverstrum(s)).toBe(false)
+  })
+
+  it('palhetar com o traste certo toca a nota', () => {
+    const s = tocando([{ time: 1, frets: GREEN }])
+    press(s, GREEN, 0.95)
+    strum(s, 1.0)
+    expect(s.statusOf(0)).toBe('hit')
+    expect(s.getState().streak).toBe(1)
+  })
+
+  it('palhetar no vazio quebra a corrente e tira do medidor', () => {
+    const s = tocando([
+      { time: 1, frets: GREEN },
+      { time: 5, frets: GREEN },
+    ])
+    press(s, GREEN, 0.95)
+    strum(s, 1.0)
+    const depoisDoAcerto = s.getState().rockMeter
+
+    strum(s, 3.0)
+    s.update(3.0 + STRUM_LENIENCY + 0.001)
+
+    expect(houveOverstrum(s)).toBe(true)
+    expect(s.getState().streak).toBe(0)
+    expect(s.getState().rockMeter).toBeLessThan(depoisDoAcerto)
+  })
+
+  it('palhetar com o traste errado em cima da nota é overstrum, e a nota continua valendo', () => {
+    const s = tocando([{ time: 1, frets: GREEN }])
+    press(s, RED, 0.95)
+    strum(s, 0.98)
+    s.update(0.98 + STRUM_LENIENCY + 0.001)
+    expect(houveOverstrum(s)).toBe(true)
+    expect(s.statusOf(0)).toBe('pending')
+
+    press(s, GREEN, 1.03)
+    strum(s, 1.05)
+    expect(s.statusOf(0)).toBe('hit')
+  })
+
+  it('palhetada que chega pouco antes do traste ainda vale', () => {
+    const s = tocando([{ time: 1, frets: GREEN }])
+    strum(s, 0.99)
+    press(s, GREEN, 0.99 + STRUM_LENIENCY * 0.6)
+    s.update(1.1)
+
+    expect(s.statusOf(0)).toBe('hit')
+    expect(houveOverstrum(s)).toBe(false)
+  })
+
+  it('palhetada muito antes do traste é overstrum', () => {
+    const s = tocando([{ time: 1, frets: GREEN }])
+    strum(s, 0.97)
+    s.update(0.97 + STRUM_LENIENCY + 0.001)
+    press(s, GREEN, 1.03)
+
+    expect(houveOverstrum(s)).toBe(true)
+    expect(s.statusOf(0)).toBe('pending')
+  })
+
+  it('acorde palhetado com um dedo atrasado fecha na folga', () => {
+    const s = tocando([{ time: 1, frets: GREEN | RED }])
+    press(s, GREEN, 0.97)
+    strum(s, 1.0)
+    press(s, GREEN | RED, 1.02)
+
+    expect(s.statusOf(0)).toBe('hit')
+    expect(s.getState().score).toBe(POINTS_PER_NOTE * 2)
+  })
+
+  it('nota aberta se palheta com a mão solta', () => {
+    const s = tocando([{ time: 1, frets: 0, open: true }])
+    strum(s, 1.0)
+    expect(s.statusOf(0)).toBe('hit')
+  })
+
+  it('palhetar duas vezes na mesma nota é overstrum', () => {
+    const s = tocando([
+      { time: 1, frets: GREEN },
+      { time: 5, frets: GREEN },
+    ])
+    press(s, GREEN, 0.95)
+    strum(s, 1.0)
+    strum(s, 1.02)
+    s.update(1.02 + STRUM_LENIENCY + 0.001)
+
+    expect(houveOverstrum(s)).toBe(true)
+    expect(s.getState().streak).toBe(0)
+  })
+
+  it('HOPO se toca no traste depois de uma nota acertada', () => {
+    const s = tocando([
+      { time: 1, frets: GREEN },
+      { time: 1.1, frets: RED, type: 'hopo' },
+    ])
+    press(s, GREEN, 0.95)
+    strum(s, 1.0)
+    press(s, GREEN | RED, 1.1)
+
+    expect(s.statusOf(1)).toBe('hit')
+    expect(s.getState().streak).toBe(2)
+  })
+
+  it('pull-off: soltar o traste de cima toca o HOPO', () => {
+    const s = tocando([
+      { time: 1, frets: RED },
+      { time: 1.1, frets: GREEN, type: 'hopo' },
+    ])
+    press(s, GREEN | RED, 0.95)
+    strum(s, 1.0)
+    press(s, GREEN, 1.1)
+
+    expect(s.statusOf(1)).toBe('hit')
+  })
+
+  it('depois de um erro, o HOPO precisa de palhetada', () => {
+    const s = tocando([
+      { time: 1, frets: GREEN },
+      { time: 1.2, frets: RED, type: 'hopo' },
+    ])
+    s.update(1.15)
+    expect(s.statusOf(0)).toBe('missed')
+
+    press(s, RED, 1.2)
+    expect(s.statusOf(1)).toBe('pending')
+    strum(s, 1.21)
+    expect(s.statusOf(1)).toBe('hit')
+  })
+
+  it('palhetar o HOPO também vale', () => {
+    const s = tocando([
+      { time: 1, frets: GREEN },
+      { time: 1.3, frets: RED, type: 'hopo' },
+    ])
+    press(s, GREEN, 0.95)
+    strum(s, 1.0)
+    // O vermelho desce antes de o HOPO chegar à janela: não é hammer-on.
+    press(s, GREEN | RED, 1.1)
+    expect(s.statusOf(1)).toBe('pending')
+
+    strum(s, 1.3)
+    expect(s.statusOf(1)).toBe('hit')
+  })
+
+  it('tap se toca no traste mesmo sem corrente', () => {
+    const s = tocando([{ time: 1, frets: YELLOW, type: 'tap' }])
+    press(s, YELLOW, 1.0)
+    expect(s.statusOf(0)).toBe('hit')
+  })
+
+  it('palhetar logo depois de tocar o HOPO no traste não é overstrum', () => {
+    const s = tocando([
+      { time: 1, frets: GREEN },
+      { time: 1.1, frets: RED, type: 'hopo' },
+      { time: 5, frets: GREEN },
+    ])
+    press(s, GREEN, 0.95)
+    strum(s, 1.0)
+    press(s, GREEN | RED, 1.1)
+    strum(s, 1.1 + HOPO_STRUM_LENIENCY * 0.5)
+    s.update(1.4)
+
+    expect(houveOverstrum(s)).toBe(false)
+    expect(s.getState().streak).toBe(2)
+  })
+
+  it('palhetada engolida pelo HOPO não toca a nota seguinte', () => {
+    const s = tocando([
+      { time: 1, frets: GREEN },
+      { time: 1.1, frets: RED, type: 'hopo' },
+      { time: 1.18, frets: RED },
+    ])
+    press(s, GREEN, 0.95)
+    strum(s, 1.0)
+    press(s, GREEN | RED, 1.1)
+    // O vermelho seguinte já está na janela, mas esta palhetada é a do HOPO.
+    strum(s, 1.11)
+    expect(s.statusOf(2)).toBe('pending')
+
+    strum(s, 1.18)
+    expect(s.statusOf(2)).toBe('hit')
+  })
+
+  it('overstrum corta o sustain que estava sendo segurado', () => {
+    const s = tocando([
+      { time: 1, frets: GREEN, duration: 1 },
+      { time: 5, frets: GREEN },
+    ])
+    press(s, GREEN, 0.95)
+    strum(s, 1.0)
+    s.update(1.2)
+    expect(s.getState().activeSustains).toEqual([0])
+
+    strum(s, 1.3)
+    s.update(1.3 + STRUM_LENIENCY + 0.001)
+    expect(s.getState().activeSustains).toEqual([])
+  })
+
+  it('nota que ficou para trás não trava a seguinte', () => {
+    const s = tocando([
+      { time: 1, frets: GREEN },
+      { time: 1.06, frets: RED },
+    ])
+    press(s, RED, 1.03)
+    strum(s, 1.06)
+    s.update(1.06 + STRUM_LENIENCY + 0.001)
+
+    expect(s.statusOf(0)).toBe('missed')
+    expect(s.statusOf(1)).toBe('hit')
+    expect(s.getState().streak).toBe(1)
+    expect(houveOverstrum(s)).toBe(false)
+  })
+
+  it('nota que ainda está por vir não é pulada', () => {
+    const s = tocando([
+      { time: 1, frets: GREEN },
+      { time: 1.05, frets: RED },
+    ])
+    press(s, RED, 0.95)
+    strum(s, 0.98)
+
+    expect(s.statusOf(0)).toBe('pending')
+    expect(s.statusOf(1)).toBe('pending')
+  })
+
+  it('overstrum em cima da nota e a nota perdida custam o mesmo que só perder a nota', () => {
+    const errado = tocando([{ time: 1, frets: GREEN }])
+    press(errado, RED, 0.95)
+    strum(errado, 1.0)
+    errado.update(1 + HIT_WINDOW + 0.01)
+
+    const parado = tocando([{ time: 1, frets: GREEN }])
+    parado.update(1 + HIT_WINDOW + 0.01)
+
+    expect(errado.statusOf(0)).toBe('missed')
+    expect(errado.getState().rockMeter).toBeCloseTo(parado.getState().rockMeter, 9)
   })
 })

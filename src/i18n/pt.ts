@@ -261,6 +261,13 @@ export const pt = {
     strumUp: 'Strum para cima',
     strumDown: 'Strum para baixo',
     whammyOff: 'desligada',
+    strum: 'Palhetada',
+    strumHint:
+      'Com palhetada, a nota só vale com a barra de strum, como no original, e o HOPO — a nota de tampa branca — se toca no traste. Vale só no controle: o teclado não tem barra. A escolha é feita no começo de cada música.',
+    strumGuitar: 'Só na guitarra',
+    strumAlways: 'Todo controle',
+    guitarFound: 'Este controle foi reconhecido como guitarra: a palhetada vale.',
+    guitarNotFound: 'Este controle não foi reconhecido como guitarra. Se for uma, escolha “Todo controle”.',
     pressedNow: (buttons: string) => `Apertados agora: ${buttons || 'nenhum'}`,
   },
 
